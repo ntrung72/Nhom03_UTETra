@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Quên mật khẩu')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="container auth-shell">
+    <section class="auth-card card">
+        <span class="page-kicker"><i class="bi bi-key"></i> Khôi phục tài khoản</span>
+        <h1 class="h3 mb-2">Quên mật khẩu?</h1>
+        <p class="text-muted mb-4">Nhập email đã đăng ký, UTETra sẽ gửi mã OTP để bạn đặt lại mật khẩu.</p>
+        <div th:replace="~{fragments/layout :: flash}"></div>
+        <form method="post" th:action="@{/forgot-password}">
+            <label class="form-label" for="email">Email tài khoản</label>
+            <input class="form-control mb-4" id="email" type="email" name="email" autocomplete="email" placeholder="you@example.com" required autofocus>
+            <button class="btn btn-primary btn-lg w-100"><i class="bi bi-send"></i>Gửi OTP đặt lại</button>
+        </form>
+        <a class="btn btn-link w-100 mt-2" th:href="@{/login}"><i class="bi bi-arrow-left"></i>Quay lại đăng nhập</a>
+    </section>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>
