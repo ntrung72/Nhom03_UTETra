@@ -117,7 +117,11 @@ public class SecurityConfig {
 
     private void redirectAccessDenied(HttpServletRequest request, HttpServletResponse response,
                                       org.springframework.security.access.AccessDeniedException exception) throws IOException {
-        if (isApiRequest(request)) {
+    	if (exception instanceof org.springframework.security.web.csrf.CsrfException) {
+    	    response.sendError(HttpServletResponse.SC_FORBIDDEN);
+    	    return;
+    	}
+    	if (isApiRequest(request)) {
             response.sendError(HttpServletResponse.SC_FORBIDDEN);
             return;
         }
