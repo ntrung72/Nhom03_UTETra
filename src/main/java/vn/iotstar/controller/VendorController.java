@@ -1,8 +1,5 @@
 package vn.iotstar.controller;
 
-import vn.iotstar.dto.WebForms.ProductForm;
-import vn.iotstar.entity.DomainEnums.ProductStatus;
-import vn.iotstar.entity.Product;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -16,20 +13,28 @@ import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import vn.iotstar.dto.WebForms.ProductForm;
 import vn.iotstar.dto.WebForms.ShopForm;
+import vn.iotstar.entity.DomainEnums.IceLevel;
+import vn.iotstar.entity.DomainEnums.ProductStatus;
+import vn.iotstar.entity.DomainEnums.SugarLevel;
+import vn.iotstar.entity.Product;
 import vn.iotstar.entity.Shop;
 import vn.iotstar.entity.User;
 import vn.iotstar.security.CustomUserDetailsService;
 import vn.iotstar.service.CurrentUserService;
+import vn.iotstar.service.ProductOptionService;
 import vn.iotstar.service.VendorService;
 
 @Controller
 @RequestMapping("/vendor")
 @RequiredArgsConstructor
 public class VendorController {
+
     private final CurrentUserService currentUserService;
     private final VendorService vendorService;
     private final CustomUserDetailsService userDetailsService;
+    private final ProductOptionService productOptionService;
 
     @ModelAttribute("currentUser")
     public User currentUser() {
@@ -85,8 +90,11 @@ public class VendorController {
 
         refreshAuthentication(user.getUsername(), request, response);
 
-        redirect.addFlashAttribute("success",
-            "Đăng ký cửa hàng thành công. Vui lòng chờ duyệt.");
+        redirect.addFlashAttribute(
+            "success",
+            "Đăng ký cửa hàng thành công. Vui lòng chờ duyệt."
+        );
+
         return "redirect:/vendor/shop/edit";
     }
 
@@ -146,10 +154,14 @@ public class VendorController {
             return "vendor/shop-form";
         }
 
-        redirect.addFlashAttribute("success",
-            "Đã cập nhật thông tin cửa hàng.");
+        redirect.addFlashAttribute(
+            "success",
+            "Đã cập nhật thông tin cửa hàng."
+        );
+
         return "redirect:/vendor/shop/edit";
     }
+
     @GetMapping("/products")
     public String products(
             @RequestParam(name = "q", required = false) String q,
@@ -177,7 +189,10 @@ public class VendorController {
             return "redirect:/vendor/register";
         }
 
-        model.addAttribute("productForm", new ProductForm());
+        ProductForm form = new ProductForm();
+        productOptionService.applyNewProductDefaults(form);
+
+        model.addAttribute("productForm", form);
         prepareProductForm(model, shop, null);
         return "vendor/product-form";
     }
@@ -212,6 +227,8 @@ public class VendorController {
         form.setPrice(product.getPrice());
         form.setStock(product.getStock());
         form.setStatus(product.getStatus());
+
+        productOptionService.loadConfiguration(product, form);
 
         model.addAttribute("productForm", form);
         model.addAttribute("product", product);
@@ -275,7 +292,9 @@ public class VendorController {
         try {
             vendorService.toggleProduct(currentUserService.require(), id);
             redirect.addFlashAttribute(
-                "success", "Đã thay đổi trạng thái hiển thị sản phẩm.");
+                "success",
+                "Đã thay đổi trạng thái hiển thị sản phẩm."
+            );
         } catch (IllegalArgumentException exception) {
             redirect.addFlashAttribute("error", exception.getMessage());
         }
@@ -289,6 +308,9 @@ public class VendorController {
         model.addAttribute("productId", id);
         model.addAttribute("categories", vendorService.activeCategories());
         model.addAttribute("statuses", ProductStatus.values());
+        model.addAttribute("toppings", productOptionService.availableToppings());
+        model.addAttribute("sugarLevels", SugarLevel.values());
+        model.addAttribute("iceLevels", IceLevel.values());
     }
 
     private void refreshAuthentication(
@@ -298,9 +320,13 @@ public class VendorController {
 
         var details = userDetailsService.loadUserByUsername(username);
         var authentication = UsernamePasswordAuthenticationToken.authenticated(
-            details, null, details.getAuthorities());
+            details,
+            null,
+            details.getAuthorities()
+        );
 
         var previous = SecurityContextHolder.getContext().getAuthentication();
+
         if (previous != null) {
             authentication.setDetails(previous.getDetails());
         }

@@ -35,8 +35,7 @@
                               ? @{/vendor/products/{id}/edit(id=${productId})}
                               : @{/vendor/products/new}"
                           th:object="${productForm}"
-                          method="post"
-                          novalidate>
+                          method="post" novalidate>
 
                         <div th:if="${#fields.hasGlobalErrors()}"
                              class="alert alert-danger" role="alert">
@@ -57,23 +56,19 @@
                                        class="form-control"
                                        th:field="*{name}"
                                        th:classappend="${#fields.hasErrors('name')} ? 'is-invalid' : ''"
-                                       minlength="3" maxlength="180"
-                                       required>
+                                       minlength="3" maxlength="180" required>
                                 <div class="invalid-feedback"
                                      th:errors="*{name}"></div>
                             </div>
 
                             <div class="col-md-4">
-                                <label for="sku" class="form-label">
-                                    Mã SKU
-                                </label>
+                                <label for="sku" class="form-label">Mã SKU</label>
                                 <input id="sku" type="text"
                                        class="form-control"
                                        th:field="*{sku}"
                                        th:classappend="${#fields.hasErrors('sku')} ? 'is-invalid' : ''"
                                        minlength="2" maxlength="60"
-                                       placeholder="Ví dụ: TS-TV2-001"
-                                       required>
+                                       placeholder="Ví dụ: TS-TV2-001" required>
                                 <div class="invalid-feedback"
                                      th:errors="*{sku}"></div>
                                 <div class="form-text">
@@ -93,6 +88,7 @@
                                     <option value="">-- Chọn danh mục --</option>
                                     <option th:each="category : ${categories}"
                                             th:value="${category.id}"
+                                            th:attr="data-slug=${category.slug}"
                                             th:text="${category.name}">
                                         Danh mục
                                     </option>
@@ -128,10 +124,8 @@
                                        class="form-control"
                                        th:field="*{price}"
                                        th:classappend="${#fields.hasErrors('price')} ? 'is-invalid' : ''"
-                                       min="1000"
-                                       max="999999999999.99"
-                                       step="0.01"
-                                       required>
+                                       min="1000" max="999999999999.99"
+                                       step="0.01" required>
                                 <div class="invalid-feedback"
                                      th:errors="*{price}"></div>
                             </div>
@@ -145,12 +139,12 @@
                                        th:field="*{stock}"
                                        th:classappend="${#fields.hasErrors('stock')} ? 'is-invalid' : ''"
                                        min="0" max="2147483647"
-                                       step="1"
-                                       required>
+                                       step="1" required>
                                 <div class="invalid-feedback"
                                      th:errors="*{stock}"></div>
                                 <div class="form-text">
-                                    Sản phẩm đang bán sẽ chuyển sang hết hàng khi tồn kho bằng 0.
+                                    Sản phẩm đang bán sẽ chuyển sang hết hàng
+                                    khi tồn kho bằng 0.
                                 </div>
                             </div>
 
@@ -169,6 +163,184 @@
                                      th:errors="*{description}"></div>
                             </div>
                         </div>
+
+                        <div id="toppingOptionNotice"
+                             class="alert alert-info mt-4" hidden>
+                            Topping bán riêng không áp dụng tùy chọn
+                            size, đường, đá và topping đi kèm.
+                        </div>
+
+                        <section id="drinkOptions" class="mt-4">
+                            <hr>
+                            <h2 class="h5">Size và phụ thu</h2>
+                            <p class="text-muted small">
+                                Chọn ít nhất một size đang bán.
+                                Phụ thu được cộng vào giá sản phẩm.
+                            </p>
+
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <div class="border rounded p-3 h-100">
+                                        <div class="form-check mb-3">
+                                            <input id="sizeMActive"
+                                                   type="checkbox"
+                                                   class="form-check-input"
+                                                   th:field="*{sizeMActive}">
+                                            <label for="sizeMActive"
+                                                   class="form-check-label fw-semibold">
+                                                Bán size M
+                                            </label>
+                                        </div>
+
+                                        <label for="sizeMExtraPrice"
+                                               class="form-label">
+                                            Phụ thu M (đồng)
+                                        </label>
+                                        <input id="sizeMExtraPrice"
+                                               type="number"
+                                               class="form-control"
+                                               th:field="*{sizeMExtraPrice}"
+                                               th:classappend="${#fields.hasErrors('sizeMExtraPrice')} ? 'is-invalid' : ''"
+                                               min="0" max="999999999999.99"
+                                               step="0.01" required>
+                                        <div class="invalid-feedback"
+                                             th:errors="*{sizeMExtraPrice}"></div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <div class="border rounded p-3 h-100">
+                                        <div class="form-check mb-3">
+                                            <input id="sizeLActive"
+                                                   type="checkbox"
+                                                   class="form-check-input"
+                                                   th:field="*{sizeLActive}">
+                                            <label for="sizeLActive"
+                                                   class="form-check-label fw-semibold">
+                                                Bán size L
+                                            </label>
+                                        </div>
+
+                                        <label for="sizeLExtraPrice"
+                                               class="form-label">
+                                            Phụ thu L (đồng)
+                                        </label>
+                                        <input id="sizeLExtraPrice"
+                                               type="number"
+                                               class="form-control"
+                                               th:field="*{sizeLExtraPrice}"
+                                               th:classappend="${#fields.hasErrors('sizeLExtraPrice')} ? 'is-invalid' : ''"
+                                               min="0" max="999999999999.99"
+                                               step="0.01" required>
+                                        <div class="invalid-feedback"
+                                             th:errors="*{sizeLExtraPrice}"></div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <div class="border rounded p-3 h-100">
+                                        <div class="form-check mb-3">
+                                            <input id="sizeXlActive"
+                                                   type="checkbox"
+                                                   class="form-check-input"
+                                                   th:field="*{sizeXlActive}">
+                                            <label for="sizeXlActive"
+                                                   class="form-check-label fw-semibold">
+                                                Bán size XL
+                                            </label>
+                                        </div>
+
+                                        <label for="sizeXlExtraPrice"
+                                               class="form-label">
+                                            Phụ thu XL (đồng)
+                                        </label>
+                                        <input id="sizeXlExtraPrice"
+                                               type="number"
+                                               class="form-control"
+                                               th:field="*{sizeXlExtraPrice}"
+                                               th:classappend="${#fields.hasErrors('sizeXlExtraPrice')} ? 'is-invalid' : ''"
+                                               min="0" max="999999999999.99"
+                                               step="0.01" required>
+                                        <div class="invalid-feedback"
+                                             th:errors="*{sizeXlExtraPrice}"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <h2 class="h5 mt-4">Topping áp dụng</h2>
+                            <p class="text-muted small">
+                                Chọn các topping khách có thể thêm vào sản phẩm.
+                                Có thể bỏ chọn tất cả.
+                            </p>
+
+                            <p th:if="${#lists.isEmpty(toppings)}"
+                               class="text-muted">
+                                Chưa có topping đang hoạt động.
+                            </p>
+
+                            <div class="row g-2">
+                                <div class="col-md-6"
+                                     th:each="topping : ${toppings}">
+                                    <div class="form-check border rounded p-3 ps-5">
+                                        <input type="checkbox"
+                                               class="form-check-input"
+                                               th:field="*{toppingIds}"
+                                               th:value="${topping.id}"
+                                               th:id="${'topping-' + topping.id}">
+                                        <label class="form-check-label"
+                                               th:for="${'topping-' + topping.id}">
+                                            <span th:text="${topping.name}">
+                                                Tên topping
+                                            </span>
+                                            <span class="text-muted"
+                                                  th:text="${' (+'
+                                                    + #numbers.formatDecimal(topping.price, 1, 'POINT', 2, 'COMMA')
+                                                    + ' ₫)'}">
+                                                Giá topping
+                                            </span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div th:if="${#fields.hasErrors('toppingIds')}"
+                                 class="text-danger small mt-2"
+                                 th:errors="*{toppingIds}"></div>
+
+                            <h2 class="h5 mt-4">Đường và đá</h2>
+                            <p class="text-muted small">
+                                Khách có thể chọn các mức dưới đây khi đặt đồ uống.
+                                Đường và đá không có phụ thu.
+                            </p>
+
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100">
+                                        <div class="fw-semibold mb-2">Mức đường</div>
+                                        <div class="d-flex flex-wrap gap-2">
+                                            <span class="badge text-bg-light border"
+                                                  th:each="level : ${sugarLevels}"
+                                                  th:text="${level.label}">
+                                                Mức đường
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100">
+                                        <div class="fw-semibold mb-2">Mức đá</div>
+                                        <div class="d-flex flex-wrap gap-2">
+                                            <span class="badge text-bg-light border"
+                                                  th:each="level : ${iceLevels}"
+                                                  th:text="${level.label}">
+                                                Mức đá
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
 
                         <div class="d-flex flex-wrap gap-2 mt-4">
                             <button type="submit"
@@ -192,5 +364,29 @@
 
 <footer th:replace="~{fragments/layout :: footer}"></footer>
 <th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+
+<script>
+    (() => {
+        const categorySelect = document.getElementById('categoryId');
+        const options = document.getElementById('drinkOptions');
+        const notice = document.getElementById('toppingOptionNotice');
+
+        function updateOptions() {
+            const selected = categorySelect.selectedOptions[0];
+            const isTopping = selected?.dataset.slug === 'topping';
+
+            options.hidden = isTopping;
+            notice.hidden = !isTopping;
+
+            options.querySelectorAll('input, select, textarea')
+                .forEach(field => {
+                    field.disabled = isTopping;
+                });
+        }
+
+        categorySelect.addEventListener('change', updateOptions);
+        updateOptions();
+    })();
+</script>
 </body>
 </html>

@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import vn.iotstar.entity.Category;
 import vn.iotstar.repository.CategoryRepository;
+import vn.iotstar.service.ProductOptionService;
 import vn.iotstar.util.SlugUtils;
 
 @Component
@@ -19,6 +20,7 @@ import vn.iotstar.util.SlugUtils;
 public class CatalogDataInitializer implements CommandLineRunner {
 
     private final CategoryRepository categoryRepository;
+    private final ProductOptionService productOptionService;
 
     @Override
     @Transactional
@@ -42,6 +44,8 @@ public class CatalogDataInitializer implements CommandLineRunner {
             "Topping",
             "Các loại topping dùng kèm"
         );
+
+        productOptionService.configureAllProducts();
     }
 
     private void createCategory(String name, String description) {
