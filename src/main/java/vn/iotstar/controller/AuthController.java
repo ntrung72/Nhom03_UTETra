@@ -72,14 +72,9 @@ public class AuthController {
 
     @PostMapping("/forgot-password")
     String forgot(@RequestParam String email, RedirectAttributes redirect) {
-        try {
-            authService.forgotPassword(email);
-            redirect.addFlashAttribute("success", "OTP đặt lại mật khẩu đã được gửi.");
-            return redirectWithEmail("/reset-password", email);
-        } catch (IllegalArgumentException ex) {
-            redirect.addFlashAttribute("error", ex.getMessage());
-            return "redirect:/forgot-password";
-        }
+        authService.forgotPassword(email);
+        redirect.addFlashAttribute("success", "Nếu email tồn tại trong hệ thống, mã OTP đặt lại mật khẩu đã được gửi.");
+        return redirectWithEmail("/reset-password", email);
     }
 
     @GetMapping("/reset-password")

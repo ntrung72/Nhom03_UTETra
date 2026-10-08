@@ -68,6 +68,19 @@ class OtpVerificationPersistenceTests {
         assertTrue(encoder.matches("OldPassword123", users.findById(user.getId()).orElseThrow().getPasswordHash()));
     }
 
+    @Test
+    void invalidNewPasswordDoesNotConsumeOtp() {
+        User user = user();
+        OtpToken token = token(user, OtpPurpose.RESET_PASSWORD, LocalDateTime.now().plusMinutes(5));
+        String password = "ệ".repeat(25);
+        assertThrows(IllegalArgumentException.class,
+            () -> auth.resetPassword(user.getEmail(), "123456", password, password));
+        OtpToken stored = tokens.findById(token.getId()).orElseThrow();
+        assertFalse(stored.isUsed());
+        assertEquals(0, stored.getAttempts());
+        assertTrue(encoder.matches("OldPassword123", users.findById(user.getId()).orElseThrow().getPasswordHash()));
+    }
+
     private OtpToken token(User user, OtpPurpose purpose, LocalDateTime expiresAt) {
         OtpToken token = new OtpToken(); token.setEmail(user.getEmail()); token.setPurpose(purpose);
         token.setCodeHash(encoder.encode("123456")); token.setExpiresAt(expiresAt);
