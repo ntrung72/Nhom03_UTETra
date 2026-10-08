@@ -1,5 +1,8 @@
 package vn.iotstar.controller;
 
+import vn.iotstar.dto.WebForms.ProductForm;
+import vn.iotstar.entity.DomainEnums.ProductStatus;
+import vn.iotstar.entity.Product;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -146,6 +149,146 @@ public class VendorController {
         redirect.addFlashAttribute("success",
             "Đã cập nhật thông tin cửa hàng.");
         return "redirect:/vendor/shop/edit";
+    }
+    @GetMapping("/products")
+    public String products(
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            Model model) {
+
+        User user = currentUserService.require();
+        Shop shop = vendorService.findShop(user);
+
+        if (shop == null) {
+            return "redirect:/vendor/register";
+        }
+
+        model.addAttribute("shop", shop);
+        model.addAttribute("page", vendorService.products(user, q, page));
+        model.addAttribute("q", q);
+        return "vendor/products";
+    }
+
+    @GetMapping("/products/new")
+    public String newProduct(Model model) {
+        Shop shop = vendorService.findShop(currentUserService.require());
+
+        if (shop == null) {
+            return "redirect:/vendor/register";
+        }
+
+        model.addAttribute("productForm", new ProductForm());
+        prepareProductForm(model, shop, null);
+        return "vendor/product-form";
+    }
+
+    @GetMapping("/products/{id}/edit")
+    public String editProduct(
+            @PathVariable("id") Long id,
+            Model model,
+            RedirectAttributes redirect) {
+
+        User user = currentUserService.require();
+        Shop shop = vendorService.findShop(user);
+
+        if (shop == null) {
+            return "redirect:/vendor/register";
+        }
+
+        Product product;
+
+        try {
+            product = vendorService.productForEdit(user, id);
+        } catch (IllegalArgumentException exception) {
+            redirect.addFlashAttribute("error", exception.getMessage());
+            return "redirect:/vendor/products";
+        }
+
+        ProductForm form = new ProductForm();
+        form.setName(product.getName());
+        form.setSku(product.getSku());
+        form.setCategoryId(product.getCategory().getId());
+        form.setDescription(product.getDescription());
+        form.setPrice(product.getPrice());
+        form.setStock(product.getStock());
+        form.setStatus(product.getStatus());
+
+        model.addAttribute("productForm", form);
+        model.addAttribute("product", product);
+        prepareProductForm(model, shop, id);
+        return "vendor/product-form";
+    }
+
+    @PostMapping({"/products/new", "/products/{id}/edit"})
+    public String saveProduct(
+            @PathVariable(name = "id", required = false) Long id,
+            @Valid @ModelAttribute("productForm") ProductForm form,
+            BindingResult result,
+            Model model,
+            RedirectAttributes redirect) {
+
+        User user = currentUserService.require();
+        Shop shop = vendorService.findShop(user);
+
+        if (shop == null) {
+            return "redirect:/vendor/register";
+        }
+
+        if (id != null) {
+            try {
+                Product product = vendorService.productForEdit(user, id);
+                model.addAttribute("product", product);
+            } catch (IllegalArgumentException exception) {
+                redirect.addFlashAttribute("error", exception.getMessage());
+                return "redirect:/vendor/products";
+            }
+        }
+
+        prepareProductForm(model, shop, id);
+
+        if (result.hasErrors()) {
+            return "vendor/product-form";
+        }
+
+        try {
+            vendorService.saveProduct(user, id, form);
+        } catch (IllegalArgumentException exception) {
+            result.reject("product.save", exception.getMessage());
+            return "vendor/product-form";
+        }
+
+        redirect.addFlashAttribute(
+            "success",
+            id == null
+                ? "Đã thêm sản phẩm."
+                : "Đã cập nhật sản phẩm."
+        );
+
+        return "redirect:/vendor/products";
+    }
+
+    @PostMapping("/products/{id}/toggle")
+    public String toggleProduct(
+            @PathVariable("id") Long id,
+            RedirectAttributes redirect) {
+
+        try {
+            vendorService.toggleProduct(currentUserService.require(), id);
+            redirect.addFlashAttribute(
+                "success", "Đã thay đổi trạng thái hiển thị sản phẩm.");
+        } catch (IllegalArgumentException exception) {
+            redirect.addFlashAttribute("error", exception.getMessage());
+        }
+
+        return "redirect:/vendor/products";
+    }
+
+    private void prepareProductForm(Model model, Shop shop, Long id) {
+        model.addAttribute("shop", shop);
+        model.addAttribute("editing", id != null);
+        model.addAttribute("productId", id);
+        model.addAttribute("categories", vendorService.activeCategories());
+        model.addAttribute("statuses", ProductStatus.values());
     }
 
     private void refreshAuthentication(
