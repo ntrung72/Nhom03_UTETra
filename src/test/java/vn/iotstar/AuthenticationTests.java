@@ -120,13 +120,47 @@ class AuthenticationTests {
         Cookie remember = result.getResponse().getCookie("remember-me");
         assertNotNull(remember);
         assertTrue(remember.getMaxAge() > 0);
-        mvc.perform(get("/api/me").cookie(remember)).andExpect(status().isOk())
-            .andExpect(jsonPath("$.username").value(user.getUsername()));
+        mvc.perform(get("/login").cookie(remember)).andExpect(status().isOk())
+            .andExpect(model().attributeExists("currentUser"));
+        mvc.perform(get("/api/me").cookie(remember)).andExpect(status().isUnauthorized());
         MockHttpSession session = (MockHttpSession) result.getRequest().getSession(false);
         assertNotNull(session);
+        mvc.perform(get("/api/me").session(session)).andExpect(status().isUnauthorized());
         mvc.perform(post("/logout").session(session).with(csrf()))
             .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/login?logout"));
         assertTrue(session.isInvalid());
+    }
+
+    @Test
+    void apiLoginWithMultibytePasswordOverBcryptLimitReturnsUnauthorized() throws Exception {
+        User user = user();
+        mvc.perform(post("/api/auth/login").contentType("application/json")
+                .content("{\"username\":\"" + user.getUsername() + "\",\"password\":\"" + "ệ".repeat(25) + "\"}"))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void registrationRejectsPasswordsOverBcryptByteLimitWithoutSavingUser() {
+        RegisterForm form = new RegisterForm();
+        form.setUsername(UUID.randomUUID().toString());
+        form.setEmail(form.getUsername() + "@utetra.test");
+        form.setFullName("Khách kiểm thử");
+        form.setPassword("ệ".repeat(25));
+        form.setConfirmPassword(form.getPassword());
+        assertThrows(IllegalArgumentException.class, () -> auth.register(form));
+        assertTrue(users.findByEmailIgnoreCase(form.getEmail()).isEmpty());
+    }
+
+    @Test
+    void swaggerDescribesOnlyInitialAuthenticationApiAndBearerScheme() throws Exception {
+        mvc.perform(get("/v3/api-docs"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.scheme").value("bearer"))
+            .andExpect(jsonPath("$.paths['/api/auth/login'].post").exists())
+            .andExpect(jsonPath("$.paths['/api/me'].get.security[0].bearerAuth").isArray())
+            .andExpect(jsonPath("$.paths['/api/orders']").doesNotExist())
+            .andExpect(jsonPath("$.paths['/api/cart']").doesNotExist());
+        mvc.perform(get("/swagger-ui/index.html")).andExpect(status().isOk());
     }
 
     @Test

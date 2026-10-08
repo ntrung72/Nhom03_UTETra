@@ -11,17 +11,19 @@ import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import vn.iotstar.security.CustomUserDetailsService;
 import vn.iotstar.security.JwtAuthenticationFilter;
+import vn.iotstar.security.JwtService;
 
 @Configuration
 @RequiredArgsConstructor
 public class SecurityConfig {
-    private final JwtAuthenticationFilter jwtFilter;
+    private final JwtService jwtService;
     private final CustomUserDetailsService userDetailsService;
 
     @Bean
@@ -43,16 +45,33 @@ public class SecurityConfig {
 
     @Bean
     @Order(1)
+    SecurityFilterChain apiSecurityFilterChain(HttpSecurity http,
+                                               AuthenticationProvider authenticationProvider) throws Exception {
+        // Bearer tokens authenticate APIs; web sessions and Remember Me stay in the web chain.
+        http.securityMatcher("/api/**")
+            .authenticationProvider(authenticationProvider)
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/auth/login").permitAll()
+                .anyRequest().authenticated())
+            .exceptionHandling(exceptions -> exceptions
+                .authenticationEntryPoint((request, response, exception) -> response.sendError(HttpServletResponse.SC_UNAUTHORIZED)))
+            .csrf(csrf -> csrf.disable())
+            .addFilterBefore(new JwtAuthenticationFilter(jwtService, userDetailsService), UsernamePasswordAuthenticationFilter.class);
+        return http.build();
+    }
+
+    @Bean
+    @Order(2)
     SecurityFilterChain authenticationSecurityFilterChain(HttpSecurity http,
                                                    AuthenticationProvider authenticationProvider,
                                                    @Value("${app.remember-me.key}") String rememberMeKey) throws Exception {
         // TV3 adds the role-specific authorization chains when integrating modules.
         http.securityMatcher("/login", "/logout", "/register", "/verify-account", "/resend-otp",
-                "/forgot-password", "/reset-password", "/api/auth/login", "/api/me",
+                "/forgot-password", "/reset-password", "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**",
                 "/css/**", "/js/**", "/images/**", "/error")
             .authenticationProvider(authenticationProvider)
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/me").authenticated()
                 .anyRequest().permitAll())
             .formLogin(form -> form.loginPage("/login").loginProcessingUrl("/login")
                 .defaultSuccessUrl("/login?success", true).failureUrl("/login?error").permitAll())
@@ -63,9 +82,7 @@ public class SecurityConfig {
                 .authenticationEntryPoint((request, response, exception) -> {
                     if (request.getRequestURI().startsWith(request.getContextPath() + "/api/")) response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
                     else response.sendRedirect(request.getContextPath() + "/login");
-                }))
-            .csrf(csrf -> csrf.ignoringRequestMatchers("/api/auth/login", "/api/me"))
-            .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+                }));
         return http.build();
     }
 }
