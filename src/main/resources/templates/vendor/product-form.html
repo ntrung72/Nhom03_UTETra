@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Thông tin sản phẩm')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<div th:replace="~{fragments/layout :: flash}"></div>
+
+<main class="container py-4">
+    <nav th:replace="~{fragments/vendor-nav :: nav}"></nav>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card shadow-sm">
+                <div class="card-body p-4">
+                    <h1 class="h3 mb-2"
+                        th:text="${editing} ? 'Sửa sản phẩm' : 'Thêm sản phẩm'">
+                        Thông tin sản phẩm
+                    </h1>
+
+                    <p class="text-muted mb-4" th:text="${shop.name}">
+                        Tên cửa hàng
+                    </p>
+
+                    <div th:if="${!shop.approved}"
+                         class="alert alert-warning" role="alert">
+                        Cửa hàng cần được duyệt và đang hoạt động để lưu sản phẩm.
+                    </div>
+
+                    <div th:if="${#lists.isEmpty(categories)}"
+                         class="alert alert-warning" role="alert">
+                        Chưa có danh mục đang hoạt động để chọn.
+                    </div>
+
+                    <form th:action="${editing}
+                              ? @{/vendor/products/{id}/edit(id=${productId})}
+                              : @{/vendor/products/new}"
+                          th:object="${productForm}"
+                          method="post"
+                          novalidate>
+
+                        <div th:if="${#fields.hasGlobalErrors()}"
+                             class="alert alert-danger" role="alert">
+                            <ul class="mb-0">
+                                <li th:each="error : ${#fields.globalErrors()}"
+                                    th:text="${error}">
+                                    Lỗi lưu sản phẩm
+                                </li>
+                            </ul>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-8">
+                                <label for="name" class="form-label">
+                                    Tên sản phẩm
+                                </label>
+                                <input id="name" type="text"
+                                       class="form-control"
+                                       th:field="*{name}"
+                                       th:classappend="${#fields.hasErrors('name')} ? 'is-invalid' : ''"
+                                       minlength="3" maxlength="180"
+                                       required>
+                                <div class="invalid-feedback"
+                                     th:errors="*{name}"></div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label for="sku" class="form-label">
+                                    Mã SKU
+                                </label>
+                                <input id="sku" type="text"
+                                       class="form-control"
+                                       th:field="*{sku}"
+                                       th:classappend="${#fields.hasErrors('sku')} ? 'is-invalid' : ''"
+                                       minlength="2" maxlength="60"
+                                       placeholder="Ví dụ: TS-TV2-001"
+                                       required>
+                                <div class="invalid-feedback"
+                                     th:errors="*{sku}"></div>
+                                <div class="form-text">
+                                    Mã sản phẩm không được trùng.
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="categoryId" class="form-label">
+                                    Danh mục
+                                </label>
+                                <select id="categoryId"
+                                        class="form-select"
+                                        th:field="*{categoryId}"
+                                        th:classappend="${#fields.hasErrors('categoryId')} ? 'is-invalid' : ''"
+                                        required>
+                                    <option value="">-- Chọn danh mục --</option>
+                                    <option th:each="category : ${categories}"
+                                            th:value="${category.id}"
+                                            th:text="${category.name}">
+                                        Danh mục
+                                    </option>
+                                </select>
+                                <div class="invalid-feedback"
+                                     th:errors="*{categoryId}"></div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="status" class="form-label">
+                                    Trạng thái
+                                </label>
+                                <select id="status"
+                                        class="form-select"
+                                        th:field="*{status}"
+                                        th:classappend="${#fields.hasErrors('status')} ? 'is-invalid' : ''"
+                                        required>
+                                    <option th:each="statusOption : ${statuses}"
+                                            th:value="${statusOption.name()}"
+                                            th:text="${statusOption.label}">
+                                        Trạng thái
+                                    </option>
+                                </select>
+                                <div class="invalid-feedback"
+                                     th:errors="*{status}"></div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="price" class="form-label">
+                                    Giá sản phẩm (đồng)
+                                </label>
+                                <input id="price" type="number"
+                                       class="form-control"
+                                       th:field="*{price}"
+                                       th:classappend="${#fields.hasErrors('price')} ? 'is-invalid' : ''"
+                                       min="1000"
+                                       max="999999999999.99"
+                                       step="0.01"
+                                       required>
+                                <div class="invalid-feedback"
+                                     th:errors="*{price}"></div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="stock" class="form-label">
+                                    Số lượng tồn kho
+                                </label>
+                                <input id="stock" type="number"
+                                       class="form-control"
+                                       th:field="*{stock}"
+                                       th:classappend="${#fields.hasErrors('stock')} ? 'is-invalid' : ''"
+                                       min="0" max="2147483647"
+                                       step="1"
+                                       required>
+                                <div class="invalid-feedback"
+                                     th:errors="*{stock}"></div>
+                                <div class="form-text">
+                                    Sản phẩm đang bán sẽ chuyển sang hết hàng khi tồn kho bằng 0.
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <label for="description" class="form-label">
+                                    Mô tả sản phẩm
+                                </label>
+                                <textarea id="description"
+                                          class="form-control"
+                                          th:field="*{description}"
+                                          th:classappend="${#fields.hasErrors('description')} ? 'is-invalid' : ''"
+                                          rows="6"
+                                          minlength="20" maxlength="5000"
+                                          required></textarea>
+                                <div class="invalid-feedback"
+                                     th:errors="*{description}"></div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex flex-wrap gap-2 mt-4">
+                            <button type="submit"
+                                    class="btn btn-primary"
+                                    th:disabled="${!shop.approved or #lists.isEmpty(categories)}"
+                                    th:text="${editing} ? 'Lưu thay đổi' : 'Thêm sản phẩm'">
+                                Lưu sản phẩm
+                            </button>
+
+                            <a class="btn btn-outline-secondary"
+                               th:href="@{/vendor/products}">
+                                Quay lại danh sách
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

@@ -1,5 +1,6 @@
 package vn.iotstar.dto;
 
+import vn.iotstar.entity.DomainEnums.ProductStatus;
 import jakarta.validation.constraints.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -86,5 +87,44 @@ public final class WebForms {
         @NotNull(message = "Vui lòng chọn giờ đóng cửa")
         @DateTimeFormat(pattern = "HH:mm")
         private LocalTime closingTime;
+    }
+    @Getter
+    @Setter
+    public static class ProductForm {
+
+        @NotBlank(message = "Vui lòng nhập tên sản phẩm")
+        @Size(min = 3, max = 180,
+              message = "Tên sản phẩm phải có từ 3 đến 180 ký tự")
+        private String name;
+
+        @NotBlank(message = "Vui lòng nhập mã SKU")
+        @Size(min = 2, max = 60,
+              message = "SKU phải có từ 2 đến 60 ký tự")
+        @Pattern(regexp = "^[a-zA-Z0-9][a-zA-Z0-9._-]*$",
+                 message = "SKU phải bắt đầu bằng chữ hoặc số và chỉ gồm chữ, số, dấu chấm, gạch ngang, gạch dưới")
+        private String sku;
+
+        @NotNull(message = "Vui lòng chọn danh mục")
+        @Positive(message = "Danh mục không hợp lệ")
+        private Long categoryId;
+
+        @NotBlank(message = "Vui lòng nhập mô tả sản phẩm")
+        @Size(min = 20, max = 5000,
+              message = "Mô tả phải có từ 20 đến 5.000 ký tự")
+        private String description;
+
+        @NotNull(message = "Vui lòng nhập giá sản phẩm")
+        @DecimalMin(value = "1000",
+                    message = "Giá sản phẩm phải từ 1.000 đồng")
+        @Digits(integer = 12, fraction = 2,
+                message = "Giá chỉ được có tối đa 12 chữ số nguyên và 2 chữ số thập phân")
+        private BigDecimal price;
+
+        @NotNull(message = "Vui lòng nhập số lượng tồn kho")
+        @Min(value = 0, message = "Tồn kho không được âm")
+        private Integer stock = 0;
+
+        @NotNull(message = "Vui lòng chọn trạng thái sản phẩm")
+        private ProductStatus status = ProductStatus.ACTIVE;
     }
 }
