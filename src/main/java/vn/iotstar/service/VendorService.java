@@ -32,6 +32,7 @@ public class VendorService {
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
     private final ProductRepository productRepository;
+    private final ProductOptionService productOptionService;
 
     public Shop findShop(User user) {
         return shopRepository.findByOwnerId(user.getId()).orElse(null);
@@ -156,7 +157,9 @@ public class VendorService {
         product.setStock(form.getStock());
         product.setStatus(status);
 
-        return productRepository.save(product);
+        Product saved = productRepository.save(product);
+        productOptionService.saveConfiguration(saved, form);
+        return saved;
     }
 
     @Transactional
