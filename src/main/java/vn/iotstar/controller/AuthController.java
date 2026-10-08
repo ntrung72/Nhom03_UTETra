@@ -67,6 +67,36 @@ public class AuthController {
         return redirectWithEmail("/verify-account", email);
     }
 
+    @GetMapping("/forgot-password")
+    String forgot() { return "auth/forgot"; }
+
+    @PostMapping("/forgot-password")
+    String forgot(@RequestParam String email, RedirectAttributes redirect) {
+        authService.forgotPassword(email);
+        redirect.addFlashAttribute("success", "Nếu email tồn tại trong hệ thống, mã OTP đặt lại mật khẩu đã được gửi.");
+        return redirectWithEmail("/reset-password", email);
+    }
+
+    @GetMapping("/reset-password")
+    String reset(@RequestParam String email, Model model) {
+        model.addAttribute("email", email);
+        return "auth/reset";
+    }
+
+    @PostMapping("/reset-password")
+    String reset(@RequestParam String email, @RequestParam String code,
+                 @RequestParam String password, @RequestParam String confirmPassword,
+                 RedirectAttributes redirect) {
+        try {
+            authService.resetPassword(email, code, password, confirmPassword);
+            redirect.addFlashAttribute("success", "Đổi mật khẩu thành công.");
+            return "redirect:/login";
+        } catch (IllegalArgumentException ex) {
+            redirect.addFlashAttribute("error", ex.getMessage());
+            return redirectWithEmail("/reset-password", email);
+        }
+    }
+
     private String redirectWithEmail(String path, String email) {
         return "redirect:" + UriComponentsBuilder.fromPath(path).queryParam("email", email).build().encode().toUriString();
     }

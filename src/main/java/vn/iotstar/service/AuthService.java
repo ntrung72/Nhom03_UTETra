@@ -62,6 +62,32 @@ public class AuthService {
         return otpService.remainingCooldownSeconds(email);
     }
 
+    public void forgotPassword(String email) {
+        if (email == null || email.isBlank()) return;
+        userRepository.findByEmailIgnoreCase(email.trim()).ifPresent(user -> {
+            try {
+                otpService.issue(user.getEmail(), OtpPurpose.RESET_PASSWORD);
+            } catch (IllegalArgumentException ignored) {
+                // Keep cooldown and hourly limits without exposing account existence.
+            }
+        });
+    }
+
+    @Transactional(noRollbackFor = OtpService.OtpVerificationException.class)
+    public void resetPassword(String email, String code, String password, String confirmPassword) {
+        validatePassword(password);
+        if (!password.equals(confirmPassword)) throw new IllegalArgumentException("Mật khẩu xác nhận không khớp.");
+        try {
+            otpService.verify(email, OtpPurpose.RESET_PASSWORD, code);
+        } catch (OtpService.OtpVerificationException ex) {
+            // Preserve the exception type so failed attempts still commit.
+            throw new OtpService.OtpVerificationException("Mã OTP không hợp lệ hoặc đã hết hạn.");
+        }
+        User user = userRepository.findByEmailIgnoreCase(email.trim())
+            .orElseThrow(() -> new IllegalArgumentException("Mã OTP không hợp lệ hoặc đã hết hạn."));
+        user.setPasswordHash(passwordEncoder.encode(password));
+    }
+
     private void validatePassword(String password) {
         if (password == null || password.isBlank() || password.length() < 8
             || password.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 72) {
