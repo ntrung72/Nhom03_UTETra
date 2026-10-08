@@ -1,0 +1,31 @@
+name: Authentication tests
+
+on:
+  push:
+    branches: [feature/guest-user]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '26'
+          cache: maven
+      - name: Run tests with H2 and test-only secrets
+        run: bash mvnw -B test
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: authentication-test-reports
+          path: target/surefire-reports/
+          if-no-files-found: ignore
