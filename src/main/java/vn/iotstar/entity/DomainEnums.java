@@ -11,5 +11,5 @@ public final class DomainEnums {
         public String getLabel() { return label; }
     }
 
-    public enum OtpPurpose { REGISTER }
+    public enum OtpPurpose { REGISTER, RESET_PASSWORD }
 }

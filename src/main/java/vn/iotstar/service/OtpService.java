@@ -44,7 +44,7 @@ public class OtpService {
         token.setCreatedAt(now);
         token.setExpiresAt(now.plusMinutes(expirationMinutes));
         otpRepository.save(token);
-        mailService.sendOtp(normalized, code, "kích hoạt tài khoản");
+        mailService.sendOtp(normalized, code, purpose == OtpPurpose.REGISTER ? "kích hoạt tài khoản" : "đặt lại mật khẩu");
     }
 
     private void enforceSendLimit(String email, LocalDateTime now) {

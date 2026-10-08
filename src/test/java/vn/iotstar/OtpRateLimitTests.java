@@ -37,10 +37,10 @@ class OtpRateLimitTests {
     }
 
     @Test
-    void allowsOnlyFiveActivationOtpEmailsPerHour() {
+    void allowsOnlyFiveOtpEmailsPerHourAcrossPurposes() {
         String email = "otp-hourly@utetra.test";
         for (int index = 0; index < 5; index++) {
-            otpService.issue(email, OtpPurpose.REGISTER);
+            otpService.issue(email, index % 2 == 0 ? OtpPurpose.REGISTER : OtpPurpose.RESET_PASSWORD);
             OtpToken latest = otpRepository.findFirstByEmailIgnoreCaseOrderByCreatedAtDesc(email).orElseThrow();
             latest.setCreatedAt(LocalDateTime.now().minusMinutes(2));
             otpRepository.saveAndFlush(latest);
