@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import java.time.LocalTime;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import vn.iotstar.dto.WebForms.ProductForm;
 import vn.iotstar.dto.WebForms.ShopForm;
@@ -23,6 +25,7 @@ import vn.iotstar.entity.Shop;
 import vn.iotstar.entity.User;
 import vn.iotstar.security.CustomUserDetailsService;
 import vn.iotstar.service.CurrentUserService;
+import vn.iotstar.service.ProductGalleryService;
 import vn.iotstar.service.ProductOptionService;
 import vn.iotstar.service.VendorService;
 
@@ -35,6 +38,7 @@ public class VendorController {
     private final VendorService vendorService;
     private final CustomUserDetailsService userDetailsService;
     private final ProductOptionService productOptionService;
+    private final ProductGalleryService productGalleryService;
 
     @ModelAttribute("currentUser")
     public User currentUser() {
@@ -61,6 +65,7 @@ public class VendorController {
 
         model.addAttribute("shopForm", form);
         model.addAttribute("editing", false);
+
         return "vendor/shop-form";
     }
 
@@ -68,6 +73,8 @@ public class VendorController {
     public String register(
             @Valid @ModelAttribute("shopForm") ShopForm form,
             BindingResult result,
+            @RequestParam(name = "image", required = false)
+                MultipartFile image,
             Model model,
             RedirectAttributes redirect,
             HttpServletRequest request,
@@ -82,8 +89,8 @@ public class VendorController {
         User user = currentUserService.require();
 
         try {
-            vendorService.registerShop(user, form);
-        } catch (IllegalArgumentException exception) {
+            vendorService.registerShop(user, form, image);
+        } catch (IllegalArgumentException | IllegalStateException exception) {
             result.reject("shop.registration", exception.getMessage());
             return "vendor/shop-form";
         }
@@ -100,7 +107,9 @@ public class VendorController {
 
     @GetMapping("/shop/edit")
     public String editShop(Model model) {
-        Shop shop = vendorService.findShop(currentUserService.require());
+        Shop shop = vendorService.findShop(
+            currentUserService.require()
+        );
 
         if (shop == null) {
             return "redirect:/vendor/register";
@@ -123,6 +132,7 @@ public class VendorController {
         model.addAttribute("shopForm", form);
         model.addAttribute("shop", shop);
         model.addAttribute("editing", true);
+
         return "vendor/shop-form";
     }
 
@@ -130,6 +140,8 @@ public class VendorController {
     public String editShop(
             @Valid @ModelAttribute("shopForm") ShopForm form,
             BindingResult result,
+            @RequestParam(name = "image", required = false)
+                MultipartFile image,
             Model model,
             RedirectAttributes redirect) {
 
@@ -148,8 +160,8 @@ public class VendorController {
         }
 
         try {
-            vendorService.updateShop(user, form);
-        } catch (IllegalArgumentException exception) {
+            vendorService.updateShop(user, form, image);
+        } catch (IllegalArgumentException | IllegalStateException exception) {
             result.reject("shop.update", exception.getMessage());
             return "vendor/shop-form";
         }
@@ -176,14 +188,20 @@ public class VendorController {
         }
 
         model.addAttribute("shop", shop);
-        model.addAttribute("page", vendorService.products(user, q, page));
+        model.addAttribute(
+            "page",
+            vendorService.products(user, q, page)
+        );
         model.addAttribute("q", q);
+
         return "vendor/products";
     }
 
     @GetMapping("/products/new")
     public String newProduct(Model model) {
-        Shop shop = vendorService.findShop(currentUserService.require());
+        Shop shop = vendorService.findShop(
+            currentUserService.require()
+        );
 
         if (shop == null) {
             return "redirect:/vendor/register";
@@ -194,6 +212,7 @@ public class VendorController {
 
         model.addAttribute("productForm", form);
         prepareProductForm(model, shop, null);
+
         return "vendor/product-form";
     }
 
@@ -215,7 +234,10 @@ public class VendorController {
         try {
             product = vendorService.productForEdit(user, id);
         } catch (IllegalArgumentException exception) {
-            redirect.addFlashAttribute("error", exception.getMessage());
+            redirect.addFlashAttribute(
+                "error",
+                exception.getMessage()
+            );
             return "redirect:/vendor/products";
         }
 
@@ -233,6 +255,7 @@ public class VendorController {
         model.addAttribute("productForm", form);
         model.addAttribute("product", product);
         prepareProductForm(model, shop, id);
+
         return "vendor/product-form";
     }
 
@@ -241,6 +264,16 @@ public class VendorController {
             @PathVariable(name = "id", required = false) Long id,
             @Valid @ModelAttribute("productForm") ProductForm form,
             BindingResult result,
+            @RequestParam(name = "image", required = false)
+                MultipartFile image,
+            @RequestParam(name = "galleryImages", required = false)
+                MultipartFile[] galleryImages,
+            @RequestParam(name = "removeImageIds", required = false)
+                List<Long> removeImageIds,
+            @RequestParam(name = "galleryOrder", required = false)
+                List<Long> galleryOrder,
+            @RequestParam(name = "primaryImageId", required = false)
+                Long primaryImageId,
             Model model,
             RedirectAttributes redirect) {
 
@@ -253,10 +286,16 @@ public class VendorController {
 
         if (id != null) {
             try {
-                Product product = vendorService.productForEdit(user, id);
+                Product product = vendorService.productForEdit(
+                    user,
+                    id
+                );
                 model.addAttribute("product", product);
             } catch (IllegalArgumentException exception) {
-                redirect.addFlashAttribute("error", exception.getMessage());
+                redirect.addFlashAttribute(
+                    "error",
+                    exception.getMessage()
+                );
                 return "redirect:/vendor/products";
             }
         }
@@ -268,9 +307,28 @@ public class VendorController {
         }
 
         try {
-            vendorService.saveProduct(user, id, form);
-        } catch (IllegalArgumentException exception) {
+            vendorService.saveProduct(
+                user,
+                id,
+                form,
+                image,
+                galleryImages,
+                removeImageIds,
+                galleryOrder,
+                primaryImageId
+            );
+        } catch (IllegalArgumentException | IllegalStateException exception) {
             result.reject("product.save", exception.getMessage());
+
+            if (id != null) {
+                model.addAttribute(
+                    "product",
+                    vendorService.productForEdit(user, id)
+                );
+            }
+
+            prepareProductForm(model, shop, id);
+
             return "vendor/product-form";
         }
 
@@ -290,27 +348,53 @@ public class VendorController {
             RedirectAttributes redirect) {
 
         try {
-            vendorService.toggleProduct(currentUserService.require(), id);
+            vendorService.toggleProduct(
+                currentUserService.require(),
+                id
+            );
+
             redirect.addFlashAttribute(
                 "success",
                 "Đã thay đổi trạng thái hiển thị sản phẩm."
             );
         } catch (IllegalArgumentException exception) {
-            redirect.addFlashAttribute("error", exception.getMessage());
+            redirect.addFlashAttribute(
+                "error",
+                exception.getMessage()
+            );
         }
 
         return "redirect:/vendor/products";
     }
 
-    private void prepareProductForm(Model model, Shop shop, Long id) {
+    private void prepareProductForm(
+            Model model,
+            Shop shop,
+            Long id) {
+
         model.addAttribute("shop", shop);
         model.addAttribute("editing", id != null);
         model.addAttribute("productId", id);
-        model.addAttribute("categories", vendorService.activeCategories());
+        model.addAttribute(
+            "categories",
+            vendorService.activeCategories()
+        );
         model.addAttribute("statuses", ProductStatus.values());
-        model.addAttribute("toppings", productOptionService.availableToppings());
+        model.addAttribute(
+            "toppings",
+            productOptionService.availableToppings()
+        );
         model.addAttribute("sugarLevels", SugarLevel.values());
         model.addAttribute("iceLevels", IceLevel.values());
+
+        Product product = (Product) model.getAttribute("product");
+
+        model.addAttribute(
+            "gallery",
+            product == null
+                ? List.of()
+                : productGalleryService.images(product)
+        );
     }
 
     private void refreshAuthentication(
@@ -319,13 +403,16 @@ public class VendorController {
             HttpServletResponse response) {
 
         var details = userDetailsService.loadUserByUsername(username);
-        var authentication = UsernamePasswordAuthenticationToken.authenticated(
-            details,
-            null,
-            details.getAuthorities()
-        );
 
-        var previous = SecurityContextHolder.getContext().getAuthentication();
+        var authentication =
+            UsernamePasswordAuthenticationToken.authenticated(
+                details,
+                null,
+                details.getAuthorities()
+            );
+
+        var previous =
+            SecurityContextHolder.getContext().getAuthentication();
 
         if (previous != null) {
             authentication.setDetails(previous.getDetails());

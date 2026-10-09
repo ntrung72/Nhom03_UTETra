@@ -8,6 +8,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 import vn.iotstar.dto.WebForms.ProductForm;
 import vn.iotstar.dto.WebForms.ShopForm;
 import vn.iotstar.entity.Category;
@@ -33,30 +34,52 @@ public class VendorService {
     private final CategoryRepository categoryRepository;
     private final ProductRepository productRepository;
     private final ProductOptionService productOptionService;
+    private final MediaStorageService mediaStorageService;
+    private final ProductGalleryService productGalleryService;
 
     public Shop findShop(User user) {
-        return shopRepository.findByOwnerId(user.getId()).orElse(null);
+        return shopRepository.findByOwnerId(user.getId())
+            .orElse(null);
     }
 
     public Shop requireShop(User user) {
         return shopRepository.findByOwnerId(user.getId())
             .orElseThrow(() ->
-                new IllegalArgumentException("Bạn chưa đăng ký cửa hàng."));
+                new IllegalArgumentException(
+                    "Bạn chưa đăng ký cửa hàng."
+                )
+            );
     }
 
     @Transactional
     public Shop registerShop(User user, ShopForm form) {
+        return registerShop(user, form, null);
+    }
+
+    @Transactional
+    public Shop registerShop(
+            User user,
+            ShopForm form,
+            MultipartFile image) {
+
         User owner = userRepository.findById(user.getId())
             .orElseThrow(() ->
-                new IllegalArgumentException("Không tìm thấy tài khoản."));
+                new IllegalArgumentException(
+                    "Không tìm thấy tài khoản."
+                )
+            );
 
-        if (owner.getRole() != Role.USER && owner.getRole() != Role.VENDOR) {
+        if (owner.getRole() != Role.USER
+                && owner.getRole() != Role.VENDOR) {
             throw new IllegalArgumentException(
-                "Tài khoản này không được đăng ký cửa hàng.");
+                "Tài khoản này không được đăng ký cửa hàng."
+            );
         }
 
         if (shopRepository.existsByOwnerId(owner.getId())) {
-            throw new IllegalArgumentException("Bạn đã có cửa hàng.");
+            throw new IllegalArgumentException(
+                "Bạn đã có cửa hàng."
+            );
         }
 
         Shop shop = new Shop();
@@ -64,7 +87,16 @@ public class VendorService {
         shop.setSlug(uniqueSlug(form.getName()));
         shop.setStatus(ShopStatus.PENDING);
         shop.setEnabled(true);
+
         applyShopDetails(shop, form);
+
+        String url = mediaStorageService.upload(image, "shops");
+
+        shop.setImageUrl(
+            url == null
+                ? "/images/shop-placeholder.svg"
+                : url
+        );
 
         Shop saved = shopRepository.save(shop);
 
@@ -78,14 +110,38 @@ public class VendorService {
 
     @Transactional
     public void updateShop(User user, ShopForm form) {
-        Shop shop = requireShop(user);
-        applyShopDetails(shop, form);
+        updateShop(user, form, null);
     }
 
-    public Page<Product> products(User user, String q, int page) {
+    @Transactional
+    public void updateShop(
+            User user,
+            ShopForm form,
+            MultipartFile image) {
+
         Shop shop = requireShop(user);
 
-        Sort sort = Sort.by(Sort.Direction.DESC, "createdAt", "id");
+        applyShopDetails(shop, form);
+
+        String url = mediaStorageService.upload(image, "shops");
+
+        if (url != null) {
+            shop.setImageUrl(url);
+        }
+    }
+
+    public Page<Product> products(
+            User user,
+            String q,
+            int page) {
+
+        Shop shop = requireShop(user);
+
+        Sort sort = Sort.by(
+            Sort.Direction.DESC,
+            "createdAt",
+            "id"
+        );
 
         return productRepository.searchByShop(
             shop.getId(),
@@ -95,19 +151,70 @@ public class VendorService {
     }
 
     public List<Category> activeCategories() {
-        return categoryRepository.findByActiveTrueOrderByNameAsc();
+        return categoryRepository
+            .findByActiveTrueOrderByNameAsc();
     }
 
     public Product productForEdit(User user, Long id) {
         Shop shop = requireShop(user);
 
-        return productRepository.findByIdAndShopId(id, shop.getId())
-            .orElseThrow(() -> new IllegalArgumentException(
-                "Không tìm thấy sản phẩm của cửa hàng."));
+        return productRepository
+            .findByIdAndShopId(id, shop.getId())
+            .orElseThrow(() ->
+                new IllegalArgumentException(
+                    "Không tìm thấy sản phẩm của cửa hàng."
+                )
+            );
     }
 
     @Transactional
-    public Product saveProduct(User user, Long id, ProductForm form) {
+    public Product saveProduct(
+            User user,
+            Long id,
+            ProductForm form) {
+
+        return saveProduct(
+            user,
+            id,
+            form,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+    }
+
+    @Transactional
+    public Product saveProduct(
+            User user,
+            Long id,
+            ProductForm form,
+            MultipartFile image) {
+
+        return saveProduct(
+            user,
+            id,
+            form,
+            image,
+            null,
+            null,
+            null,
+            null
+        );
+    }
+
+    @Transactional
+    public Product saveProduct(
+            User user,
+            Long id,
+            ProductForm form,
+            MultipartFile image,
+            MultipartFile[] galleryImages,
+            List<Long> removeImageIds,
+            List<Long> galleryOrder,
+            Long primaryImageId) {
+
         Shop shop = requireApprovedShop(user);
 
         Product product = id == null
@@ -116,34 +223,48 @@ public class VendorService {
 
         String name = form.getName().trim();
         String description = form.getDescription().trim();
-        String sku = form.getSku().trim().toUpperCase(Locale.ROOT);
+        String sku = form.getSku()
+            .trim()
+            .toUpperCase(Locale.ROOT);
 
         if (name.length() < 3) {
             throw new IllegalArgumentException(
-                "Tên sản phẩm phải có ít nhất 3 ký tự sau khi bỏ khoảng trắng.");
+                "Tên sản phẩm phải có ít nhất 3 ký tự "
+                    + "sau khi bỏ khoảng trắng."
+            );
         }
 
         if (description.length() < 20) {
             throw new IllegalArgumentException(
-                "Mô tả phải có ít nhất 20 ký tự sau khi bỏ khoảng trắng.");
+                "Mô tả phải có ít nhất 20 ký tự "
+                    + "sau khi bỏ khoảng trắng."
+            );
         }
 
         boolean duplicatedSku = id == null
             ? productRepository.existsBySkuIgnoreCase(sku)
-            : productRepository.existsBySkuIgnoreCaseAndIdNot(sku, id);
+            : productRepository
+                .existsBySkuIgnoreCaseAndIdNot(sku, id);
 
         if (duplicatedSku) {
-            throw new IllegalArgumentException("Mã SKU đã tồn tại.");
+            throw new IllegalArgumentException(
+                "Mã SKU đã tồn tại."
+            );
         }
 
-        Category category = categoryRepository.findById(form.getCategoryId())
+        Category category = categoryRepository
+            .findById(form.getCategoryId())
             .filter(Category::isActive)
             .orElseThrow(() ->
-                new IllegalArgumentException("Danh mục không hợp lệ."));
+                new IllegalArgumentException(
+                    "Danh mục không hợp lệ."
+                )
+            );
 
         ProductStatus status = form.getStatus();
 
-        if (form.getStock() == 0 && status == ProductStatus.ACTIVE) {
+        if (form.getStock() == 0
+                && status == ProductStatus.ACTIVE) {
             status = ProductStatus.OUT_OF_STOCK;
         }
 
@@ -158,13 +279,25 @@ public class VendorService {
         product.setStatus(status);
 
         Product saved = productRepository.save(product);
+
         productOptionService.saveConfiguration(saved, form);
+
+        productGalleryService.update(
+            saved,
+            image,
+            galleryImages,
+            removeImageIds,
+            galleryOrder,
+            primaryImageId
+        );
+
         return saved;
     }
 
     @Transactional
     public void toggleProduct(User user, Long id) {
         requireApprovedShop(user);
+
         Product product = productForEdit(user, id);
 
         if (product.getStatus() == ProductStatus.HIDDEN) {
@@ -183,7 +316,9 @@ public class VendorService {
 
         if (!shop.isApproved()) {
             throw new IllegalArgumentException(
-                "Cửa hàng phải được duyệt và đang hoạt động để quản lý sản phẩm.");
+                "Cửa hàng phải được duyệt và đang hoạt động "
+                    + "để quản lý sản phẩm."
+            );
         }
 
         return shop;
@@ -193,7 +328,11 @@ public class VendorService {
         shop.setName(form.getName().trim());
         shop.setDescription(form.getDescription().trim());
         shop.setPhone(form.getPhone().trim());
-        shop.setEmail(form.getEmail().trim().toLowerCase(Locale.ROOT));
+
+        shop.setEmail(
+            form.getEmail().trim().toLowerCase(Locale.ROOT)
+        );
+
         shop.setAddress(form.getAddress().trim());
         shop.setProvince(form.getProvince().trim());
         shop.setDistrict(form.getDistrict().trim());
@@ -208,7 +347,11 @@ public class VendorService {
         String base = SlugUtils.toSlug(name);
         String slug = base;
 
-        for (int suffix = 2; shopRepository.existsBySlug(slug); suffix++) {
+        for (
+            int suffix = 2;
+            shopRepository.existsBySlug(slug);
+            suffix++
+        ) {
             slug = base + "-" + suffix;
         }
 

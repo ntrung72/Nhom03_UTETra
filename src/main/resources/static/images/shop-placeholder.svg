@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 420">
+    <rect width="900" height="420" fill="#e9f6ff"/>
+
+    <path d="M180 180h540v170H180z"
+          fill="#fff"
+          stroke="#0756a3"
+          stroke-width="12"/>
+
+    <path d="M150 180l70-100h460l70 100z"
+          fill="#e84b4b"/>
+
+    <path d="M250 180v170m400-170v170"
+          stroke="#0756a3"
+          stroke-width="10"/>
+
+    <rect x="395"
+          y="235"
+          width="110"
+          height="115"
+          rx="8"
+          fill="#80d6ff"/>
+
+    <text x="450"
+          y="145"
+          text-anchor="middle"
+          font-family="Arial"
+          font-size="54"
+          font-weight="800"
+          fill="#fff">
+        UTETra
+    </text>
+</svg>

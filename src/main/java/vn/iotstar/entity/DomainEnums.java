@@ -1,8 +1,10 @@
 package vn.iotstar.entity;
 
 public final class DomainEnums {
+
     private DomainEnums() {
     }
+
     public enum ProductStatus {
         ACTIVE("Đang bán"),
         HIDDEN("Đã ẩn"),
@@ -18,9 +20,13 @@ public final class DomainEnums {
             return label;
         }
     }
+
     public enum Role {
-        USER("Khách hàng"), VENDOR("Người bán"), MANAGER("Quản lý"),
-        ADMIN("Quản trị viên"), SHIPPER("Nhân viên giao hàng");
+        USER("Khách hàng"),
+        VENDOR("Người bán"),
+        MANAGER("Quản lý"),
+        ADMIN("Quản trị viên"),
+        SHIPPER("Nhân viên giao hàng");
 
         private final String label;
 
@@ -39,6 +45,7 @@ public final class DomainEnums {
         REJECTED,
         SUSPENDED
     }
+
     public enum SugarLevel {
         PERCENT_30("30% đường"),
         PERCENT_50("50% đường"),
@@ -71,6 +78,12 @@ public final class DomainEnums {
             return label;
         }
     }
+
+    public enum MediaType {
+        IMAGE,
+        VIDEO
+    }
+
     public enum OtpPurpose {
         REGISTER,
         RESET_PASSWORD
