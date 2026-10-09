@@ -132,7 +132,7 @@ class AuthenticationTests {
         var result = mvc.perform(post("/login").with(csrf()).param("username", user.getEmail())
                 .param("password", "Password123").param("remember-me", "on"))
             .andExpect(status().is3xxRedirection())
-            .andExpect(redirectedUrl("/login?success")).andReturn();
+            .andExpect(redirectedUrl("/")).andReturn();
         Cookie remember = result.getResponse().getCookie("remember-me");
         assertNotNull(remember);
         assertTrue(remember.getMaxAge() > 0);
@@ -143,7 +143,7 @@ class AuthenticationTests {
         assertNotNull(session);
         mvc.perform(get("/api/me").session(session)).andExpect(status().isUnauthorized());
         mvc.perform(post("/logout").session(session).with(csrf()))
-            .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/login?logout"));
+            .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/?logout"));
         assertTrue(session.isInvalid());
     }
 

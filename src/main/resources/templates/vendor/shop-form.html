@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Cửa hàng')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+
+<main class="container py-4 py-lg-5">
+    <div class="col-lg-10 mx-auto">
+        <div th:if="${editing}">
+            <nav th:replace="~{fragments/vendor-nav :: nav}"></nav>
+        </div>
+
+        <div th:replace="~{fragments/layout :: flash}"></div>
+
+        <section class="card p-4 p-lg-5">
+            <span class="page-kicker">
+                <i class="bi bi-shop"></i>Kênh người bán
+            </span>
+            <h1 class="h3 mb-2"
+                th:text="${editing ? 'Cập nhật cửa hàng' : 'Đăng ký cửa hàng'}">
+                Cửa hàng
+            </h1>
+            <p class="text-muted mb-4">
+                Nhập thông tin liên hệ, địa chỉ và giờ hoạt động của cửa hàng.
+            </p>
+
+            <div th:if="${editing}" class="alert alert-info">
+                <strong>Trạng thái: </strong>
+                <span th:switch="${shop.status.name()}">
+                    <span th:case="'PENDING'">Chờ duyệt</span>
+                    <span th:case="'APPROVED'">Đã duyệt</span>
+                    <span th:case="'REJECTED'">Bị từ chối</span>
+                    <span th:case="'SUSPENDED'">Bị đình chỉ</span>
+                </span>
+                <div th:if="${!shop.enabled}">
+                    Cửa hàng hiện đang bị vô hiệu hóa.
+                </div>
+            </div>
+
+            <form th:action="${editing} ? @{/vendor/shop/edit} : @{/vendor/register}"
+                  th:object="${shopForm}" method="post" novalidate>
+
+                <div class="alert alert-danger"
+                     th:if="${#fields.hasGlobalErrors()}">
+                    <div th:each="message : ${#fields.globalErrors()}"
+                         th:text="${message}"></div>
+                </div>
+
+                <h2 class="h5 mb-3">Thông tin cửa hàng</h2>
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label" for="name">Tên cửa hàng *</label>
+                        <input class="form-control" th:field="*{name}"
+                               maxlength="150" placeholder="Ví dụ: Trà Sữa Tam">
+                        <small class="text-danger" th:errors="*{name}"></small>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label" for="phone">Số điện thoại *</label>
+                        <input class="form-control" type="tel"
+                               th:field="*{phone}" maxlength="20">
+                        <small class="text-danger" th:errors="*{phone}"></small>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label" for="email">Email cửa hàng *</label>
+                        <input class="form-control" type="email"
+                               th:field="*{email}" maxlength="160">
+                        <small class="text-danger" th:errors="*{email}"></small>
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label" for="description">Mô tả *</label>
+                        <textarea class="form-control" th:field="*{description}"
+                                  rows="4" maxlength="1000"
+                                  placeholder="Giới thiệu cửa hàng, tối thiểu 20 ký tự"></textarea>
+                        <small class="text-danger" th:errors="*{description}"></small>
+                    </div>
+                </div>
+
+                <h2 class="h5 mt-4 mb-3">Địa chỉ hoạt động</h2>
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label" for="address">Số nhà, tên đường *</label>
+                        <input class="form-control" th:field="*{address}"
+                               maxlength="255">
+                        <small class="text-danger" th:errors="*{address}"></small>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label" for="ward">Phường / Xã *</label>
+                        <input class="form-control" th:field="*{ward}" maxlength="120">
+                        <small class="text-danger" th:errors="*{ward}"></small>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label" for="district">Quận / Huyện *</label>
+                        <input class="form-control" th:field="*{district}" maxlength="120">
+                        <small class="text-danger" th:errors="*{district}"></small>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label" for="province">Tỉnh / Thành phố *</label>
+                        <input class="form-control" th:field="*{province}" maxlength="120">
+                        <small class="text-danger" th:errors="*{province}"></small>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label" for="latitude">Vĩ độ — không bắt buộc</label>
+                        <input class="form-control" type="number"
+                               th:field="*{latitude}" min="-90" max="90"
+                               step="0.0000001">
+                        <small class="text-danger" th:errors="*{latitude}"></small>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label" for="longitude">Kinh độ — không bắt buộc</label>
+                        <input class="form-control" type="number"
+                               th:field="*{longitude}" min="-180" max="180"
+                               step="0.0000001">
+                        <small class="text-danger" th:errors="*{longitude}"></small>
+                    </div>
+                </div>
+
+                <h2 class="h5 mt-4 mb-3">Giờ hoạt động</h2>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label" for="openingTime">Giờ mở cửa *</label>
+                        <input class="form-control" type="time"
+                               th:field="*{openingTime}">
+                        <small class="text-danger" th:errors="*{openingTime}"></small>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label" for="closingTime">Giờ đóng cửa *</label>
+                        <input class="form-control" type="time"
+                               th:field="*{closingTime}">
+                        <small class="text-danger" th:errors="*{closingTime}"></small>
+                    </div>
+                </div>
+
+                <p class="text-muted small mt-4" th:unless="${editing}">
+                    Cửa hàng mới cần được duyệt trước khi hoạt động.
+                </p>
+                <button type="submit" class="btn btn-primary btn-lg mt-3">
+                    <i class="bi bi-check2-circle"></i>
+                    <span th:text="${editing ? 'Lưu thay đổi' : 'Đăng ký cửa hàng'}">
+                        Lưu cửa hàng
+                    </span>
+                </button>
+            </form>
+        </section>
+    </div>
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>
