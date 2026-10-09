@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="~{fragments/layout :: head('Trang chủ')}"></head>
+
+<body>
+
+<header th:replace="~{fragments/layout :: header}"></header>
+
+<div th:replace="~{fragments/layout :: flash}"></div>
+
+<main>
+
+    <section class="hero">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-lg-8">
+
+                    <span class="badge rounded-pill text-bg-warning mb-3">
+                        TRÀ NGON · NHIỀU CỬA HÀNG
+                    </span>
+
+                    <h1>
+                        Chạm vị tươi,
+                        <br>
+                        kết nối chất UTE.
+                    </h1>
+
+                    <p class="lead">
+                        Khám phá trà sữa, trà trái cây và cà phê từ chuỗi
+                        cửa hàng UTETra. Tìm món yêu thích và khám phá
+                        thông tin sản phẩm trước khi lựa chọn.
+                    </p>
+
+                    <form class="search-box d-flex mt-4"
+                          th:action="@{/products}"
+                          method="get">
+
+                        <input class="form-control form-control-lg"
+                               name="q" aria-label="Tìm sản phẩm"
+                               placeholder="Bạn đang thèm món gì?">
+
+                        <button class="btn btn-danger px-4" type="submit">
+                            <i class="bi bi-search"></i>
+                            Tìm
+                        </button>
+
+                    </form>
+
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="container py-5">
+
+        <div class="d-flex justify-content-between
+                    align-items-center mb-4">
+
+            <h2 class="section-title mb-0">
+                Danh mục nổi bật
+            </h2>
+
+            <a th:href="@{/products}"
+               class="text-decoration-none">
+
+                Xem tất cả
+                <i class="bi bi-arrow-right"></i>
+            </a>
+
+        </div>
+
+        <div class="row row-cols-2 row-cols-md-4 g-3">
+
+            <div class="col"
+                 th:each="category : ${categories}">
+
+                <a class="text-decoration-none text-dark"
+                   th:href="@{/products(category=${category.id})}">
+
+                    <div class="category-card">
+
+                        <img th:src="${#strings.isEmpty(category.imageUrl) ? '/images/logo.svg' : category.imageUrl}"
+                             th:alt="${category.name}">
+
+                        <h6 class="fw-bold mt-2 mb-0"
+                            th:text="${category.name}">
+                            Danh mục
+                        </h6>
+
+                    </div>
+
+                </a>
+
+            </div>
+
+        </div>
+
+    </section>
+
+    <section class="container pb-5">
+
+        <div class="d-flex flex-wrap gap-2 mb-4">
+            <a class="btn btn-outline-primary" th:href="@{/products(sort='newest')}">Sản phẩm mới</a>
+            <a class="btn btn-outline-primary" th:href="@{/products(sort='bestselling')}">Bán chạy nhất</a>
+            <a class="btn btn-outline-primary" th:href="@{/products(sort='rating')}">Đánh giá cao</a>
+            <a class="btn btn-outline-primary" th:href="@{/products(sort='favorite')}">Yêu thích nhất</a>
+        </div>
+
+        <div class="d-flex justify-content-between
+                    align-items-end mb-4">
+
+            <div>
+
+                <span class="text-danger fw-bold">
+                    BÁN CHẠY
+                </span>
+
+                <h2 class="section-title mb-0">
+                    Sản phẩm đã bán trên 10 ly
+                </h2>
+
+                <p class="text-muted mb-0">
+                    Sắp xếp từ số lượng bán cao xuống thấp.
+                </p>
+
+            </div>
+
+            <a th:href="@{/products(sort='bestselling')}"
+               class="btn btn-outline-primary">
+                Xem top 20
+            </a>
+
+        </div>
+
+        <div class="row row-cols-2 row-cols-md-3
+                    row-cols-xl-4 g-4"
+             th:if="${!#lists.isEmpty(bestSellers)}">
+
+            <th:block th:each="product : ${bestSellers}">
+
+                <div th:replace="~{fragments/product-card
+                     :: card(${product})}">
+                </div>
+
+            </th:block>
+
+        </div>
+
+        <div class="empty-state panel"
+             th:if="${#lists.isEmpty(bestSellers)}">
+
+            <i class="bi bi-cup-straw fs-1"></i>
+
+            <p>
+                Chưa có sản phẩm đạt trên 10 lượt bán.
+            </p>
+
+        </div>
+
+    </section>
+
+    <section class="container pb-5">
+
+        <h2 class="section-title mb-4">
+            Cửa hàng trong chuỗi
+        </h2>
+
+        <div class="row g-4">
+
+            <div class="col-md-6"
+                 th:each="shop : ${shops}">
+
+                <a class="text-decoration-none text-dark"
+                   th:href="@{/shops/{slug}(slug=${shop.slug})}">
+
+                    <article class="panel shop-list-card d-flex gap-3
+                                    align-items-center">
+
+                        <img class="shop-list-image"
+                             th:src="${#strings.isEmpty(shop.imageUrl) ? '/images/logo.svg' : shop.imageUrl}"
+                             th:alt="${shop.name}"
+                             width="110"
+                             height="85">
+
+                        <div>
+
+                            <h5 class="fw-bold mb-1"
+                                th:text="${shop.name}">
+                                Shop
+                            </h5>
+
+                            <p class="text-muted mb-0 truncate-2"
+                               th:text="${shop.description}">
+                                Mô tả cửa hàng
+                            </p>
+
+                        </div>
+
+                    </article>
+
+                </a>
+
+            </div>
+
+        </div>
+
+    </section>
+
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+
+</body>
+</html>

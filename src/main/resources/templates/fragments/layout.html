@@ -18,6 +18,7 @@
             <a class="navbar-brand d-flex align-items-center gap-2 fw-bold" th:href="@{/}">
                 <img th:src="@{/images/logo.svg}" alt="UTETra"><span>UTETra</span>
             </a>
+            <a class="btn btn-outline-light btn-sm ms-auto me-2" th:href="@{/products}">Sản phẩm</a>
             <div class="d-flex align-items-center gap-2" th:if="${currentUser == null}">
                 <a class="btn btn-outline-light btn-sm" th:href="@{/login}">Đăng nhập</a>
                 <a class="btn btn-warning btn-sm" th:href="@{/register}">Đăng ký</a>

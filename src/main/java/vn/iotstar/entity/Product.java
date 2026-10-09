@@ -62,6 +62,9 @@ public class Product {
 	@Column(name = "review_count", nullable = false)
 	private long reviewCount;
 
+	@Column(name = "favorite_count", nullable = false, columnDefinition = "bigint default 0")
+	private long favoriteCount;
+
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)
 	private ProductStatus status = ProductStatus.ACTIVE;
