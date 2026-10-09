@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(${shop.name})}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+
+<main>
+    <section class="shop-public-hero">
+        <img class="shop-public-cover" th:src="${#strings.isEmpty(shop.imageUrl) ? '/images/logo.svg' : shop.imageUrl}" th:alt="${shop.name}">
+        <div class="shop-public-shade"></div>
+    </section>
+
+    <section class="container shop-public-content">
+        <div class="shop-public-card">
+            <div class="shop-public-heading">
+                <div>
+                    <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
+                        <h1 class="shop-public-name mb-0" th:text="${shop.name}">UTETra Thủ Đức</h1>
+                    </div>
+                    <p class="shop-public-description mb-0"
+                       th:if="${shop.description != null and !shop.description.isBlank()}"
+                       th:text="${shop.description}">Mô tả cửa hàng</p>
+                </div>
+            </div>
+
+            <div class="shop-contact-grid">
+                <div class="shop-contact-item" th:if="${shop.fullAddress != null and !shop.fullAddress.isBlank()}">
+                    <span class="shop-contact-icon"><i class="bi bi-geo-alt-fill"></i></span>
+                    <div><small>Địa chỉ</small><strong th:text="${shop.fullAddress}">01 Võ Văn Ngân, Thủ Đức</strong></div>
+                </div>
+                <div class="shop-contact-item" th:if="${shop.phone != null and !shop.phone.isBlank()}">
+                    <span class="shop-contact-icon"><i class="bi bi-telephone-fill"></i></span>
+                    <div><small>Điện thoại</small><a th:href="${'tel:' + shop.phone}" th:text="${shop.phone}">0123456789</a></div>
+                </div>
+                <div class="shop-contact-item" th:if="${shop.openingTime != null and shop.closingTime != null}">
+                    <span class="shop-contact-icon"><i class="bi bi-clock-fill"></i></span>
+                    <div>
+                        <small>Giờ hoạt động</small>
+                        <strong th:text="|${#temporals.format(shop.openingTime, 'HH:mm')} - ${#temporals.format(shop.closingTime, 'HH:mm')}|">08:00 - 22:00</strong>
+                    </div>
+                </div>
+                <div class="shop-contact-item" th:if="${shop.email != null and !shop.email.isBlank()}">
+                    <span class="shop-contact-icon"><i class="bi bi-envelope-fill"></i></span>
+                    <div><small>Email</small><a th:href="${'mailto:' + shop.email}" th:text="${shop.email}">thuduc@utetra.vn</a></div>
+                </div>
+            </div>
+
+            <a class="btn btn-outline-primary shop-map-link" target="_blank" rel="noopener noreferrer"
+               th:if="${shop.latitude != null and shop.longitude != null}"
+               th:href="${'https://www.google.com/maps/search/?api=1&query=' + shop.latitude + ',' + shop.longitude}">
+                <i class="bi bi-map me-1"></i>Xem trên bản đồ
+            </a>
+        </div>
+
+        <div class="shop-products-section">
+            <div class="section-heading-row">
+                <div>
+                    <span class="section-kicker">MENU CỬA HÀNG</span>
+                    <h2 class="section-title mb-0">Sản phẩm nổi bật</h2>
+                </div>
+                <span class="text-secondary small" th:text="|${products.totalElements} sản phẩm|">0 sản phẩm</span>
+            </div>
+
+            <div class="row row-cols-2 row-cols-md-3 row-cols-xl-4 g-4" th:if="${products.hasContent()}">
+                <th:block th:each="product : ${products.content}">
+                    <div th:replace="~{fragments/product-card :: card(${product})}"></div>
+                </th:block>
+            </div>
+
+            <div class="empty-state panel" th:unless="${products.hasContent()}">
+                <i class="bi bi-cup-straw d-block fs-2 mb-2"></i>
+                Cửa hàng chưa có sản phẩm.
+            </div>
+
+            <nav class="d-flex justify-content-center gap-2 mt-4" aria-label="Phân trang sản phẩm"
+                 th:if="${products.totalPages > 1}">
+                <a class="btn btn-outline-primary" th:classappend="${products.first} ? 'disabled'"
+                   th:href="@{/shops/{slug}(slug=${shop.slug},page=${products.number - 1})}">
+                    <i class="bi bi-chevron-left"></i> Trước
+                </a>
+                <span class="btn btn-light" th:text="|Trang ${products.number + 1}/${products.totalPages}|">Trang 1/1</span>
+                <a class="btn btn-outline-primary" th:classappend="${products.last} ? 'disabled'"
+                   th:href="@{/shops/{slug}(slug=${shop.slug},page=${products.number + 1})}">
+                    Sau <i class="bi bi-chevron-right"></i>
+                </a>
+            </nav>
+        </div>
+    </section>
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

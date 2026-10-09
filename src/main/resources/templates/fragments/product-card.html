@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<body>
+<div class="col" th:fragment="card(product)">
+    <article class="card product-card">
+        <a th:href="@{/products/{id}(id=${product.id})}">
+            <span class="promotion-badge" th:if="${promotionPrices[product.id] != null and promotionPrices[product.id].promoted}"
+                  th:text="|-${promotionPrices[product.id].discountLabel}|">-15%</span>
+            <img class="card-img-top product-image" th:src="${#strings.isEmpty(product.imageUrl) ? '/images/logo.svg' : product.imageUrl}" th:alt="${product.name}" loading="lazy">
+        </a>
+        <div class="card-body">
+            <a class="shop-chip text-decoration-none align-self-start mb-2" th:href="@{/shops/{slug}(slug=${product.shop.slug})}" th:text="${product.shop.name}">Shop</a>
+            <h6 class="fw-bold truncate-2"><a class="text-decoration-none text-dark" th:href="@{/products/{id}(id=${product.id})}" th:text="${product.name}">Sản phẩm</a></h6>
+            <p class="product-card-description" th:text="${product.description}" th:title="${product.description}">Mô tả sản phẩm</p>
+            <div class="mt-auto pt-2 d-flex justify-content-between align-items-end">
+                <div>
+                    <div class="product-price-row" th:if="${promotionPrices[product.id] != null and promotionPrices[product.id].promoted}">
+                        <span class="original-price" th:text="${#numbers.formatDecimal(promotionPrices[product.id].originalPrice,0,'COMMA',0,'POINT')} + ' ₫'">45.000 ₫</span>
+                        <span class="price" th:text="${#numbers.formatDecimal(promotionPrices[product.id].salePrice,0,'COMMA',0,'POINT')} + ' ₫'">39.000 ₫</span>
+                    </div>
+                    <div class="price" th:unless="${promotionPrices[product.id] != null and promotionPrices[product.id].promoted}"
+                         th:text="${#numbers.formatDecimal(promotionPrices[product.id].salePrice,0,'COMMA',0,'POINT')} + ' ₫'">35.000 ₫</div>
+                    <small class="text-muted">Đã bán <span th:text="${product.soldCount}">0</span></small>
+                </div>
+                <div class="rating"><i class="bi bi-star-fill"></i> <span th:text="${#numbers.formatDecimal(product.averageRating,1,1)}">4.5</span></div>
+            </div>
+        </div>
+    </article>
+</div>
+</body>
+</html>
