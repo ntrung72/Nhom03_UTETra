@@ -35,7 +35,9 @@
                               ? @{/vendor/products/{id}/edit(id=${productId})}
                               : @{/vendor/products/new}"
                           th:object="${productForm}"
-                          method="post" novalidate>
+                          method="post"
+                          enctype="multipart/form-data"
+                          novalidate>
 
                         <div th:if="${#fields.hasGlobalErrors()}"
                              class="alert alert-danger" role="alert">
@@ -62,7 +64,9 @@
                             </div>
 
                             <div class="col-md-4">
-                                <label for="sku" class="form-label">Mã SKU</label>
+                                <label for="sku" class="form-label">
+                                    Mã SKU
+                                </label>
                                 <input id="sku" type="text"
                                        class="form-control"
                                        th:field="*{sku}"
@@ -162,7 +166,131 @@
                                 <div class="invalid-feedback"
                                      th:errors="*{description}"></div>
                             </div>
+
+                            <div class="col-12">
+                                <label for="image" class="form-label">
+                                    Ảnh bìa mới — không bắt buộc
+                                </label>
+                                <input id="image"
+                                       class="form-control"
+                                       type="file"
+                                       name="image"
+                                       accept="image/jpeg,image/png,image/webp">
+                                <div class="form-text">
+                                    JPG, PNG hoặc WEBP; tối đa 10 MB.
+                                    Ảnh này sẽ trở thành ảnh chính.
+                                    Ảnh cũ vẫn nằm trong bộ ảnh nếu không được
+                                    đánh dấu xóa.
+                                </div>
+                            </div>
                         </div>
+
+                        <section class="mt-4">
+                            <hr>
+                            <h2 class="h5">
+                                <i class="bi bi-images"></i>
+                                Bộ ảnh sản phẩm
+                            </h2>
+
+                            <p class="text-muted small">
+                                Tối đa 8 ảnh mỗi sản phẩm, bao gồm ảnh bìa.
+                                Chọn ảnh chính hoặc dùng mũi tên để đổi thứ tự.
+                                Các thay đổi được áp dụng khi lưu sản phẩm.
+                            </p>
+
+                            <div class="mb-3"
+                                 th:if="${product != null
+                                     and #lists.isEmpty(gallery)
+                                     and product.imageUrl != null
+                                     and !#strings.isEmpty(product.imageUrl)
+                                     and product.imageUrl != '/images/product-placeholder.svg'}">
+                                <img th:src="@{${product.imageUrl}}"
+                                     alt="Ảnh sản phẩm hiện tại"
+                                     class="img-thumbnail"
+                                     style="width: 180px; height: 180px; object-fit: cover;">
+                                <div class="text-muted small mt-1">
+                                    Ảnh hiện tại sẽ được đưa vào bộ ảnh
+                                    khi lưu sản phẩm.
+                                </div>
+                            </div>
+
+                            <div id="galleryEditor"
+                                 class="d-flex flex-wrap gap-3"
+                                 th:if="${!#lists.isEmpty(gallery)}">
+
+                                <div class="gallery-editor-item border rounded p-2"
+                                     th:each="photo : ${gallery}"
+                                     style="width: 180px;">
+
+                                    <input type="hidden"
+                                           name="galleryOrder"
+                                           th:value="${photo.id}">
+
+                                    <img th:src="@{${photo.imageUrl}}"
+                                         th:alt="|Ảnh sản phẩm thứ ${photo.sortOrder + 1}|"
+                                         class="rounded w-100 mb-2"
+                                         style="height: 150px; object-fit: cover;">
+
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input"
+                                               type="radio"
+                                               name="primaryImageId"
+                                               th:id="${'primary-image-' + photo.id}"
+                                               th:value="${photo.id}"
+                                               th:checked="${photo.primary}">
+                                        <label class="form-check-label small"
+                                               th:for="${'primary-image-' + photo.id}">
+                                            Ảnh chính
+                                        </label>
+                                    </div>
+
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input"
+                                               type="checkbox"
+                                               name="removeImageIds"
+                                               th:id="${'remove-image-' + photo.id}"
+                                               th:value="${photo.id}">
+                                        <label class="form-check-label small text-danger"
+                                               th:for="${'remove-image-' + photo.id}">
+                                            Xóa ảnh
+                                        </label>
+                                    </div>
+
+                                    <div class="d-flex gap-2">
+                                        <button class="btn btn-sm btn-outline-secondary"
+                                                type="button"
+                                                data-gallery-move="up"
+                                                aria-label="Chuyển ảnh lên trước"
+                                                title="Chuyển ảnh lên trước">
+                                            <i class="bi bi-arrow-left"></i>
+                                        </button>
+
+                                        <button class="btn btn-sm btn-outline-secondary"
+                                                type="button"
+                                                data-gallery-move="down"
+                                                aria-label="Chuyển ảnh ra sau"
+                                                title="Chuyển ảnh ra sau">
+                                            <i class="bi bi-arrow-right"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <label class="form-label mt-3" for="galleryImages">
+                                Thêm ảnh vào bộ ảnh
+                            </label>
+                            <input id="galleryImages"
+                                   class="form-control"
+                                   type="file"
+                                   name="galleryImages"
+                                   multiple
+                                   accept="image/jpeg,image/png,image/webp">
+                            <div class="form-text">
+                                Có thể chọn nhiều ảnh cùng lúc.
+                                Mỗi ảnh tối đa 10 MB;
+                                ảnh mới được thêm vào cuối danh sách.
+                            </div>
+                        </section>
 
                         <div id="toppingOptionNotice"
                              class="alert alert-info mt-4" hidden>
@@ -316,7 +444,9 @@
                             <div class="row g-3">
                                 <div class="col-md-6">
                                     <div class="border rounded p-3 h-100">
-                                        <div class="fw-semibold mb-2">Mức đường</div>
+                                        <div class="fw-semibold mb-2">
+                                            Mức đường
+                                        </div>
                                         <div class="d-flex flex-wrap gap-2">
                                             <span class="badge text-bg-light border"
                                                   th:each="level : ${sugarLevels}"
@@ -329,7 +459,9 @@
 
                                 <div class="col-md-6">
                                     <div class="border rounded p-3 h-100">
-                                        <div class="fw-semibold mb-2">Mức đá</div>
+                                        <div class="fw-semibold mb-2">
+                                            Mức đá
+                                        </div>
                                         <div class="d-flex flex-wrap gap-2">
                                             <span class="badge text-bg-light border"
                                                   th:each="level : ${iceLevels}"
@@ -367,6 +499,38 @@
 
 <script>
     (() => {
+        const galleryEditor = document.getElementById('galleryEditor');
+
+        galleryEditor?.addEventListener('click', event => {
+            const button = event.target.closest('[data-gallery-move]');
+
+            if (!button) {
+                return;
+            }
+
+            const card = button.closest('.gallery-editor-item');
+
+            if (!card) {
+                return;
+            }
+
+            if (button.dataset.galleryMove === 'up'
+                    && card.previousElementSibling) {
+                galleryEditor.insertBefore(
+                    card,
+                    card.previousElementSibling
+                );
+            }
+
+            if (button.dataset.galleryMove === 'down'
+                    && card.nextElementSibling) {
+                galleryEditor.insertBefore(
+                    card.nextElementSibling,
+                    card
+                );
+            }
+        });
+
         const categorySelect = document.getElementById('categoryId');
         const options = document.getElementById('drinkOptions');
         const notice = document.getElementById('toppingOptionNotice');

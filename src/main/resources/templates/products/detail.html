@@ -4,55 +4,192 @@
 <body>
 <header th:replace="~{fragments/layout :: header}"></header>
 <div th:replace="~{fragments/layout :: flash}"></div>
+
 <main class="container py-4">
     <nav aria-label="Đường dẫn" class="mb-4">
-        <a th:href="@{/products}">Sản phẩm</a> / <span th:text="${product.name}">Tên sản phẩm</span>
+        <a th:href="@{/products}">Sản phẩm</a>
+        /
+        <span th:text="${product.name}">Tên sản phẩm</span>
     </nav>
+
     <div class="row g-4">
         <div class="col-lg-6">
-            <img class="product-detail-image" th:src="${#strings.isEmpty(product.imageUrl) ? '/images/logo.svg' : product.imageUrl}" th:alt="${product.name}">
+            <div class="product-gallery"
+                 th:with="coverUrl=${#lists.isEmpty(gallery)
+                     ? (#strings.isEmpty(product.imageUrl)
+                         ? '/images/logo.svg' : product.imageUrl)
+                     : gallery[0].imageUrl}">
+
+                <img id="productGalleryMain"
+                     class="product-detail-image"
+                     th:src="@{${coverUrl}}"
+                     th:alt="${product.name}">
+
+                <div class="d-flex flex-wrap gap-2 mt-3"
+                     th:if="${#lists.size(gallery) > 1}"
+                     aria-label="Ảnh sản phẩm">
+
+                    <button type="button"
+                            class="product-gallery-thumb btn btn-light border p-1"
+                            th:each="photo, stat : ${gallery}"
+                            th:classappend="${stat.first} ? 'border-primary active' : ''"
+                            th:attr="aria-label=|Xem ảnh ${stat.count} của ${product.name}|,
+                                     aria-pressed=${stat.first}">
+
+                        <img th:src="@{${photo.imageUrl}}"
+                             th:alt="|Ảnh ${stat.count} của ${product.name}|"
+                             class="rounded"
+                             style="width: 76px; height: 76px; object-fit: cover;"
+                             loading="lazy">
+                    </button>
+                </div>
+            </div>
         </div>
+
         <div class="col-lg-6">
-            <a class="shop-chip text-decoration-none mb-3" th:href="@{/shops/{slug}(slug=${product.shop.slug})}" th:text="${product.shop.name}">Cửa hàng</a>
-            <h1 class="section-title" th:text="${product.name}">Tên sản phẩm</h1>
+            <a class="shop-chip text-decoration-none mb-3"
+               th:href="@{/shops/{slug}(slug=${product.shop.slug})}"
+               th:text="${product.shop.name}">
+                Cửa hàng
+            </a>
+
+            <h1 class="section-title" th:text="${product.name}">
+                Tên sản phẩm
+            </h1>
+
             <div class="d-flex flex-wrap gap-3 mb-3">
-                <span class="rating"><i class="bi bi-star-fill"></i> <span th:text="${#numbers.formatDecimal(product.averageRating,1,1)}">0</span></span>
-                <span th:text="|${product.reviewCount} đánh giá|">0 đánh giá</span>
-                <span th:text="|Đã bán ${product.soldCount}|">Đã bán 0</span>
+                <span class="rating">
+                    <i class="bi bi-star-fill"></i>
+                    <span th:text="${#numbers.formatDecimal(product.averageRating, 1, 1)}">
+                        0
+                    </span>
+                </span>
+
+                <span th:text="|${product.reviewCount} đánh giá|">
+                    0 đánh giá
+                </span>
+
+                <span th:text="|Đã bán ${product.soldCount}|">
+                    Đã bán 0
+                </span>
             </div>
+
             <div class="panel mb-3 product-detail-pricing">
-                <span class="original-price detail-original-price" th:if="${productPrice.promoted}" th:text="${#numbers.formatDecimal(productPrice.originalPrice,0,'COMMA',0,'POINT')} + ' ₫'"></span>
+                <span class="original-price detail-original-price"
+                      th:if="${productPrice.promoted}"
+                      th:text="${#numbers.formatDecimal(productPrice.originalPrice, 0, 'COMMA', 0, 'POINT')} + ' ₫'">
+                </span>
+
                 <div class="d-flex align-items-center gap-3">
-                    <strong class="price fs-2" th:text="${#numbers.formatDecimal(productPrice.salePrice,0,'COMMA',0,'POINT')} + ' ₫'">35.000 ₫</strong>
-                    <span class="promotion-badge promotion-badge-inline" th:if="${productPrice.promoted}" th:text="|-${productPrice.discountLabel}|"></span>
+                    <strong class="price fs-2"
+                            th:text="${#numbers.formatDecimal(productPrice.salePrice, 0, 'COMMA', 0, 'POINT')} + ' ₫'">
+                        35.000 ₫
+                    </strong>
+
+                    <span class="promotion-badge promotion-badge-inline"
+                          th:if="${productPrice.promoted}"
+                          th:text="|-${productPrice.discountLabel}|">
+                    </span>
                 </div>
-                <small class="text-muted" th:text="${product.stock > 0} ? |Còn ${product.stock} sản phẩm| : 'Tạm hết hàng'"></small>
+
+                <small class="text-muted"
+                       th:text="${product.stock > 0}
+                           ? |Còn ${product.stock} sản phẩm|
+                           : 'Tạm hết hàng'">
+                </small>
             </div>
-            <div class="panel" th:if="${product.category.slug != 'topping'}">
+
+            <div class="panel"
+                 th:if="${product.category.slug != 'topping'}">
                 <h2 class="h5">Tùy chọn sản phẩm</h2>
+
                 <h3 class="h6 mt-3">Size và phụ thu</h3>
+
                 <div class="catalog-options">
-                    <span th:each="size : ${sizes}" th:text="|${size.code} (+${#numbers.formatDecimal(size.extraPrice,0,'COMMA',0,'POINT')} ₫)|"></span>
+                    <span th:each="size : ${sizes}"
+                          th:text="|${size.code} (+${#numbers.formatDecimal(size.extraPrice, 0, 'COMMA', 0, 'POINT')} ₫)|">
+                    </span>
                 </div>
-                <p class="text-muted small" th:if="${#lists.isEmpty(sizes)}">Chưa có size khả dụng.</p>
+
+                <p class="text-muted small"
+                   th:if="${#lists.isEmpty(sizes)}">
+                    Chưa có size khả dụng.
+                </p>
+
                 <h3 class="h6 mt-3">Mức đường</h3>
-                <div class="catalog-options"><span th:each="level : ${sugarLevels}" th:text="${level.label}"></span></div>
-                <h3 class="h6 mt-3">Mức đá</h3>
-                <div class="catalog-options"><span th:each="level : ${iceLevels}" th:text="${level.label}"></span></div>
-                <h3 class="h6 mt-3">Topping và phụ thu</h3>
+
                 <div class="catalog-options">
-                    <span th:each="link : ${toppings}" th:text="|${link.topping.name} (+${#numbers.formatDecimal(link.topping.price,0,'COMMA',0,'POINT')} ₫)|"></span>
+                    <span th:each="level : ${sugarLevels}"
+                          th:text="${level.label}">
+                    </span>
                 </div>
-                <p class="text-muted small mb-0" th:if="${#lists.isEmpty(toppings)}">Sản phẩm chưa có topping khả dụng.</p>
+
+                <h3 class="h6 mt-3">Mức đá</h3>
+
+                <div class="catalog-options">
+                    <span th:each="level : ${iceLevels}"
+                          th:text="${level.label}">
+                    </span>
+                </div>
+
+                <h3 class="h6 mt-3">Topping và phụ thu</h3>
+
+                <div class="catalog-options">
+                    <span th:each="link : ${toppings}"
+                          th:text="|${link.topping.name} (+${#numbers.formatDecimal(link.topping.price, 0, 'COMMA', 0, 'POINT')} ₫)|">
+                    </span>
+                </div>
+
+                <p class="text-muted small mb-0"
+                   th:if="${#lists.isEmpty(toppings)}">
+                    Sản phẩm chưa có topping khả dụng.
+                </p>
             </div>
         </div>
     </div>
+
     <section class="panel mt-4">
         <h2 class="h5">Mô tả sản phẩm</h2>
-        <p class="product-description mb-0" th:text="${product.description}">Mô tả</p>
+        <p class="product-description mb-0"
+           th:text="${product.description}">
+            Mô tả
+        </p>
     </section>
 </main>
+
 <footer th:replace="~{fragments/layout :: footer}"></footer>
 <th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+
+<script>
+    (() => {
+        const galleryMain = document.getElementById('productGalleryMain');
+        const buttons = document.querySelectorAll('.product-gallery-thumb');
+
+        if (!galleryMain) {
+            return;
+        }
+
+        buttons.forEach(button => {
+            button.addEventListener('click', () => {
+                const thumbnail = button.querySelector('img');
+
+                if (!thumbnail) {
+                    return;
+                }
+
+                galleryMain.src = thumbnail.src;
+                galleryMain.alt = thumbnail.alt;
+
+                buttons.forEach(item => {
+                    const selected = item === button;
+
+                    item.classList.toggle('active', selected);
+                    item.classList.toggle('border-primary', selected);
+                    item.setAttribute('aria-pressed', String(selected));
+                });
+            });
+        });
+    })();
+</script>
 </body>
 </html>
