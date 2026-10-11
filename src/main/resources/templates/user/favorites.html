@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Yêu thích')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="container py-4">
+    <div th:replace="~{fragments/layout :: flash}"></div>
+    <span class="page-kicker"><i class="bi bi-heart"></i> Bộ sưu tập</span>
+    <h1 class="h3">Sản phẩm yêu thích</h1>
+    <div class="row row-cols-2 row-cols-md-3 row-cols-xl-4 g-3 g-lg-4">
+        <th:block th:each="f : ${favorites.content}">
+            <div class="col">
+                <div class="row"><div th:replace="~{fragments/product-card :: card(${f.product})}"></div></div>
+                <form th:action="@{/user/favorites/{id}(id=${f.product.id})}" method="post" class="mt-2">
+                    <button class="btn btn-sm btn-outline-danger w-100">Bỏ yêu thích</button>
+                </form>
+            </div>
+        </th:block>
+    </div>
+    <div class="panel empty-state" th:if="${favorites.empty}"><i class="bi bi-heart fs-1"></i><h2 class="h5">Chưa có sản phẩm yêu thích</h2><a class="btn btn-primary" th:href="@{/products}">Khám phá sản phẩm</a></div>
+    <nav aria-label="Phân trang" class="d-flex justify-content-center gap-2 mt-4" th:if="${favorites.totalPages > 1}">
+        <a class="btn btn-outline-primary" th:classappend="${favorites.first} ? 'disabled'"
+           th:href="@{/user/favorites(page=${favorites.number - 1})}">Trước</a>
+        <span class="btn btn-light" th:text="|Trang ${favorites.number + 1}/${favorites.totalPages}|">Trang 1/1</span>
+        <a class="btn btn-outline-primary" th:classappend="${favorites.last} ? 'disabled'"
+           th:href="@{/user/favorites(page=${favorites.number + 1})}">Sau</a>
+    </nav>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

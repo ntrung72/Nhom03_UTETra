@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Đã xem')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="container py-4">
+    <div th:replace="~{fragments/layout :: flash}"></div>
+    <span class="page-kicker"><i class="bi bi-clock-history"></i> Lịch sử</span>
+    <h1 class="h3">Sản phẩm đã xem</h1>
+    <div class="row row-cols-2 row-cols-md-3 row-cols-xl-4 g-3 g-lg-4">
+        <th:block th:each="v : ${viewed.content}">
+            <div th:replace="~{fragments/product-card :: card(${v.product})}"></div>
+        </th:block>
+    </div>
+    <div class="panel empty-state" th:if="${viewed.empty}"><i class="bi bi-clock-history fs-1"></i><h2 class="h5">Chưa có lịch sử xem</h2><a class="btn btn-primary" th:href="@{/products}">Khám phá sản phẩm</a></div>
+    <nav aria-label="Phân trang" class="d-flex justify-content-center gap-2 mt-4" th:if="${viewed.totalPages > 1}">
+        <a class="btn btn-outline-primary" th:classappend="${viewed.first} ? 'disabled'"
+           th:href="@{/user/viewed(page=${viewed.number - 1})}">Trước</a>
+        <span class="btn btn-light" th:text="|Trang ${viewed.number + 1}/${viewed.totalPages}|">Trang 1/1</span>
+        <a class="btn btn-outline-primary" th:classappend="${viewed.last} ? 'disabled'"
+           th:href="@{/user/viewed(page=${viewed.number + 1})}">Sau</a>
+    </nav>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

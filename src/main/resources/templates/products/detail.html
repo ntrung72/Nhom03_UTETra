@@ -53,6 +53,10 @@
                 Cửa hàng
             </a>
 
+            <form th:if="${currentUser != null and (currentUser.role.name() == 'USER' or currentUser.role.name() == 'VENDOR')}"
+                  th:action="@{/user/favorites/{id}(id=${product.id})}" method="post" class="mb-3">
+                <button class="btn btn-outline-danger" th:text="${favorite} ? 'Bỏ yêu thích' : 'Thêm yêu thích'">Thêm yêu thích</button>
+            </form>
             <h1 class="section-title" th:text="${product.name}">
                 Tên sản phẩm
             </h1>

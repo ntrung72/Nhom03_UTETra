@@ -35,6 +35,56 @@ public final class WebForms {
 		private String confirmPassword;
 	}
 
+    @Getter @Setter
+    public static class ProfileForm {
+        @NotBlank(message = "Vui lòng nhập họ và tên")
+        @Size(min = 2, max = 120, message = "Họ và tên phải có từ 2 đến 120 ký tự")
+        private String fullName;
+        @Pattern(regexp = "^$|^[0-9+ -]{9,20}$", message = "Số điện thoại phải có từ 9 đến 20 ký tự và chỉ gồm số, dấu +, - hoặc khoảng trắng")
+        private String phone;
+    }
+
+    @Getter @Setter
+    public static class AddressForm {
+        @NotBlank(message = "Vui lòng nhập tên người nhận")
+        @Size(max = 120, message = "Tên người nhận không được quá 120 ký tự") private String receiverName;
+        @NotBlank(message = "Vui lòng nhập số điện thoại")
+        @Pattern(regexp = "^$|^[0-9+ -]{9,20}$", message = "Số điện thoại phải có từ 9 đến 20 ký tự") private String phone;
+        @NotBlank(message = "Vui lòng nhập tỉnh hoặc thành phố")
+        @Size(max = 120, message = "Tỉnh hoặc thành phố không được quá 120 ký tự") private String province;
+        @NotBlank(message = "Vui lòng nhập quận hoặc huyện")
+        @Size(max = 120, message = "Quận hoặc huyện không được quá 120 ký tự") private String district;
+        @NotBlank(message = "Vui lòng nhập phường hoặc xã")
+        @Size(max = 120, message = "Phường hoặc xã không được quá 120 ký tự") private String ward;
+        @NotBlank(message = "Vui lòng nhập số nhà và tên đường")
+        @Size(max = 255, message = "Địa chỉ cụ thể không được quá 255 ký tự") private String detail;
+        private boolean defaultAddress;
+    }
+
+    @Getter @Setter
+    public static class BankForm {
+        @Size(max = 120, message = "Tên ngân hàng không được quá 120 ký tự")
+        private String bankName;
+        @Size(max = 120, message = "Tên chủ tài khoản không được quá 120 ký tự")
+        private String accountName;
+        @Pattern(regexp = "^$|^[0-9]{6,24}$", message = "Số tài khoản phải gồm từ 6 đến 24 chữ số")
+        private String accountNumber;
+    }
+
+    @Getter @Setter
+    public static class ChangePasswordForm {
+        @NotBlank(message = "Vui lòng nhập mật khẩu hiện tại")
+        @Size(max = 72)
+        private String currentPassword;
+        @NotBlank(message = "Vui lòng nhập mật khẩu mới")
+        @Size(min = 8, max = 72, message = "Mật khẩu mới phải có từ 8 đến 72 ký tự")
+        private String newPassword;
+        @NotBlank(message = "Vui lòng xác nhận mật khẩu mới")
+        @Size(max = 72)
+        private String confirmPassword;
+    }
+
+
 	@Getter
 	@Setter
 	public static class ShopForm {
