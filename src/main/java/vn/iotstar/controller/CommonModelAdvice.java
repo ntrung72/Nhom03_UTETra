@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import vn.iotstar.entity.User;
 import vn.iotstar.service.CurrentUserService;
 
-@ControllerAdvice(assignableTypes = {AuthController.class, HomeController.class, ProductController.class, UserController.class})
+@ControllerAdvice(assignableTypes = {AuthController.class, HomeController.class, ProductController.class, UserController.class, CartController.class})
 @RequiredArgsConstructor
 public class CommonModelAdvice {
     private final CurrentUserService currentUserService;

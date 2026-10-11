@@ -103,52 +103,69 @@
                 </small>
             </div>
 
-            <div class="panel"
-                 th:if="${product.category.slug != 'topping'}">
+            <form class="panel" th:action="@{/cart/add/{id}(id=${product.id})}" method="post"
+                  data-product-options th:attr="data-base-price=${productPrice.salePrice}">
                 <h2 class="h5">Tùy chọn sản phẩm</h2>
-
-                <h3 class="h6 mt-3">Size và phụ thu</h3>
-
-                <div class="catalog-options">
-                    <span th:each="size : ${sizes}"
-                          th:text="|${size.code} (+${#numbers.formatDecimal(size.extraPrice, 0, 'COMMA', 0, 'POINT')} ₫)|">
-                    </span>
+                <div th:if="${product.category.slug != 'topping'}">
+                    <fieldset class="mb-3">
+                        <legend class="h6">Size và phụ thu</legend>
+                        <div class="catalog-options">
+                            <label class="form-check" th:each="size, iter : ${sizes}">
+                                <input class="form-check-input" type="radio" name="sizeId" th:value="${size.id}"
+                                       th:checked="${iter.first}" required th:attr="data-extra-price=${size.extraPrice}">
+                                <span th:text="|${size.code} (+${#numbers.formatDecimal(size.extraPrice,0,'COMMA',0,'POINT')} ₫)|"></span>
+                            </label>
+                        </div>
+                        <p class="text-muted small" th:if="${#lists.isEmpty(sizes)}">Chưa có size khả dụng.</p>
+                    </fieldset>
+                    <fieldset class="mb-3">
+                        <legend class="h6">Mức đường</legend>
+                        <div class="catalog-options">
+                            <label class="form-check" th:each="level : ${sugarLevels}">
+                                <input class="form-check-input" type="radio" name="sugarLevel" th:value="${level.name()}"
+                                       th:checked="${level.name() == 'PERCENT_100'}" required>
+                                <span th:text="${level.label}"></span>
+                            </label>
+                        </div>
+                    </fieldset>
+                    <fieldset class="mb-3">
+                        <legend class="h6">Mức đá</legend>
+                        <div class="catalog-options">
+                            <label class="form-check" th:each="level : ${iceLevels}">
+                                <input class="form-check-input" type="radio" name="iceLevel" th:value="${level.name()}"
+                                       th:checked="${level.name() == 'NORMAL'}" required>
+                                <span th:text="${level.label}"></span>
+                            </label>
+                        </div>
+                    </fieldset>
+                    <fieldset class="mb-3">
+                        <legend class="h6">Topping và phụ thu</legend>
+                        <div class="catalog-options">
+                            <label class="form-check" th:each="link : ${toppings}">
+                                <input class="form-check-input" type="checkbox" name="toppingIds" th:value="${link.topping.id}"
+                                       th:attr="data-extra-price=${link.topping.price}">
+                                <span th:text="|${link.topping.name} (+${#numbers.formatDecimal(link.topping.price,0,'COMMA',0,'POINT')} ₫)|"></span>
+                            </label>
+                        </div>
+                        <p class="text-muted small" th:if="${#lists.isEmpty(toppings)}">Sản phẩm chưa có topping khả dụng.</p>
+                    </fieldset>
                 </div>
-
-                <p class="text-muted small"
-                   th:if="${#lists.isEmpty(sizes)}">
-                    Chưa có size khả dụng.
-                </p>
-
-                <h3 class="h6 mt-3">Mức đường</h3>
-
-                <div class="catalog-options">
-                    <span th:each="level : ${sugarLevels}"
-                          th:text="${level.label}">
-                    </span>
+                <div class="d-flex align-items-center flex-wrap gap-3">
+                    <div>
+                        <label class="form-label" for="cartQuantity">Số lượng</label>
+                        <input id="cartQuantity" class="form-control" type="number" name="quantity" value="1" min="1"
+                               th:max="${product.stock}" style="width:100px" required>
+                    </div>
+                    <div><small>Tạm tính mỗi sản phẩm</small><strong class="price d-block" data-unit-preview
+                        th:text="${#numbers.formatDecimal(productPrice.salePrice,0,'COMMA',0,'POINT')} + ' ₫'"></strong></div>
                 </div>
-
-                <h3 class="h6 mt-3">Mức đá</h3>
-
-                <div class="catalog-options">
-                    <span th:each="level : ${iceLevels}"
-                          th:text="${level.label}">
-                    </span>
-                </div>
-
-                <h3 class="h6 mt-3">Topping và phụ thu</h3>
-
-                <div class="catalog-options">
-                    <span th:each="link : ${toppings}"
-                          th:text="|${link.topping.name} (+${#numbers.formatDecimal(link.topping.price, 0, 'COMMA', 0, 'POINT')} ₫)|">
-                    </span>
-                </div>
-
-                <p class="text-muted small mb-0"
-                   th:if="${#lists.isEmpty(toppings)}">
-                    Sản phẩm chưa có topping khả dụng.
-                </p>
-            </div>
+                <button class="btn btn-primary mt-3"
+                        th:if="${currentUser != null and (currentUser.role.name() == 'USER' or currentUser.role.name() == 'VENDOR')}"
+                        th:disabled="${!product.available or (product.category.slug != 'topping' and #lists.isEmpty(sizes))}">
+                    Thêm vào giỏ hàng
+                </button>
+                <a class="btn btn-outline-primary mt-3" th:if="${currentUser == null}" th:href="@{/login}">Đăng nhập để thêm vào giỏ</a>
+            </form>
         </div>
     </div>
 

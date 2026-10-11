@@ -41,3 +41,47 @@ document.addEventListener('DOMContentLoaded', () => {
     img.src = previewUrl; img.alt = 'Ảnh đại diện mới'; holder.append(img);
   });
 });
+
+document.addEventListener('DOMContentLoaded', () => {
+  const items = Array.from(document.querySelectorAll('[data-cart-item]'));
+  const all = document.querySelector('[data-cart-select-all]');
+  const shops = Array.from(document.querySelectorAll('[data-cart-shop-toggle]'));
+  const update = () => {
+    const eligible = items.filter(item => !item.disabled);
+    const selected = eligible.filter(item => item.checked);
+    const total = selected.reduce((sum, item) => sum + Number(item.dataset.lineTotal || 0), 0);
+    const count = document.querySelector('[data-cart-selected-count]');
+    const amount = document.querySelector('[data-cart-selected-total]');
+    const save = document.querySelector('[data-cart-save-selection]');
+    if (count) count.textContent = `${selected.length} dòng được chọn`;
+    if (amount) amount.textContent = total.toLocaleString('vi-VN') + ' ₫';
+    if (save) save.disabled = !selected.length;
+    if (all) { all.checked = eligible.length > 0 && selected.length === eligible.length; all.indeterminate = selected.length > 0 && !all.checked; }
+    shops.forEach(toggle => {
+      const card = toggle.closest('[data-cart-shop]');
+      const lines = eligible.filter(item => item.dataset.shopId === card.dataset.cartShop);
+      const checked = lines.filter(item => item.checked).length;
+      toggle.checked = lines.length > 0 && checked === lines.length;
+      toggle.indeterminate = checked > 0 && !toggle.checked;
+      const label = card.querySelector('[data-shop-selection]');
+      if (label) label.textContent = `${checked}/${lines.length} dòng được chọn`;
+    });
+  };
+  all?.addEventListener('change', () => { items.filter(item => !item.disabled).forEach(item => item.checked = all.checked); update(); });
+  shops.forEach(toggle => toggle.addEventListener('change', () => {
+    const card = toggle.closest('[data-cart-shop]');
+    items.filter(item => !item.disabled && item.dataset.shopId === card.dataset.cartShop).forEach(item => item.checked = toggle.checked);
+    update();
+  }));
+  items.forEach(item => item.addEventListener('change', update)); update();
+  const options = document.querySelector('[data-product-options]');
+  if (options) {
+    const preview = () => {
+      let price = Number(options.dataset.basePrice || 0);
+      options.querySelectorAll('input[data-extra-price]:checked').forEach(input => price += Number(input.dataset.extraPrice || 0));
+      const total = options.querySelector('[data-unit-preview]');
+      if (total) total.textContent = price.toLocaleString('vi-VN') + ' ₫';
+    };
+    options.addEventListener('change', preview); preview();
+  }
+});
