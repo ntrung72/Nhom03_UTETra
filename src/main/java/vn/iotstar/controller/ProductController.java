@@ -21,6 +21,8 @@ import vn.iotstar.service.ProductPricingService;
 @RequiredArgsConstructor
 public class ProductController {
 
+    private final vn.iotstar.service.CurrentUserService currentUserService;
+    private final vn.iotstar.service.EngagementService engagementService;
     private final CatalogService catalogService;
     private final ProductOptionService productOptionService;
     private final ProductPricingService productPricingService;
@@ -76,6 +78,11 @@ public class ProductController {
     @GetMapping("/products/{id}")
     String detail(@PathVariable Long id, Model model) {
         var product = catalogService.getPublicProduct(id);
+        var customer = currentUserService.optional().filter(user ->
+            user.getRole() == vn.iotstar.entity.DomainEnums.Role.USER
+            || user.getRole() == vn.iotstar.entity.DomainEnums.Role.VENDOR).orElse(null);
+        engagementService.recordView(product, customer);
+        model.addAttribute("favorite", engagementService.isFavorite(customer, product));
 
         model.addAttribute("product", product);
         model.addAttribute(

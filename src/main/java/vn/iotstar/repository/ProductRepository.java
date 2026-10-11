@@ -14,6 +14,10 @@ import vn.iotstar.entity.DomainEnums.ProductStatus;
 import vn.iotstar.entity.DomainEnums.ShopStatus;
 
 public interface ProductRepository extends JpaRepository<Product, Long> {
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @EntityGraph(attributePaths = {"shop", "category"})
+    @Query("select p from Product p where p.id = :id")
+    Optional<Product> findByIdForUpdate(@Param("id") Long id);
 
     @EntityGraph(attributePaths = {"shop", "category"})
     @Query("""

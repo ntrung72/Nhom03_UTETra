@@ -32,6 +32,21 @@ public class User {
     @Column(name = "full_name", nullable = false, length = 120)
     private String fullName;
 
+    @Column(length = 20)
+    private String phone;
+
+    @Column(name = "avatar_url", length = 500)
+    private String avatarUrl;
+
+    @Column(name = "bank_name", length = 120)
+    private String bankName;
+
+    @Column(name = "bank_account_name", length = 120)
+    private String bankAccountName;
+
+    @Column(name = "bank_account_number", length = 24)
+    private String bankAccountNumber;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private Role role = Role.USER;

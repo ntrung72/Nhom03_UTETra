@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Trung tâm tài khoản')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="container py-4 py-lg-5 account-page">
+    <div th:replace="~{fragments/layout :: flash}"></div>
+
+    <section class="account-hero mb-4">
+        <div class="account-avatar account-avatar-xl">
+            <img th:if="${currentUser.avatarUrl != null}" th:src="${currentUser.avatarUrl}" th:alt="${currentUser.fullName}">
+            <i th:unless="${currentUser.avatarUrl != null}" class="bi bi-person-fill"></i>
+        </div>
+        <div class="flex-grow-1 min-w-0">
+            <span class="account-eyebrow">Tài khoản của tôi</span>
+            <h1 class="account-title" th:text="${currentUser.fullName}">Nguyễn Văn A</h1>
+            <div class="account-meta">
+                <span><i class="bi bi-at"></i><span th:text="${currentUser.username}">username</span></span>
+                <span><i class="bi bi-envelope"></i><span th:text="${currentUser.email}">email@example.com</span></span>
+                <span class="account-role" th:text="${currentUser.role.label}">Khách hàng</span>
+            </div>
+        </div>
+        <a class="btn btn-light account-hero-action" th:href="@{/user/profile(tab=avatar)}"><i class="bi bi-camera me-1"></i>Đổi avatar</a>
+    </section>
+
+    <div class="row g-4 align-items-start">
+        <aside class="col-lg-3">
+            <nav class="account-nav" aria-label="Quản lý tài khoản">
+                <a th:classappend="${activeTab == 'profile'} ? ' active'" th:href="@{/user/profile(tab=profile)}"><span class="account-nav-icon"><i class="bi bi-person-vcard"></i></span><span><b>Hồ sơ</b><small>Thông tin cá nhân</small></span></a>
+                <a th:classappend="${activeTab == 'avatar'} ? ' active'" th:href="@{/user/profile(tab=avatar)}"><span class="account-nav-icon"><i class="bi bi-image"></i></span><span><b>Ảnh đại diện</b><small>Thêm hoặc thay avatar</small></span></a>
+                <a th:classappend="${activeTab == 'bank'} ? ' active'" th:href="@{/user/profile(tab=bank)}"><span class="account-nav-icon"><i class="bi bi-bank"></i></span><span><b>Ngân hàng</b><small>Thông tin hoàn tiền</small></span></a>
+                <a th:classappend="${activeTab == 'addresses'} ? ' active'" th:href="@{/user/profile(tab=addresses)}"><span class="account-nav-icon"><i class="bi bi-geo-alt"></i></span><span><b>Địa chỉ</b><small>Địa chỉ nhận hàng</small></span><span class="account-nav-count" th:text="${#lists.size(addresses)}">0</span></a>
+                <a th:classappend="${activeTab == 'password'} ? ' active'" th:href="@{/user/profile(tab=password)}"><span class="account-nav-icon"><i class="bi bi-shield-lock"></i></span><span><b>Đổi mật khẩu</b><small>Bảo mật tài khoản</small></span></a>
+            </nav>
+        </aside>
+
+        <div class="col-lg-9">
+            <section class="account-panel" th:if="${activeTab == 'profile'}">
+                <div class="account-panel-heading"><div><span class="page-kicker"><i class="bi bi-person"></i> Hồ sơ</span><h2>Thông tin cá nhân</h2><p>Cập nhật tên hiển thị và số điện thoại liên hệ.</p></div></div>
+                <form th:action="@{/user/profile}" th:object="${profileForm}" method="post" novalidate>
+                    <div class="row g-4">
+                        <div class="col-md-6"><label class="form-label" for="fullName">Họ và tên <span class="required-mark">*</span></label><input id="fullName" class="form-control" th:classappend="${#fields.hasErrors('fullName')} ? 'is-invalid'" th:field="*{fullName}" maxlength="120" autocomplete="name" placeholder="Nguyễn Văn A"><div class="invalid-feedback" th:errors="*{fullName}"></div></div>
+                        <div class="col-md-6"><label class="form-label" for="profilePhone">Số điện thoại <span class="optional-mark">Không bắt buộc</span></label><input id="profilePhone" class="form-control" th:classappend="${#fields.hasErrors('phone')} ? 'is-invalid'" th:field="*{phone}" maxlength="20" autocomplete="tel" placeholder="0901 234 567"><div class="invalid-feedback" th:errors="*{phone}"></div></div>
+                        <div class="col-md-6"><label class="form-label">Tên đăng nhập</label><div class="readonly-field"><i class="bi bi-at"></i><span th:text="${currentUser.username}"></span></div></div>
+                        <div class="col-md-6"><label class="form-label">Email</label><div class="readonly-field"><i class="bi bi-envelope"></i><span th:text="${currentUser.email}"></span></div></div>
+                    </div>
+                    <div class="form-actions"><button class="btn btn-primary"><i class="bi bi-check2-circle me-1"></i>Lưu thay đổi</button></div>
+                </form>
+            </section>
+
+            <section class="account-panel" th:if="${activeTab == 'avatar'}">
+                <div class="account-panel-heading"><div><span class="page-kicker"><i class="bi bi-image"></i> Avatar</span><h2>Ảnh đại diện</h2><p>Ảnh vuông, rõ khuôn mặt sẽ hiển thị đẹp nhất trên mọi thiết bị.</p></div></div>
+                <div class="avatar-editor">
+                    <div class="account-avatar account-avatar-preview"><img id="avatarPreview" th:if="${currentUser.avatarUrl != null}" th:src="${currentUser.avatarUrl}" th:alt="${currentUser.fullName}"><i id="avatarPlaceholder" th:unless="${currentUser.avatarUrl != null}" class="bi bi-person-fill"></i></div>
+                    <div class="flex-grow-1">
+                        <form th:action="@{/user/avatar}" method="post" enctype="multipart/form-data">
+                            <label class="avatar-dropzone" for="avatarInput"><i class="bi bi-cloud-arrow-up"></i><span><b>Chọn ảnh mới</b><small>JPG, PNG hoặc WEBP · Tối đa 5 MB</small></span></label>
+                            <input id="avatarInput" class="visually-hidden" type="file" name="avatar" accept="image/jpeg,image/png,image/webp" data-avatar-preview>
+                            <div class="text-danger small mt-2" th:if="${avatarError}" th:text="${avatarError}"></div>
+                            <button class="btn btn-primary mt-3"><i class="bi bi-upload me-1"></i>Cập nhật avatar</button>
+                        </form>
+                        <form class="mt-2" th:if="${currentUser.avatarUrl != null}" th:action="@{/user/avatar/remove}" method="post"><button class="btn btn-link text-danger px-0"><i class="bi bi-trash3 me-1"></i>Xóa ảnh hiện tại</button></form>
+                    </div>
+                </div>
+            </section>
+
+            <section class="account-panel" th:if="${activeTab == 'bank'}">
+                <div class="account-panel-heading"><div><span class="page-kicker"><i class="bi bi-bank"></i> Ngân hàng</span><h2>Thông tin nhận hoàn tiền</h2><p>Thông tin này là tùy chọn và chỉ dùng khi cần hoàn tiền đơn hàng.</p></div><span class="security-badge"><i class="bi bi-shield-check"></i>Bảo mật</span></div>
+                <div class="alert alert-primary-subtle border-0 bank-note"><i class="bi bi-info-circle-fill"></i><span>Bạn có thể để trống toàn bộ. Nếu nhập, vui lòng điền đủ cả ba trường.</span></div>
+                <form th:action="@{/user/bank}" th:object="${bankForm}" method="post" novalidate>
+                    <div class="row g-4">
+                        <div class="col-md-6"><label class="form-label" for="bankName">Ngân hàng</label><select id="bankName" class="form-select" th:classappend="${#fields.hasErrors('bankName')} ? 'is-invalid'" th:field="*{bankName}"><option value="">Chọn ngân hàng</option><option value="Vietcombank">Vietcombank</option><option value="VietinBank">VietinBank</option><option value="BIDV">BIDV</option><option value="Agribank">Agribank</option><option value="Techcombank">Techcombank</option><option value="MB Bank">MB Bank</option><option value="ACB">ACB</option><option value="Sacombank">Sacombank</option><option value="VPBank">VPBank</option><option value="TPBank">TPBank</option><option value="VIB">VIB</option><option value="SHB">SHB</option><option value="OCB">OCB</option><option value="MSB">MSB</option><option value="SeABank">SeABank</option></select><div class="invalid-feedback" th:errors="*{bankName}"></div></div>
+                        <div class="col-md-6"><label class="form-label" for="accountName">Tên chủ tài khoản</label><input id="accountName" class="form-control text-uppercase" th:classappend="${#fields.hasErrors('accountName')} ? 'is-invalid'" th:field="*{accountName}" maxlength="120" placeholder="NGUYEN VAN A"><div class="invalid-feedback" th:errors="*{accountName}"></div></div>
+                        <div class="col-12"><label class="form-label" for="accountNumber">Số tài khoản</label><input id="accountNumber" class="form-control" th:classappend="${#fields.hasErrors('accountNumber')} ? 'is-invalid'" th:field="*{accountNumber}" maxlength="24" inputmode="numeric" autocomplete="off" placeholder="Chỉ nhập chữ số"><div class="invalid-feedback" th:errors="*{accountNumber}"></div></div>
+                    </div>
+                    <div class="form-actions"><button class="btn btn-primary"><i class="bi bi-check2-circle me-1"></i>Lưu thông tin ngân hàng</button></div>
+                </form>
+            </section>
+
+            <section class="account-panel" th:if="${activeTab == 'addresses'}">
+                <div class="account-panel-heading"><div><span class="page-kicker"><i class="bi bi-geo-alt"></i> Địa chỉ</span><h2 th:text="${editAddressId == null ? 'Thêm địa chỉ nhận hàng' : 'Cập nhật địa chỉ'}"></h2><p>Trường có dấu <span class="required-mark">*</span> là bắt buộc. Dữ liệu đã nhập sẽ được giữ lại nếu có lỗi.</p></div></div>
+                <form th:action="@{/user/addresses/save}" th:object="${addressForm}" method="post" novalidate>
+                    <input type="hidden" name="id" th:value="${editAddressId}">
+                    <div class="row g-3">
+                        <div class="col-md-6"><label class="form-label" for="receiverName">Người nhận <span class="required-mark">*</span></label><input id="receiverName" class="form-control" th:classappend="${#fields.hasErrors('receiverName')} ? 'is-invalid'" th:field="*{receiverName}" maxlength="120" autocomplete="name" placeholder="Nguyễn Văn A"><div class="invalid-feedback" th:errors="*{receiverName}"></div></div>
+                        <div class="col-md-6"><label class="form-label" for="addressPhone">Điện thoại <span class="required-mark">*</span></label><input id="addressPhone" class="form-control" th:classappend="${#fields.hasErrors('phone')} ? 'is-invalid'" th:field="*{phone}" maxlength="20" inputmode="tel" autocomplete="tel" placeholder="0901 234 567"><div class="invalid-feedback" th:errors="*{phone}"></div></div>
+                        <div class="col-md-4"><label class="form-label" for="province">Tỉnh / Thành phố <span class="required-mark">*</span></label><input id="province" class="form-control" th:classappend="${#fields.hasErrors('province')} ? 'is-invalid'" th:field="*{province}" maxlength="120" autocomplete="address-level1" placeholder="TP. Hồ Chí Minh"><div class="invalid-feedback" th:errors="*{province}"></div></div>
+                        <div class="col-md-4"><label class="form-label" for="district">Quận / Huyện <span class="required-mark">*</span></label><input id="district" class="form-control" th:classappend="${#fields.hasErrors('district')} ? 'is-invalid'" th:field="*{district}" maxlength="120" autocomplete="address-level2" placeholder="Quận 1"><div class="invalid-feedback" th:errors="*{district}"></div></div>
+                        <div class="col-md-4"><label class="form-label" for="ward">Phường / Xã <span class="required-mark">*</span></label><input id="ward" class="form-control" th:classappend="${#fields.hasErrors('ward')} ? 'is-invalid'" th:field="*{ward}" maxlength="120" autocomplete="address-level3" placeholder="Bến Nghé"><div class="invalid-feedback" th:errors="*{ward}"></div></div>
+                        <div class="col-12"><label class="form-label" for="detail">Địa chỉ cụ thể <span class="required-mark">*</span></label><input id="detail" class="form-control" th:classappend="${#fields.hasErrors('detail')} ? 'is-invalid'" th:field="*{detail}" maxlength="255" autocomplete="street-address" placeholder="Số nhà, tên đường"><div class="invalid-feedback" th:errors="*{detail}"></div></div>
+                        <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" th:field="*{defaultAddress}"><label class="form-check-label" th:for="${#ids.prev('defaultAddress')}">Đặt làm địa chỉ mặc định</label></div></div>
+                    </div>
+                    <div class="form-actions"><button class="btn btn-primary"><i class="bi bi-geo-alt-fill me-1"></i>Lưu địa chỉ</button><a class="btn btn-light" th:if="${editAddressId != null}" th:href="@{/user/profile(tab=addresses)}">Hủy sửa</a></div>
+                </form>
+
+                <div class="address-list-heading"><h3>Địa chỉ đã lưu</h3><span th:text="${#lists.size(addresses) + ' địa chỉ'}"></span></div>
+                <div class="account-empty" th:if="${#lists.isEmpty(addresses)}"><i class="bi bi-geo-alt"></i><strong>Chưa có địa chỉ nào</strong><span>Thêm địa chỉ đầu tiên để thanh toán nhanh hơn.</span></div>
+                <article class="saved-address" th:each="a : ${addresses}">
+                    <div class="saved-address-icon"><i class="bi bi-house-door"></i></div>
+                    <div class="flex-grow-1"><div class="d-flex align-items-center flex-wrap gap-2"><strong th:text="${a.receiverName}"></strong><span class="badge rounded-pill text-bg-primary" th:if="${a.defaultAddress}">Mặc định</span></div><div class="small mt-1"><i class="bi bi-telephone me-1"></i><span th:text="${a.phone}"></span></div><div class="text-muted mt-1" th:text="${a.fullAddress}"></div></div>
+                    <div class="saved-address-actions"><a class="btn btn-sm btn-outline-primary" th:href="@{/user/profile(tab=addresses,editAddress=${a.id})}"><i class="bi bi-pencil"></i> Sửa</a><form th:if="${!a.defaultAddress}" th:action="@{/user/addresses/{id}/default(id=${a.id})}" method="post"><button class="btn btn-sm btn-outline-success">Đặt mặc định</button></form><form class="confirm-form" th:action="@{/user/addresses/{id}/delete(id=${a.id})}" method="post"><button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button></form></div>
+                </article>
+            </section>
+
+            <section class="account-panel" th:if="${activeTab == 'password'}">
+                <div class="account-panel-heading"><div><span class="page-kicker"><i class="bi bi-shield-lock"></i> Bảo mật</span><h2>Đổi mật khẩu</h2><p>Dùng mật khẩu riêng, khó đoán và chưa từng sử dụng ở dịch vụ khác.</p></div></div>
+                <form class="password-form" th:action="@{/user/password}" th:object="${passwordForm}" method="post" novalidate>
+                    <div class="mb-4"><label class="form-label" for="currentPassword">Mật khẩu hiện tại <span class="required-mark">*</span></label><div class="password-field"><input id="currentPassword" class="form-control" th:classappend="${#fields.hasErrors('currentPassword')} ? 'is-invalid'" type="password" th:field="*{currentPassword}" autocomplete="current-password"><button type="button" class="password-toggle" aria-label="Hiện mật khẩu"><i class="bi bi-eye"></i></button></div><div class="field-error" th:errors="*{currentPassword}"></div></div>
+                    <div class="mb-4"><label class="form-label" for="newPassword">Mật khẩu mới <span class="required-mark">*</span></label><div class="password-field"><input id="newPassword" class="form-control" th:classappend="${#fields.hasErrors('newPassword')} ? 'is-invalid'" type="password" th:field="*{newPassword}" autocomplete="new-password" minlength="8" maxlength="72"><button type="button" class="password-toggle" aria-label="Hiện mật khẩu"><i class="bi bi-eye"></i></button></div><div class="form-text">Tối thiểu 8 ký tự.</div><div class="field-error" th:errors="*{newPassword}"></div></div>
+                    <div><label class="form-label" for="confirmPassword">Xác nhận mật khẩu mới <span class="required-mark">*</span></label><div class="password-field"><input id="confirmPassword" class="form-control" th:classappend="${#fields.hasErrors('confirmPassword')} ? 'is-invalid'" type="password" th:field="*{confirmPassword}" autocomplete="new-password"><button type="button" class="password-toggle" aria-label="Hiện mật khẩu"><i class="bi bi-eye"></i></button></div><div class="field-error" th:errors="*{confirmPassword}"></div></div>
+                    <div class="form-actions"><button class="btn btn-primary"><i class="bi bi-shield-check me-1"></i>Đổi mật khẩu</button></div>
+                </form>
+            </section>
+        </div>
+    </div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>
