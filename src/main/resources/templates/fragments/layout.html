@@ -37,6 +37,7 @@
                     <li th:if="${currentUser.role.name() == 'USER' or currentUser.role.name() == 'VENDOR'}"><a class="dropdown-item" th:href="@{/user/profile}">Hồ sơ và địa chỉ</a></li>
                     <li th:if="${currentUser.role.name() == 'USER' or currentUser.role.name() == 'VENDOR'}"><a class="dropdown-item" th:href="@{/user/favorites}">Sản phẩm yêu thích</a></li>
                     <li th:if="${currentUser.role.name() == 'USER' or currentUser.role.name() == 'VENDOR'}"><a class="dropdown-item" th:href="@{/user/viewed}">Sản phẩm đã xem</a></li>
+                    <li th:if="${currentUser.role.name() == 'USER' or currentUser.role.name() == 'VENDOR'}"><a class="dropdown-item" th:href="@{/cart}">Giỏ hàng</a></li>
                     <li><hr class="dropdown-divider"></li>
                     <li><form th:action="@{/logout}" method="post"><button class="dropdown-item text-danger"><i class="bi bi-box-arrow-right me-2"></i>Đăng xuất</button></form></li>
                 </ul>
