@@ -3,6 +3,7 @@ package vn.iotstar.controller;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -16,11 +17,14 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import vn.iotstar.dto.WebForms.ProductForm;
+import vn.iotstar.dto.WebForms.PromotionForm;
 import vn.iotstar.dto.WebForms.ShopForm;
 import vn.iotstar.entity.DomainEnums.IceLevel;
 import vn.iotstar.entity.DomainEnums.ProductStatus;
+import vn.iotstar.entity.DomainEnums.PromotionType;
 import vn.iotstar.entity.DomainEnums.SugarLevel;
 import vn.iotstar.entity.Product;
+import vn.iotstar.entity.Promotion;
 import vn.iotstar.entity.Shop;
 import vn.iotstar.entity.User;
 import vn.iotstar.security.CustomUserDetailsService;
@@ -367,6 +371,194 @@ public class VendorController {
         return "redirect:/vendor/products";
     }
 
+    @GetMapping("/promotions")
+    public String promotions(Model model) {
+        User user = currentUserService.require();
+        Shop shop = vendorService.findShop(user);
+
+        if (shop == null) {
+            return "redirect:/vendor/register";
+        }
+
+        model.addAttribute("shop", shop);
+        model.addAttribute(
+            "promotions",
+            vendorService.promotions(user)
+        );
+
+        return "vendor/promotions";
+    }
+
+    @GetMapping("/promotions/new")
+    public String newPromotion(Model model) {
+        User user = currentUserService.require();
+        Shop shop = vendorService.findShop(user);
+
+        if (shop == null) {
+            return "redirect:/vendor/register";
+        }
+
+        LocalDateTime now = LocalDateTime.now()
+            .withSecond(0)
+            .withNano(0);
+
+        PromotionForm form = new PromotionForm();
+        form.setType(PromotionType.PRODUCT_PERCENT);
+        form.setStartsAt(now);
+        form.setEndsAt(now.plusDays(7));
+
+        preparePromotionForm(
+            model,
+            user,
+            shop,
+            form,
+            null
+        );
+
+        return "vendor/promotion-form";
+    }
+
+    @GetMapping("/promotions/{id}/edit")
+    public String editPromotion(
+            @PathVariable("id") Long id,
+            Model model,
+            RedirectAttributes redirect) {
+
+        User user = currentUserService.require();
+        Shop shop = vendorService.findShop(user);
+
+        if (shop == null) {
+            return "redirect:/vendor/register";
+        }
+
+        Promotion promotion;
+
+        try {
+            promotion = vendorService.promotionForEdit(user, id);
+        } catch (IllegalArgumentException exception) {
+            redirect.addFlashAttribute(
+                "error",
+                exception.getMessage()
+            );
+            return "redirect:/vendor/promotions";
+        }
+
+        PromotionForm form = new PromotionForm();
+        form.setName(promotion.getName());
+        form.setType(promotion.getType());
+        form.setDiscountValue(promotion.getDiscountValue());
+        form.setProductId(
+            promotion.getProduct() == null
+                ? null
+                : promotion.getProduct().getId()
+        );
+        form.setStartsAt(promotion.getStartsAt());
+        form.setEndsAt(promotion.getEndsAt());
+        form.setActive(promotion.isActive());
+
+        preparePromotionForm(
+            model,
+            user,
+            shop,
+            form,
+            promotion
+        );
+
+        return "vendor/promotion-form";
+    }
+
+    @PostMapping("/promotions/save")
+    public String savePromotion(
+            @RequestParam(name = "id", required = false) Long id,
+            @Valid @ModelAttribute("promotionForm") PromotionForm form,
+            BindingResult result,
+            Model model,
+            RedirectAttributes redirect) {
+
+        User user = currentUserService.require();
+        Shop shop = vendorService.findShop(user);
+
+        if (shop == null) {
+            return "redirect:/vendor/register";
+        }
+
+        Promotion promotion = null;
+
+        if (id != null) {
+            try {
+                promotion = vendorService.promotionForEdit(
+                    user,
+                    id
+                );
+            } catch (IllegalArgumentException exception) {
+                redirect.addFlashAttribute(
+                    "error",
+                    exception.getMessage()
+                );
+                return "redirect:/vendor/promotions";
+            }
+        }
+
+        preparePromotionForm(
+            model,
+            user,
+            shop,
+            form,
+            promotion
+        );
+
+        if (result.hasErrors()) {
+            return "vendor/promotion-form";
+        }
+
+        try {
+            vendorService.savePromotion(user, id, form);
+        } catch (IllegalArgumentException exception) {
+            result.reject(
+                "promotion.invalid",
+                exception.getMessage()
+            );
+            return "vendor/promotion-form";
+        }
+
+        redirect.addFlashAttribute(
+            "success",
+            id == null
+                ? "Đã tạo chương trình khuyến mãi."
+                : "Đã cập nhật chương trình khuyến mãi."
+        );
+
+        return "redirect:/vendor/promotions";
+    }
+
+    @PostMapping("/promotions/{id}/delete")
+    public String deletePromotion(
+            @PathVariable("id") Long id,
+            RedirectAttributes redirect) {
+
+        User user = currentUserService.require();
+
+        if (vendorService.findShop(user) == null) {
+            return "redirect:/vendor/register";
+        }
+
+        try {
+            vendorService.deletePromotion(user, id);
+
+            redirect.addFlashAttribute(
+                "success",
+                "Đã xóa chương trình khuyến mãi."
+            );
+        } catch (IllegalArgumentException exception) {
+            redirect.addFlashAttribute(
+                "error",
+                exception.getMessage()
+            );
+        }
+
+        return "redirect:/vendor/promotions";
+    }
+
     private void prepareProductForm(
             Model model,
             Shop shop,
@@ -394,6 +586,24 @@ public class VendorController {
             product == null
                 ? List.of()
                 : productGalleryService.images(product)
+        );
+    }
+
+    private void preparePromotionForm(
+            Model model,
+            User user,
+            Shop shop,
+            PromotionForm form,
+            Promotion promotion) {
+
+        model.addAttribute("shop", shop);
+        model.addAttribute("promotionForm", form);
+        model.addAttribute("promotion", promotion);
+        model.addAttribute("editing", promotion != null);
+        model.addAttribute("promotionTypes", PromotionType.values());
+        model.addAttribute(
+            "products",
+            vendorService.promotionProducts(user)
         );
     }
 
