@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Thông tin topping')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="container py-4">
+    <div th:replace="~{fragments/management-nav :: nav}"></div>
+    <div class="row justify-content-center">
+        <div class="col-xl-7">
+            <section class="card p-4 p-lg-5">
+                <div class="d-flex justify-content-between align-items-start gap-3 mb-4">
+                    <div><span class="page-kicker"><i class="bi bi-cup-straw"></i> Topping</span><h1 class="h3 mb-1" th:text="${topping == null ? 'Thêm topping mới' : 'Chỉnh sửa topping'}"></h1><p class="text-muted mb-0">Giá này sẽ được cộng vào giá sản phẩm khi khách lựa chọn.</p></div>
+                    <span class="badge text-bg-light border" th:if="${topping != null}" th:text="${appliedProductCount + ' sản phẩm đang áp dụng'}"></span>
+                </div>
+                <form th:action="@{/management/toppings/save}" th:object="${toppingForm}" method="post" novalidate>
+                    <input type="hidden" name="id" th:value="${topping?.id}">
+                    <div class="alert alert-danger" th:if="${#fields.hasGlobalErrors()}" th:each="error : ${#fields.globalErrors()}" th:text="${error}"></div>
+                    <label class="form-label fw-semibold" for="name">Tên topping</label>
+                    <input id="name" class="form-control" th:classappend="${#fields.hasErrors('name')} ? 'is-invalid'" th:field="*{name}" maxlength="120" placeholder="Ví dụ: Trân châu đường đen">
+                    <div class="invalid-feedback" th:errors="*{name}"></div>
+
+                    <label class="form-label fw-semibold mt-3" for="price">Giá topping</label>
+                    <div class="input-group">
+                        <input id="price" class="form-control" th:classappend="${#fields.hasErrors('price')} ? 'is-invalid'" type="number" min="0" step="1000" th:field="*{price}">
+                        <span class="input-group-text">₫</span>
+                        <div class="invalid-feedback" th:errors="*{price}"></div>
+                    </div>
+
+                    <div class="form-check form-switch mt-4">
+                        <input id="active" class="form-check-input" type="checkbox" th:field="*{active}">
+                        <label class="form-check-label" for="active"><strong>Đang hoạt động</strong><small class="d-block text-muted">Topping bật sẽ xuất hiện trong form sản phẩm của Vendor và trang đặt món.</small></label>
+                    </div>
+                    <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                        <a class="btn btn-light" th:href="@{/management/toppings}">Hủy</a>
+                        <button class="btn btn-primary"><i class="bi bi-check2-circle me-1"></i>Lưu topping</button>
+                    </div>
+                </form>
+            </section>
+        </div>
+    </div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

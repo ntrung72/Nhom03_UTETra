@@ -260,6 +260,24 @@ public final class WebForms {
         private LocalTime closingTime;
     }
 
+    @Getter @Setter
+    public static class CategoryForm {
+        @NotBlank @Size(min = 2, max = 120) private String name;
+        @Size(max = 500) private String description;
+        private boolean active = true;
+    }
+
+    @Getter @Setter
+    public static class ToppingForm {
+        @NotBlank(message = "Vui lòng nhập tên topping")
+        @Size(min = 2, max = 120, message = "Tên topping phải từ 2 đến 120 ký tự")
+        private String name;
+        @NotNull(message = "Vui lòng nhập giá topping")
+        @DecimalMin(value = "0", message = "Giá topping không được âm")
+        private BigDecimal price = BigDecimal.ZERO;
+        private boolean active = true;
+    }
+
     @Getter
     @Setter
     public static class ProductForm {
