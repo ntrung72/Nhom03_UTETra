@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Quản trị')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="container py-4 py-lg-5">
+  <div th:replace="~{fragments/management-nav :: nav}"></div>
+  <div th:replace="~{fragments/layout :: flash}"></div>
+  <div class="mb-4"><span class="page-kicker"><i class="bi bi-speedometer2"></i> Quản trị hệ thống</span>
+  <h1 class="h3" th:text="${currentUser.role == T(vn.iotstar.entity.DomainEnums.Role).ADMIN ? 'Tổng quan toàn hệ thống' : 'Tổng quan các shop được phân công'}">Quản trị</h1>
+  <p class="text-muted">Dashboard nền Bước 13; thống kê đơn hàng và doanh thu sẽ bổ sung ở các bước tương ứng.</p></div>
+  <div class="row g-3">
+    <div class="col-md-4"><div class="card p-4 h-100"><small>Người dùng trong phạm vi</small><strong class="fs-2" th:text="${summary.users}">0</strong></div></div>
+    <div class="col-md-4"><div class="card p-4 h-100"><small>Cửa hàng trong phạm vi</small><strong class="fs-2" th:text="${summary.shops}">0</strong></div></div>
+    <div class="col-md-4"><div class="card p-4 h-100"><small>Sản phẩm trong phạm vi</small><strong class="fs-2" th:text="${summary.products}">0</strong></div></div>
+  </div>
+  <div class="mt-4 d-flex gap-2 flex-wrap">
+    <a class="btn btn-primary" th:href="@{/management/users}">Quản lý người dùng</a>
+    <a class="btn btn-outline-primary" th:href="@{/management/shops}">Quản lý cửa hàng</a>
+    <a class="btn btn-outline-primary" th:if="${currentUser.role == T(vn.iotstar.entity.DomainEnums.Role).ADMIN}" th:href="@{/management/managers}">Phân công Manager</a>
+  </div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body></html>
