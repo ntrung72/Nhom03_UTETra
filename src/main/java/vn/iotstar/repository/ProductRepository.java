@@ -113,4 +113,6 @@ public interface ProductRepository
 
     @EntityGraph(attributePaths = {"shop", "category"})
     List<Product> findByShopIdOrderByNameAsc(Long shopId);
+
+    long countByShopIdIn(java.util.List<Long> ids);
 }

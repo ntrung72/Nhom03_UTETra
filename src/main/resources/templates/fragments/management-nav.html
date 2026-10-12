@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<body>
+<nav th:fragment="nav" class="nav nav-pills gap-2 mb-4 p-2 bg-white border rounded-4">
+  <a class="nav-link" th:href="@{/management}"><i class="bi bi-grid me-1"></i> Tổng quan</a>
+  <a class="nav-link" th:href="@{/management/users}"><i class="bi bi-people me-1"></i> Người dùng</a>
+  <a class="nav-link" th:href="@{/management/shops}"><i class="bi bi-shop me-1"></i> Cửa hàng</a>
+  <a class="nav-link" th:if="${currentUser.role == T(vn.iotstar.entity.DomainEnums.Role).ADMIN}" th:href="@{/management/managers}"><i class="bi bi-person-gear me-1"></i> Phân công Manager</a>
+</nav>
+</body></html>
