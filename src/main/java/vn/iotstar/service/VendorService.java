@@ -1,5 +1,6 @@
 package vn.iotstar.service;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
@@ -10,16 +11,20 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import vn.iotstar.dto.WebForms.ProductForm;
+import vn.iotstar.dto.WebForms.PromotionForm;
 import vn.iotstar.dto.WebForms.ShopForm;
 import vn.iotstar.entity.Category;
 import vn.iotstar.entity.DomainEnums.ProductStatus;
+import vn.iotstar.entity.DomainEnums.PromotionType;
 import vn.iotstar.entity.DomainEnums.Role;
 import vn.iotstar.entity.DomainEnums.ShopStatus;
 import vn.iotstar.entity.Product;
+import vn.iotstar.entity.Promotion;
 import vn.iotstar.entity.Shop;
 import vn.iotstar.entity.User;
 import vn.iotstar.repository.CategoryRepository;
 import vn.iotstar.repository.ProductRepository;
+import vn.iotstar.repository.PromotionRepository;
 import vn.iotstar.repository.ShopRepository;
 import vn.iotstar.repository.UserRepository;
 import vn.iotstar.util.SlugUtils;
@@ -36,6 +41,7 @@ public class VendorService {
     private final ProductOptionService productOptionService;
     private final MediaStorageService mediaStorageService;
     private final ProductGalleryService productGalleryService;
+    private final PromotionRepository promotionRepository;
 
     public Shop findShop(User user) {
         return shopRepository.findByOwnerId(user.getId())
@@ -308,6 +314,138 @@ public class VendorService {
             );
         } else {
             product.setStatus(ProductStatus.HIDDEN);
+        }
+    }
+
+    public List<Promotion> promotions(User user) {
+        Shop shop = requireShop(user);
+
+        return promotionRepository
+            .findByShopIdOrderByStartsAtDesc(shop.getId());
+    }
+
+    public List<Product> promotionProducts(User user) {
+        Shop shop = requireShop(user);
+
+        return productRepository
+            .findByShopIdOrderByNameAsc(shop.getId());
+    }
+
+    public Promotion promotionForEdit(User user, Long id) {
+        Shop shop = requireShop(user);
+
+        return promotionRepository.findById(id)
+            .filter(promotion ->
+                promotion.getShop() != null
+                    && promotion.getShop().getId()
+                        .equals(shop.getId())
+            )
+            .orElseThrow(() ->
+                new IllegalArgumentException(
+                    "Không tìm thấy chương trình khuyến mãi "
+                        + "của cửa hàng."
+                )
+            );
+    }
+
+    @Transactional
+    public void savePromotion(
+            User user,
+            Long id,
+            PromotionForm form) {
+
+        Shop shop = requireShop(user);
+
+        Promotion promotion = id == null
+            ? new Promotion()
+            : promotionForEdit(user, id);
+
+        validatePromotion(form);
+
+        Product product = form.getProductId() == null
+            ? null
+            : productForEdit(user, form.getProductId());
+
+        promotion.setShop(shop);
+        promotion.setCreatedBy(user);
+        promotion.setName(form.getName().trim());
+        promotion.setType(form.getType());
+        promotion.setDiscountValue(form.getDiscountValue());
+        promotion.setStartsAt(form.getStartsAt());
+        promotion.setEndsAt(form.getEndsAt());
+        promotion.setActive(form.isActive());
+        promotion.setProduct(product);
+
+        promotionRepository.save(promotion);
+    }
+
+    @Transactional
+    public void deletePromotion(User user, Long id) {
+        Promotion promotion = promotionForEdit(user, id);
+
+        promotionRepository.delete(promotion);
+    }
+
+    public void validatePromotion(PromotionForm form) {
+        if (form == null) {
+            throw new IllegalArgumentException(
+                "Thông tin khuyến mãi không hợp lệ."
+            );
+        }
+
+        String name = form.getName() == null
+            ? ""
+            : form.getName().trim();
+
+        if (name.length() < 3 || name.length() > 180) {
+            throw new IllegalArgumentException(
+                "Tên khuyến mãi phải có từ 3 đến 180 ký tự "
+                    + "sau khi bỏ khoảng trắng."
+            );
+        }
+
+        if (form.getType() == null) {
+            throw new IllegalArgumentException(
+                "Vui lòng chọn loại khuyến mãi."
+            );
+        }
+
+        BigDecimal discountValue = form.getDiscountValue();
+
+        if (discountValue == null
+                || discountValue.compareTo(
+                    new BigDecimal("0.01")
+                ) < 0) {
+            throw new IllegalArgumentException(
+                "Mức giảm phải lớn hơn hoặc bằng 0,01."
+            );
+        }
+
+        if (form.getStartsAt() == null
+                || form.getEndsAt() == null
+                || !form.getEndsAt().isAfter(
+                    form.getStartsAt()
+                )) {
+            throw new IllegalArgumentException(
+                "Thời gian kết thúc phải sau thời gian bắt đầu."
+            );
+        }
+
+        if (form.getType() == PromotionType.PRODUCT_PERCENT
+                && discountValue.compareTo(
+                    new BigDecimal("100")
+                ) > 0) {
+            throw new IllegalArgumentException(
+                "Mức giảm phần trăm không được vượt quá 100%."
+            );
+        }
+
+        if (form.getType() == PromotionType.SHIPPING_DISCOUNT
+                && form.getProductId() != null) {
+            throw new IllegalArgumentException(
+                "Khuyến mãi phí vận chuyển không áp dụng "
+                    + "riêng cho sản phẩm."
+            );
         }
     }
 

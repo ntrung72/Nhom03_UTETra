@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Khuyến mãi')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+
+<main class="container py-4">
+    <nav th:replace="~{fragments/vendor-nav :: nav}"></nav>
+    <div th:replace="~{fragments/layout :: flash}"></div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card shadow-sm">
+                <div class="card-body p-4">
+                    <h1 class="h3 mb-2"
+                        th:text="${editing ? 'Sửa khuyến mãi' : 'Tạo khuyến mãi'}">
+                        Chương trình khuyến mãi
+                    </h1>
+
+                    <p class="text-muted mb-4" th:text="${shop.name}">
+                        Tên cửa hàng
+                    </p>
+
+                    <form th:action="@{/vendor/promotions/save}"
+                          th:object="${promotionForm}"
+                          method="post"
+                          novalidate>
+
+                        <input type="hidden"
+                               name="id"
+                               th:value="${promotion == null ? '' : promotion.id}">
+
+                        <div class="alert alert-danger"
+                             role="alert"
+                             th:if="${#fields.hasGlobalErrors()}">
+                            <ul class="mb-0">
+                                <li th:each="error : ${#fields.globalErrors()}"
+                                    th:text="${error}">
+                                    Lỗi lưu khuyến mãi
+                                </li>
+                            </ul>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="name" class="form-label">
+                                    Tên chương trình
+                                </label>
+                                <input id="name"
+                                       type="text"
+                                       class="form-control"
+                                       th:field="*{name}"
+                                       th:classappend="${#fields.hasErrors('name')} ? 'is-invalid' : ''"
+                                       minlength="3"
+                                       maxlength="180"
+                                       placeholder="Ví dụ: Ưu đãi cuối tuần"
+                                       required>
+                                <div class="invalid-feedback"
+                                     th:errors="*{name}"></div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="promotionType" class="form-label">
+                                    Loại khuyến mãi
+                                </label>
+                                <select id="promotionType"
+                                        class="form-select"
+                                        th:field="*{type}"
+                                        th:classappend="${#fields.hasErrors('type')} ? 'is-invalid' : ''"
+                                        required>
+                                    <option value="">-- Chọn loại khuyến mãi --</option>
+                                    <option th:each="t : ${promotionTypes}"
+                                            th:value="${t.name()}"
+                                            th:text="${t.label}">
+                                        Loại khuyến mãi
+                                    </option>
+                                </select>
+                                <div class="invalid-feedback"
+                                     th:errors="*{type}"></div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="discountValue"
+                                       id="discountLabel"
+                                       class="form-label">
+                                    Mức giảm
+                                </label>
+                                <input id="discountValue"
+                                       type="number"
+                                       class="form-control"
+                                       th:field="*{discountValue}"
+                                       th:classappend="${#fields.hasErrors('discountValue')} ? 'is-invalid' : ''"
+                                       min="0.01"
+                                       max="999999999999.99"
+                                       step="0.01"
+                                       required>
+                                <div class="invalid-feedback"
+                                     th:errors="*{discountValue}"></div>
+                                <div id="discountHelp" class="form-text">
+                                    Nhập mức giảm phù hợp với loại khuyến mãi.
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="productSelect" class="form-label">
+                                    Sản phẩm áp dụng
+                                </label>
+                                <select id="productSelect"
+                                        class="form-select"
+                                        th:field="*{productId}"
+                                        th:classappend="${#fields.hasErrors('productId')} ? 'is-invalid' : ''">
+                                    <option value="">Toàn shop</option>
+                                    <option th:each="p : ${products}"
+                                            th:value="${p.id}"
+                                            th:text="${p.name}">
+                                        Sản phẩm
+                                    </option>
+                                </select>
+                                <div class="invalid-feedback"
+                                     th:errors="*{productId}"></div>
+                                <div id="productHelp" class="form-text">
+                                    Chọn một sản phẩm hoặc để trống để áp dụng cho toàn shop.
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="startsAt" class="form-label">
+                                    Thời gian bắt đầu
+                                </label>
+                                <input id="startsAt"
+                                       type="datetime-local"
+                                       class="form-control"
+                                       th:field="*{startsAt}"
+                                       th:classappend="${#fields.hasErrors('startsAt')} ? 'is-invalid' : ''"
+                                       required>
+                                <div class="invalid-feedback"
+                                     th:errors="*{startsAt}"></div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="endsAt" class="form-label">
+                                    Thời gian kết thúc
+                                </label>
+                                <input id="endsAt"
+                                       type="datetime-local"
+                                       class="form-control"
+                                       th:field="*{endsAt}"
+                                       th:classappend="${#fields.hasErrors('endsAt')} ? 'is-invalid' : ''"
+                                       required>
+                                <div class="invalid-feedback"
+                                     th:errors="*{endsAt}"></div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="form-check">
+                                    <input id="active"
+                                           type="checkbox"
+                                           class="form-check-input"
+                                           th:field="*{active}">
+                                    <label for="active" class="form-check-label">
+                                        Bật chương trình khuyến mãi
+                                    </label>
+                                </div>
+                                <div class="form-text">
+                                    Khuyến mãi chỉ áp dụng khi đang bật
+                                    và nằm trong thời gian hiệu lực.
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex flex-wrap gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check2-circle me-1"></i>
+                                Lưu khuyến mãi
+                            </button>
+
+                            <a class="btn btn-outline-secondary"
+                               th:href="@{/vendor/promotions}">
+                                Quay lại
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+
+<script>
+    (() => {
+        const type = document.getElementById('promotionType');
+        const product = document.getElementById('productSelect');
+        const productHelp = document.getElementById('productHelp');
+        const discount = document.getElementById('discountValue');
+        const discountLabel = document.getElementById('discountLabel');
+        const discountHelp = document.getElementById('discountHelp');
+
+        function refreshPromotionFields() {
+            const shipping = type.value === 'SHIPPING_DISCOUNT';
+            const percent = type.value === 'PRODUCT_PERCENT';
+
+            product.disabled = shipping;
+
+            if (shipping) {
+                product.value = '';
+            }
+
+            productHelp.textContent = shipping
+                ? 'Giảm phí vận chuyển áp dụng cho đơn hàng của shop, không áp dụng riêng một sản phẩm.'
+                : 'Chọn một sản phẩm hoặc để trống để áp dụng cho toàn shop.';
+
+            discount.max = percent ? '100' : '999999999999.99';
+
+            discountLabel.textContent = percent
+                ? 'Mức giảm (%)'
+                : shipping
+                    ? 'Mức giảm phí vận chuyển (đồng)'
+                    : 'Mức giảm';
+
+            discountHelp.textContent = percent
+                ? 'Từ 0,01% đến 100%. Giảm trên giá sản phẩm, chưa gồm phụ thu size và topping.'
+                : shipping
+                    ? 'Nhập số tiền giảm phí vận chuyển.'
+                    : 'Nhập mức giảm phù hợp với loại khuyến mãi.';
+        }
+
+        type.addEventListener('change', refreshPromotionFields);
+        refreshPromotionFields();
+    })();
+</script>
+</body>
+</html>

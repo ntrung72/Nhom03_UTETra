@@ -79,6 +79,21 @@ public final class DomainEnums {
         }
     }
 
+    public enum PromotionType {
+        PRODUCT_PERCENT("Giảm giá sản phẩm (%)"),
+        SHIPPING_DISCOUNT("Giảm phí vận chuyển");
+
+        private final String label;
+
+        PromotionType(String label) {
+            this.label = label;
+        }
+
+        public String getLabel() {
+            return label;
+        }
+    }
+
     public enum MediaType {
         IMAGE,
         VIDEO
