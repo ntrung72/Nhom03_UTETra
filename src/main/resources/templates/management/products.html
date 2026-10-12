@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Sản phẩm hệ thống')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="container py-4">
+    <div th:replace="~{fragments/management-nav :: nav}"></div>
+    <div th:replace="~{fragments/layout :: flash}"></div>
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+        <div><span class="page-kicker"><i class="bi bi-cup-straw"></i> DANH MỤC BÁN HÀNG</span><h1 class="h3 mb-1">Sản phẩm theo từng cửa hàng</h1><p class="text-muted mb-0">Xem, tạo và chỉnh sửa sản phẩm trong phạm vi cửa hàng được phép quản lý.</p></div>
+        <a class="btn btn-primary" th:if="${!#lists.isEmpty(shops)}" th:href="@{/management/products/new}"><i class="bi bi-plus-lg me-1"></i>Thêm sản phẩm</a>
+    </div>
+    <form class="row g-2 mb-3" method="get">
+        <div class="col-md"><input class="form-control" name="q" th:value="${q}" placeholder="Tên hoặc SKU"></div>
+        <div class="col-md"><select class="form-select" name="shop"><option value="">Mọi shop</option><option th:each="s : ${shops}" th:value="${s.id}" th:text="${s.name}" th:selected="${s.id == selectedShop}"></option></select></div>
+        <div class="col-md"><select class="form-select" name="category"><option value="">Mọi danh mục</option><option th:each="c : ${categories}" th:value="${c.id}" th:text="${c.name}" th:selected="${c.id == selectedCategory}"></option></select></div>
+        <div class="col-auto"><button class="btn btn-primary">Lọc</button></div>
+    </form>
+    <div class="card table-responsive">
+        <table class="table align-middle mb-0">
+            <thead><tr><th>Sản phẩm</th><th>Shop</th><th>Danh mục</th><th>Giá / Kho</th><th>Trạng thái</th><th></th></tr></thead>
+            <tbody>
+            <tr th:each="p : ${products.content}">
+                <td><strong th:text="${p.name}"></strong><div class="text-muted" th:text="${p.sku}"></div></td>
+                <td th:text="${p.shop.name}"></td>
+                <td th:text="${p.category.name}"></td>
+                <td><span th:text="${#numbers.formatDecimal(p.price,0,'COMMA',0,'POINT')} + ' ₫'"></span><div th:text="${'Kho: ' + p.stock}"></div></td>
+                <td th:text="${p.status.label}"></td>
+                <td class="text-nowrap">
+                    <a class="btn btn-sm btn-outline-secondary" th:href="@{/management/products/{id}(id=${p.id})}"><i class="bi bi-eye"></i> Xem</a>
+                    <a class="btn btn-sm btn-outline-primary" th:href="@{/management/products/{id}/edit(id=${p.id})}"><i class="bi bi-pencil"></i> Sửa</a>
+                    <form class="d-inline" th:action="@{/management/products/{id}/toggle(id=${p.id})}" method="post"><button class="btn btn-sm btn-outline-warning" th:text="${p.status.name() == 'HIDDEN' ? 'Bật bán' : 'Ẩn'}"></button></form>
+                </td>
+            </tr>
+            <tr th:if="${products.empty}"><td colspan="6" class="text-center text-muted py-4">Không tìm thấy sản phẩm.</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <nav class="mt-3" th:if="${products.totalPages > 1}">
+        <ul class="pagination justify-content-center">
+            <li class="page-item" th:classappend="${products.first} ? 'disabled'"><a class="page-link" th:href="@{/management/products(page=${products.number - 1},q=${q},shop=${selectedShop},category=${selectedCategory})}">Trước</a></li>
+            <li class="page-item" th:each="i : ${#numbers.sequence(0, products.totalPages - 1)}" th:classappend="${i == products.number} ? 'active'"><a class="page-link" th:href="@{/management/products(page=${i},q=${q},shop=${selectedShop},category=${selectedCategory})}" th:text="${i + 1}"></a></li>
+            <li class="page-item" th:classappend="${products.last} ? 'disabled'"><a class="page-link" th:href="@{/management/products(page=${products.number + 1},q=${q},shop=${selectedShop},category=${selectedCategory})}">Sau</a></li>
+        </ul>
+    </nav>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

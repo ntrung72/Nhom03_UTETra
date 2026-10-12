@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Khuyến mãi')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="container py-4">
+    <div th:replace="~{fragments/management-nav :: nav}"></div>
+    <div class="card p-4">
+        <h1 class="h3" th:text="${promotion == null ? 'Tạo chương trình khuyến mãi' : 'Sửa chương trình khuyến mãi'}"></h1>
+        <form th:action="@{/management/promotions/save}" th:object="${promotionForm}" method="post">
+            <input type="hidden" name="id" th:value="${promotion?.id}">
+            <div class="row g-3">
+                <div class="col-md-6"><label class="form-label">Tên chương trình</label><input class="form-control" th:field="*{name}"><div class="text-danger" th:errors="*{name}"></div></div>
+                <div class="col-md-3">
+                    <label class="form-label">Shop áp dụng</label>
+                    <select class="form-select" name="shopId" id="shopSelect">
+                        <option value="" th:if="${currentUser.role == T(vn.iotstar.entity.DomainEnums.Role).ADMIN}">Toàn hệ thống</option>
+                        <option th:each="s : ${shops}" th:value="${s.id}" th:text="${s.name}" th:selected="${s.id == selectedShopId}"></option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Loại khuyến mãi</label>
+                    <select class="form-select" th:field="*{type}" id="promotionType">
+                        <option th:each="t : ${T(vn.iotstar.entity.DomainEnums.PromotionType).values()}" th:value="${t}" th:text="${t.label}"></option>
+                    </select>
+                    <div class="text-danger" th:errors="*{type}"></div>
+                </div>
+                <div class="col-md-3"><label class="form-label">Giá trị giảm</label><input class="form-control" type="number" min="0.01" step="0.01" th:field="*{discountValue}"><div class="form-text">% với giảm sản phẩm; đồng với giảm vận chuyển.</div><div class="text-danger" th:errors="*{discountValue}"></div></div>
+                <div class="col-md-3"><label class="form-label">Bắt đầu</label><input class="form-control" type="datetime-local" th:field="*{startsAt}"><div class="text-danger" th:errors="*{startsAt}"></div></div>
+                <div class="col-md-3"><label class="form-label">Kết thúc</label><input class="form-control" type="datetime-local" th:field="*{endsAt}"><div class="text-danger" th:errors="*{endsAt}"></div></div>
+                <div class="col-md-3">
+                    <label class="form-label">Sản phẩm cụ thể</label>
+                    <select class="form-select" th:field="*{productId}" id="productSelect">
+                        <option value="">Tất cả sản phẩm phù hợp</option>
+                        <option th:each="p : ${products}" th:value="${p.id}" th:text="${p.shop.name + ' — ' + p.name}" th:attr="data-shop-id=${p.shop.id}"></option>
+                    </select>
+                    <div class="form-text" id="productHelp">Danh sách tự lọc theo shop đã chọn.</div>
+                </div>
+                <div class="col-12 form-check ms-2"><input class="form-check-input" type="checkbox" th:field="*{active}"><label class="form-check-label">Hoạt động</label></div>
+            </div>
+            <button class="btn btn-primary mt-3">Lưu chương trình</button>
+        </form>
+    </div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const shop = document.getElementById('shopSelect');
+    const type = document.getElementById('promotionType');
+    const product = document.getElementById('productSelect');
+    const help = document.getElementById('productHelp');
+    const refreshProducts = () => {
+        const shipping = type.value === 'SHIPPING_DISCOUNT';
+        product.disabled = shipping;
+        if (shipping) {
+            product.value = '';
+            help.textContent = 'Giảm phí vận chuyển áp dụng cho đơn hàng, không áp dụng riêng một sản phẩm.';
+        } else {
+            help.textContent = 'Danh sách tự lọc theo shop đã chọn.';
+        }
+        Array.from(product.options).forEach(option => {
+            if (!option.value) return;
+            const visible = !shop.value || option.dataset.shopId === shop.value;
+            option.hidden = !visible;
+            option.disabled = !visible;
+            if (!visible && option.selected) product.value = '';
+        });
+    };
+    shop.addEventListener('change', refreshProducts);
+    type.addEventListener('change', refreshProducts);
+    refreshProducts();
+});
+</script>
+</body>
+</html>

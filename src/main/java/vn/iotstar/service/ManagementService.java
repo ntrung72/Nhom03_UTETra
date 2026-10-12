@@ -1,6 +1,18 @@
 package vn.iotstar.service;
 
 import java.math.BigDecimal;
+import org.springframework.web.multipart.MultipartFile;
+import vn.iotstar.dto.WebForms.CategoryForm;
+import vn.iotstar.dto.WebForms.ToppingForm;
+import vn.iotstar.dto.WebForms.PromotionForm;
+import vn.iotstar.entity.Category;
+import vn.iotstar.entity.Topping;
+import vn.iotstar.entity.DomainEnums.PromotionType;
+import vn.iotstar.entity.DomainEnums.ProductStatus;
+import vn.iotstar.repository.CategoryRepository;
+import vn.iotstar.repository.ToppingRepository;
+import vn.iotstar.repository.ProductToppingRepository;
+import vn.iotstar.service.MediaStorageService;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -41,6 +53,10 @@ public class ManagementService {
     private final ShopRepository shopRepository;
     private final ProductRepository productRepository;
     private final PromotionRepository promotionRepository;
+    private final CategoryRepository categoryRepository;
+    private final ToppingRepository toppingRepository;
+    private final ProductToppingRepository productToppingRepository;
+    private final MediaStorageService mediaStorageService;
 
     /** Admin can see every shop; Manager can see only assigned shops. */
     public List<Shop> accessibleShops(User actor) {
@@ -260,6 +276,153 @@ public class ManagementService {
             link.setAssignedBy(actor);
             managerShopRepository.save(link);
         }
+    }
+
+    // ==================== STEP 14: Management catalog ====================
+
+    public Page<Category> categories(String q, int page) {
+        return categoryRepository.search(cleanQuery(q),
+            PageRequest.of(Math.max(page, 0), 20, Sort.by("name")));
+    }
+
+    public Category getCategory(Long id) {
+        return categoryRepository.findById(id)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy danh mục."));
+    }
+
+    public List<Category> allCategories() { return categoryRepository.findAll(Sort.by("name")); }
+
+    @Transactional
+    public void saveCategory(Long id, CategoryForm form, MultipartFile image) {
+        Category category = id == null ? new Category() : getCategory(id);
+        String name = form.getName() == null ? "" : form.getName().trim();
+        if (name.length() < 2 || name.length() > 120) throw new IllegalArgumentException("Tên danh mục phải có từ 2 đến 120 ký tự.");
+        String slug = vn.iotstar.util.SlugUtils.toSlug(name);
+        boolean duplicated = id == null ? categoryRepository.existsBySlug(slug)
+            : categoryRepository.existsBySlugAndIdNot(slug, id);
+        if (duplicated) throw new IllegalArgumentException("Tên danh mục đã tồn tại.");
+        category.setName(name);
+        category.setSlug(slug);
+        category.setDescription(form.getDescription() == null ? null : form.getDescription().trim());
+        category.setActive(form.isActive());
+        String url = mediaStorageService.upload(image, "categories");
+        if (url != null) category.setImageUrl(url);
+        if (category.getImageUrl() == null) category.setImageUrl("/images/category-placeholder.svg");
+        categoryRepository.save(category);
+    }
+
+    @Transactional
+    public void toggleCategory(Long id) {
+        Category category = getCategory(id);
+        category.setActive(!category.isActive());
+    }
+
+    public Page<Product> products(User actor, String q, Long shopId, Long categoryId, int page) {
+        requireManagementRole(actor);
+        var pageable = PageRequest.of(Math.max(page, 0), 20, Sort.by("createdAt").descending());
+        if (isAdmin(actor)) return productRepository.searchManagement(cleanQuery(q), shopId, categoryId, pageable);
+        List<Long> ids = accessibleShopIds(actor);
+        return ids.isEmpty() ? Page.empty(pageable)
+            : productRepository.searchManagementAssigned(ids, cleanQuery(q), shopId, categoryId, pageable);
+    }
+
+    @Transactional
+    public void toggleProduct(User actor, Long id) {
+        Product product = getProduct(actor, id);
+        product.setStatus(product.getStatus() == ProductStatus.HIDDEN
+            ? (product.getStock() > 0 ? ProductStatus.ACTIVE : ProductStatus.OUT_OF_STOCK) : ProductStatus.HIDDEN);
+    }
+
+    public Page<Topping> toppings(String q, int page) {
+        return toppingRepository.search(cleanQuery(q), PageRequest.of(Math.max(page, 0), 20, Sort.by("name")));
+    }
+
+    public Topping getTopping(Long id) {
+        return toppingRepository.findById(id)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy topping."));
+    }
+
+    public long toppingProductCount(Long id) { return productToppingRepository.countByToppingId(id); }
+
+    @Transactional
+    public void saveTopping(Long id, ToppingForm form) {
+        Topping topping = id == null ? new Topping() : getTopping(id);
+        String name = form.getName() == null ? "" : form.getName().trim();
+        if (name.length() < 2 || name.length() > 120) throw new IllegalArgumentException("Tên topping phải có từ 2 đến 120 ký tự.");
+        if (form.getPrice() == null || form.getPrice().signum() < 0) throw new IllegalArgumentException("Giá topping không được âm.");
+        boolean duplicated = id == null ? toppingRepository.existsByNameIgnoreCase(name)
+            : toppingRepository.existsByNameIgnoreCaseAndIdNot(name, id);
+        if (duplicated) throw new IllegalArgumentException("Tên topping đã tồn tại.");
+        topping.setName(name);
+        topping.setPrice(form.getPrice());
+        topping.setActive(form.isActive());
+        toppingRepository.save(topping);
+    }
+
+    @Transactional
+    public void toggleTopping(Long id) {
+        Topping topping = getTopping(id);
+        topping.setActive(!topping.isActive());
+    }
+
+    @Transactional
+    public void deleteTopping(Long id) {
+        Topping topping = getTopping(id);
+        if (productToppingRepository.existsByToppingId(id)) {
+            throw new IllegalArgumentException("Topping đang được áp dụng cho sản phẩm. Hãy tắt topping thay vì xóa.");
+        }
+        toppingRepository.delete(topping);
+    }
+
+    public Page<Promotion> promotions(User actor, String q, Long shopId, PromotionType type, int page) {
+        requireManagementRole(actor);
+        var pageable = PageRequest.of(Math.max(page, 0), 20, Sort.by("startsAt").descending());
+        if (isAdmin(actor)) return promotionRepository.search(cleanQuery(q), shopId, type, pageable);
+        List<Long> ids = accessibleShopIds(actor);
+        return ids.isEmpty() ? Page.empty(pageable)
+            : promotionRepository.searchAssigned(ids, cleanQuery(q), shopId, type, pageable);
+    }
+
+    @Transactional
+    public void savePromotion(Long id, Long shopId, PromotionForm form, User actor) {
+        requireManagementRole(actor);
+        if (form.getStartsAt() == null || form.getEndsAt() == null || !form.getEndsAt().isAfter(form.getStartsAt()))
+            throw new IllegalArgumentException("Thời gian kết thúc phải sau thời gian bắt đầu.");
+        if (form.getType() == null || form.getDiscountValue() == null || form.getDiscountValue().signum() <= 0)
+            throw new IllegalArgumentException("Loại khuyến mãi hoặc mức giảm không hợp lệ.");
+        if (form.getType() == PromotionType.PRODUCT_PERCENT && form.getDiscountValue().compareTo(new BigDecimal("100")) > 0)
+            throw new IllegalArgumentException("Mức giảm phần trăm không được vượt quá 100%.");
+        Promotion promotion = id == null ? new Promotion() : getPromotion(actor, id);
+        Shop shop = shopId == null ? null : shopRepository.findById(shopId)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy cửa hàng."));
+        if (shop == null && !isAdmin(actor)) throw new IllegalArgumentException("Manager phải chọn shop được phân công.");
+        if (shop != null) requireShopAccess(actor, shop.getId());
+        // Editing cannot move a manager-owned promotion to another shop without authorization.
+        Product product = form.getProductId() == null ? null : productRepository.findById(form.getProductId())
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm."));
+        if (product != null) requireShopAccess(actor, product.getShop().getId());
+        if (form.getType() == PromotionType.SHIPPING_DISCOUNT && product != null)
+            throw new IllegalArgumentException("Khuyến mãi vận chuyển không áp dụng riêng sản phẩm.");
+        if (product != null && (shop == null || !product.getShop().getId().equals(shop.getId())))
+            throw new IllegalArgumentException("Sản phẩm không thuộc cửa hàng đã chọn.");
+        String name = form.getName() == null ? "" : form.getName().trim();
+        if (name.length() < 3 || name.length() > 180) throw new IllegalArgumentException("Tên chương trình không hợp lệ.");
+        promotion.setName(name);
+        promotion.setType(form.getType());
+        promotion.setDiscountValue(form.getDiscountValue());
+        promotion.setShop(shop);
+        promotion.setProduct(product);
+        promotion.setStartsAt(form.getStartsAt());
+        promotion.setEndsAt(form.getEndsAt());
+        promotion.setActive(form.isActive());
+        if (id == null) promotion.setCreatedBy(actor);
+        promotionRepository.save(promotion);
+    }
+
+    @Transactional
+    public void deletePromotion(User actor, Long id) {
+        Promotion promotion = getPromotion(actor, id);
+        promotionRepository.delete(promotion);
     }
 
     private void requireAdmin(User actor) {

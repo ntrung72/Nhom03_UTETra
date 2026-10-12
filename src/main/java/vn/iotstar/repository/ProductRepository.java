@@ -115,4 +115,25 @@ public interface ProductRepository
     List<Product> findByShopIdOrderByNameAsc(Long shopId);
 
     long countByShopIdIn(java.util.List<Long> ids);
+
+    @EntityGraph(attributePaths = {"shop", "category"})
+    @Query(""" 
+       select p from Product p where (:q is null or lower(p.name) like lower(concat('%', :q, '%'))
+            or lower(p.sku) like lower(concat('%', :q, '%')))
+            and (:shopId is null or p.shop.id = :shopId)
+            and (:categoryId is null or p.category.id = :categoryId)
+       """)
+    Page<Product> searchManagement(@Param("q") String q, @Param("shopId") Long shopId,
+        @Param("categoryId") Long categoryId, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"shop", "category"})
+    @Query("""
+       select p from Product p where p.shop.id in :shopIds
+            and (:q is null or lower(p.name) like lower(concat('%', :q, '%'))
+                 or lower(p.sku) like lower(concat('%', :q, '%')))
+            and (:shopId is null or p.shop.id = :shopId)
+            and (:categoryId is null or p.category.id = :categoryId)
+       """)
+    Page<Product> searchManagementAssigned(@Param("shopIds") List<Long> shopIds, @Param("q") String q,
+        @Param("shopId") Long shopId, @Param("categoryId") Long categoryId, Pageable pageable);
 }
