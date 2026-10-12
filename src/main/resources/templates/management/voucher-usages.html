@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Lịch sử sử dụng voucher')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="container py-4 py-lg-5">
+    <div th:replace="~{fragments/management-nav :: nav}"></div>
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <a class="btn btn-light rounded-circle" th:href="@{/management/vouchers}" aria-label="Quay lại"><i class="bi bi-arrow-left"></i></a>
+        <div>
+            <span class="page-kicker"><i class="bi bi-clock-history"></i> LỊCH SỬ SỬ DỤNG</span>
+            <h1 class="h3 mb-0"><span class="voucher-code" th:text="${voucher.code}">CODE</span></h1>
+            <p class="text-muted mb-0" th:text="${voucher.name + ' · Tối đa ' + voucher.effectiveMaxUsesPerUser + ' lượt/User'}"></p>
+        </div>
+    </div>
+
+    <div class="card table-responsive overflow-hidden">
+        <table class="table align-middle mb-0">
+            <thead><tr><th>User</th><th>Đơn tham chiếu</th><th>Mã checkout</th><th>Trạng thái</th><th>Thời điểm</th></tr></thead>
+            <tbody>
+            <tr th:each="usage : ${usages.content}">
+                <td><strong th:text="${usage.user.fullName}"></strong><div class="text-muted small" th:text="${usage.user.username + ' · ' + usage.user.email}"></div></td>
+                <td><span th:if="${usage.orderId != null}" th:text="${'#' + usage.orderId}"></span><span th:if="${usage.orderId == null}" class="text-muted">Chưa liên kết</span></td>
+                <td><code th:text="${usage.checkoutReference}"></code></td>
+                <td><span class="badge" th:classappend="${usage.status.name() == 'USED'} ? ' text-bg-success' : ' text-bg-secondary'" th:text="${usage.status.label}"></span></td>
+                <td>
+                    <div th:text="${#temporals.format(usage.usedAt, 'dd/MM/yyyy HH:mm:ss')}"></div>
+                    <div class="text-muted small" th:if="${usage.releasedAt != null}" th:text="${'Hoàn lúc ' + #temporals.format(usage.releasedAt, 'dd/MM/yyyy HH:mm:ss')}"></div>
+                    <div class="text-muted small" th:if="${usage.releaseReason != null}" th:text="${usage.releaseReason}"></div>
+                </td>
+            </tr>
+            <tr th:if="${usages.empty}"><td colspan="5" class="text-center text-muted py-5"><i class="bi bi-inbox d-block fs-2 mb-2"></i>Mã chưa được sử dụng.</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <nav class="mt-4" th:if="${usages.totalPages > 1}">
+        <ul class="pagination justify-content-center">
+            <li class="page-item" th:classappend="${usages.first} ? 'disabled'"><a class="page-link" th:href="@{/management/vouchers/{id}/usages(id=${voucher.id},page=${usages.number - 1})}">Trước</a></li>
+            <li class="page-item" th:each="i : ${#numbers.sequence(0, usages.totalPages - 1)}" th:classappend="${i == usages.number} ? 'active'"><a class="page-link" th:href="@{/management/vouchers/{id}/usages(id=${voucher.id},page=${i})}" th:text="${i + 1}"></a></li>
+            <li class="page-item" th:classappend="${usages.last} ? 'disabled'"><a class="page-link" th:href="@{/management/vouchers/{id}/usages(id=${voucher.id},page=${usages.number + 1})}">Sau</a></li>
+        </ul>
+    </nav>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

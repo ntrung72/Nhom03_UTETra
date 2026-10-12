@@ -1,13 +1,19 @@
 package vn.iotstar.service;
 
 import java.math.BigDecimal;
+import java.util.Locale;
+import java.time.LocalDateTime;
 import org.springframework.web.multipart.MultipartFile;
 import vn.iotstar.dto.WebForms.CategoryForm;
 import vn.iotstar.dto.WebForms.ToppingForm;
 import vn.iotstar.dto.WebForms.PromotionForm;
+import vn.iotstar.dto.WebForms.VoucherForm;
 import vn.iotstar.entity.Category;
 import vn.iotstar.entity.Topping;
 import vn.iotstar.entity.DomainEnums.PromotionType;
+import vn.iotstar.entity.DomainEnums.VoucherType;
+import vn.iotstar.entity.Voucher;
+import vn.iotstar.entity.VoucherUsage;
 import vn.iotstar.entity.DomainEnums.ProductStatus;
 import vn.iotstar.repository.CategoryRepository;
 import vn.iotstar.repository.ToppingRepository;
@@ -35,6 +41,8 @@ import vn.iotstar.entity.DomainEnums.ShopStatus;
 import vn.iotstar.repository.ManagerShopRepository;
 import vn.iotstar.repository.ProductRepository;
 import vn.iotstar.repository.PromotionRepository;
+import vn.iotstar.repository.VoucherRepository;
+import vn.iotstar.repository.VoucherUsageRepository;
 import vn.iotstar.repository.ShopRepository;
 import vn.iotstar.repository.UserRepository;
 
@@ -53,6 +61,8 @@ public class ManagementService {
     private final ShopRepository shopRepository;
     private final ProductRepository productRepository;
     private final PromotionRepository promotionRepository;
+    private final VoucherRepository voucherRepository;
+    private final VoucherUsageRepository voucherUsageRepository;
     private final CategoryRepository categoryRepository;
     private final ToppingRepository toppingRepository;
     private final ProductToppingRepository productToppingRepository;
@@ -423,6 +433,93 @@ public class ManagementService {
     public void deletePromotion(User actor, Long id) {
         Promotion promotion = getPromotion(actor, id);
         promotionRepository.delete(promotion);
+    }
+
+    // ==================== STEP 15: System Vouchers ====================
+
+    public Page<Voucher> vouchers(User actor, String q, VoucherType type, Boolean active, int page) {
+        requireAdmin(actor);
+        return voucherRepository.search(cleanQuery(q), type, active,
+            PageRequest.of(Math.max(page, 0), 20, Sort.by("startsAt").descending()));
+    }
+
+    public Voucher getVoucher(User actor, Long id) {
+        requireAdmin(actor);
+        return voucherRepository.findById(id)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy mã giảm giá."));
+    }
+
+    @Transactional
+    public void saveVoucher(User actor, Long id, VoucherForm form) {
+        requireAdmin(actor);
+        if (form == null || form.getCode() == null || !form.getCode().trim().matches("[A-Za-z0-9_-]{3,40}")
+            || form.getName() == null || form.getName().isBlank() || form.getName().length() > 180
+            || form.getType() == null || form.getDiscountValue() == null
+            || form.getDiscountValue().compareTo(BigDecimal.ZERO) <= 0
+            || form.getMinimumOrder() == null || form.getMinimumOrder().signum() < 0
+            || form.getMaxDiscount() != null && form.getMaxDiscount().signum() <= 0
+            || form.getQuantity() < 0) {
+            throw new IllegalArgumentException("Dữ liệu mã giảm giá không hợp lệ.");
+        }
+        if (form.getEndsAt() == null || form.getStartsAt() == null
+            || !form.getEndsAt().isAfter(form.getStartsAt())) {
+            throw new IllegalArgumentException("Thời gian kết thúc phải sau thời gian bắt đầu.");
+        }
+        if (form.getType() == VoucherType.PERCENT
+            && form.getDiscountValue().compareTo(new BigDecimal("100")) > 0) {
+            throw new IllegalArgumentException("Mức giảm phần trăm không được vượt quá 100%.");
+        }
+        if (form.getMaxUsesPerUser() < 1) {
+            throw new IllegalArgumentException("Số lượt tối đa cho mỗi User phải từ 1 trở lên.");
+        }
+        String code = form.getCode().trim().toUpperCase(Locale.ROOT);
+        boolean duplicatedCode = id == null ? voucherRepository.existsByCodeIgnoreCase(code)
+            : voucherRepository.existsByCodeIgnoreCaseAndIdNot(code, id);
+        if (duplicatedCode) throw new IllegalArgumentException("Mã giảm giá đã tồn tại.");
+        Voucher voucher = id == null ? new Voucher() : voucherRepository.findById(id)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy mã giảm giá."));
+        if (id != null && voucherUsageRepository.existsByVoucherId(id)
+            && !voucher.getCode().equalsIgnoreCase(code)) {
+            throw new IllegalArgumentException("Mã đã có lịch sử sử dụng nên không thể đổi code.");
+        }
+        voucher.setCode(code);
+        voucher.setName(form.getName().trim());
+        voucher.setType(form.getType());
+        voucher.setDiscountValue(form.getDiscountValue());
+        voucher.setMinimumOrder(form.getMinimumOrder());
+        voucher.setMaxDiscount(form.getMaxDiscount());
+        voucher.setQuantity(form.getQuantity());
+        voucher.setMaxUsesPerUser(form.getMaxUsesPerUser());
+        voucher.setStartsAt(form.getStartsAt());
+        voucher.setEndsAt(form.getEndsAt());
+        voucher.setActive(form.isActive());
+        voucherRepository.save(voucher);
+    }
+
+    @Transactional
+    public void toggleVoucher(User actor, Long id) {
+        requireAdmin(actor);
+        Voucher voucher = voucherRepository.findById(id)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy mã giảm giá."));
+        voucher.setActive(!voucher.isActive());
+    }
+
+    @Transactional
+    public void deleteVoucher(User actor, Long id) {
+        requireAdmin(actor);
+        Voucher voucher = voucherRepository.findById(id)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy mã giảm giá."));
+        if (voucherUsageRepository.existsByVoucherId(id)) {
+            throw new IllegalArgumentException("Mã đã có lịch sử sử dụng nên không thể xóa. Bạn có thể tắt mã này.");
+        }
+        voucherRepository.delete(voucher);
+    }
+
+    public Page<VoucherUsage> voucherUsages(User actor, Long voucherId, int page) {
+        requireAdmin(actor);
+        if (!voucherRepository.existsById(voucherId)) throw new IllegalArgumentException("Không tìm thấy mã giảm giá.");
+        return voucherUsageRepository.findByVoucherIdOrderByUsedAtDesc(voucherId,
+            PageRequest.of(Math.max(page, 0), 20));
     }
 
     private void requireAdmin(User actor) {

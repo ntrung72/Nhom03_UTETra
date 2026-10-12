@@ -11,6 +11,7 @@ import lombok.Setter;
 import org.springframework.format.annotation.DateTimeFormat;
 import vn.iotstar.entity.DomainEnums.ProductStatus;
 import vn.iotstar.entity.DomainEnums.PromotionType;
+import vn.iotstar.entity.DomainEnums.VoucherType;
 
 public final class WebForms {
 
@@ -376,6 +377,38 @@ public final class WebForms {
         private BigDecimal sizeXlExtraPrice = new BigDecimal("12000");
 
         private List<Long> toppingIds = new ArrayList<>();
+    }
+
+    @Getter @Setter
+    public static class VoucherForm {
+        @NotBlank(message = "Vui lòng nhập mã giảm giá")
+        @Size(min = 3, max = 40, message = "Mã giảm giá phải có từ 3 đến 40 ký tự")
+        @Pattern(regexp = "^[A-Za-z0-9_-]+$", message = "Mã chỉ được gồm chữ, số, dấu gạch ngang hoặc gạch dưới")
+        private String code;
+        @NotBlank(message = "Vui lòng nhập tên chương trình")
+        @Size(max = 180, message = "Tên chương trình không được quá 180 ký tự")
+        private String name;
+        @NotNull(message = "Vui lòng chọn loại giảm giá")
+        private VoucherType type = VoucherType.PERCENT;
+        @NotNull(message = "Vui lòng nhập giá trị giảm")
+        @DecimalMin(value = "0.01", message = "Giá trị giảm phải lớn hơn 0")
+        private BigDecimal discountValue;
+        @NotNull(message = "Vui lòng nhập giá trị đơn tối thiểu")
+        @DecimalMin(value = "0", message = "Giá trị đơn tối thiểu không được âm")
+        private BigDecimal minimumOrder = BigDecimal.ZERO;
+        @DecimalMin(value = "0.01", message = "Mức giảm tối đa phải lớn hơn 0")
+        private BigDecimal maxDiscount;
+        @Min(value = 0, message = "Số lượng không được âm")
+        private int quantity;
+        @Min(value = 1, message = "Mỗi người phải được dùng ít nhất 1 lượt")
+        private int maxUsesPerUser = 1;
+        @NotNull(message = "Vui lòng chọn thời gian bắt đầu")
+        @DateTimeFormat(pattern = "yyyy-MM-dd'T'HH:mm")
+        private LocalDateTime startsAt;
+        @NotNull(message = "Vui lòng chọn thời gian kết thúc")
+        @DateTimeFormat(pattern = "yyyy-MM-dd'T'HH:mm")
+        private LocalDateTime endsAt;
+        private boolean active = true;
     }
 
     @Getter

@@ -85,7 +85,7 @@ public class SecurityConfig {
                     "/uploads/**", "/error", "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs", "/v3/api-docs/**").permitAll()
                 .requestMatchers("/vendor/register").hasAnyRole("USER", "VENDOR")
                 .requestMatchers("/vendor/**").hasRole("VENDOR")
-                .requestMatchers("/management/managers", "/management/managers/**", "/management/vouchers/**").hasRole("ADMIN")
+                .requestMatchers("/management/managers", "/management/managers/**", "/management/vouchers", "/management/vouchers/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/management/users/*/role").hasRole("ADMIN")
                 .requestMatchers("/management/**").hasAnyRole("MANAGER", "ADMIN")
                 .requestMatchers("/shipper/**").hasRole("SHIPPER")
