@@ -8,11 +8,14 @@ import org.springframework.web.multipart.MultipartFile;
 import vn.iotstar.dto.WebForms.CategoryForm;
 import vn.iotstar.dto.WebForms.ToppingForm;
 import vn.iotstar.dto.WebForms.PromotionForm;
+import vn.iotstar.dto.WebForms.VoucherForm;
 import vn.iotstar.dto.WebForms.ProductForm;
 import vn.iotstar.entity.Category;
 import vn.iotstar.entity.Product;
 import vn.iotstar.entity.Topping;
 import vn.iotstar.entity.Promotion;
+import vn.iotstar.entity.Voucher;
+import vn.iotstar.entity.DomainEnums.VoucherType;
 import vn.iotstar.entity.DomainEnums.PromotionType;
 import vn.iotstar.service.ManagementProductService;
 import vn.iotstar.service.ProductOptionService;
@@ -391,6 +394,102 @@ public class ManagementController {
         return "redirect:/management/promotions";
     }
 
+
+    // ==================== STEP 15: System Vouchers ====================
+
+    @GetMapping("/vouchers")
+    String vouchers(@RequestParam(required = false) String q,
+                    @RequestParam(required = false) VoucherType type,
+                    @RequestParam(required = false) Boolean active,
+                    @RequestParam(defaultValue = "0") int page, Model model) {
+        model.addAttribute("vouchers", managementService.vouchers(currentUserService.require(), q, type, active, page));
+        model.addAttribute("types", VoucherType.values());
+        model.addAttribute("q", q);
+        model.addAttribute("selectedType", type);
+        model.addAttribute("selectedActive", active);
+        model.addAttribute("now", LocalDateTime.now());
+        return "management/vouchers";
+    }
+
+    @GetMapping("/vouchers/new")
+    String newVoucher(Model model) {
+        VoucherForm form = new VoucherForm();
+        form.setQuantity(100);
+        form.setStartsAt(LocalDateTime.now().withSecond(0).withNano(0));
+        form.setEndsAt(LocalDateTime.now().plusMonths(1).withSecond(0).withNano(0));
+        prepareVoucher(model, form, null);
+        return "management/voucher-form";
+    }
+
+    @GetMapping("/vouchers/{id}/edit")
+    String editVoucher(@PathVariable Long id, Model model) {
+        Voucher voucher = managementService.getVoucher(currentUserService.require(), id);
+        VoucherForm form = new VoucherForm();
+        form.setCode(voucher.getCode());
+        form.setName(voucher.getName());
+        form.setType(voucher.getType());
+        form.setDiscountValue(voucher.getDiscountValue());
+        form.setMinimumOrder(voucher.getMinimumOrder());
+        form.setMaxDiscount(voucher.getMaxDiscount());
+        form.setQuantity(voucher.getQuantity());
+        form.setMaxUsesPerUser(voucher.getEffectiveMaxUsesPerUser());
+        form.setStartsAt(voucher.getStartsAt());
+        form.setEndsAt(voucher.getEndsAt());
+        form.setActive(voucher.isActive());
+        prepareVoucher(model, form, voucher);
+        return "management/voucher-form";
+    }
+
+    @PostMapping("/vouchers/save")
+    String saveVoucher(@RequestParam(required = false) Long id,
+                       @Valid @ModelAttribute("voucherForm") VoucherForm voucherForm,
+                       BindingResult result, Model model, RedirectAttributes redirect) {
+        if (!result.hasErrors()) {
+            try {
+                managementService.saveVoucher(currentUserService.require(), id, voucherForm);
+            } catch (IllegalArgumentException ex) {
+                result.reject("voucher.invalid", ex.getMessage());
+            }
+        }
+        if (result.hasErrors()) {
+            prepareVoucher(model, voucherForm, id == null ? null : managementService.getVoucher(currentUserService.require(), id));
+            return "management/voucher-form";
+        }
+        redirect.addFlashAttribute("success", "Đã lưu mã giảm giá.");
+        return "redirect:/management/vouchers";
+    }
+
+    @PostMapping("/vouchers/{id}/toggle")
+    String toggleVoucher(@PathVariable Long id, RedirectAttributes redirect) {
+        managementService.toggleVoucher(currentUserService.require(), id);
+        redirect.addFlashAttribute("success", "Đã đổi trạng thái mã giảm giá.");
+        return "redirect:/management/vouchers";
+    }
+
+    @PostMapping("/vouchers/{id}/delete")
+    String deleteVoucher(@PathVariable Long id, RedirectAttributes redirect) {
+        try {
+            managementService.deleteVoucher(currentUserService.require(), id);
+            redirect.addFlashAttribute("success", "Đã xóa mã giảm giá.");
+        } catch (IllegalArgumentException ex) {
+            redirect.addFlashAttribute("error", ex.getMessage());
+        }
+        return "redirect:/management/vouchers";
+    }
+
+    @GetMapping("/vouchers/{id}/usages")
+    String voucherUsages(@PathVariable Long id, @RequestParam(defaultValue = "0") int page, Model model) {
+        Voucher voucher = managementService.getVoucher(currentUserService.require(), id);
+        model.addAttribute("voucher", voucher);
+        model.addAttribute("usages", managementService.voucherUsages(currentUserService.require(), id, page));
+        return "management/voucher-usages";
+    }
+
+    private void prepareVoucher(Model model, VoucherForm form, Voucher voucher) {
+        model.addAttribute("voucherForm", form);
+        model.addAttribute("voucher", voucher);
+        model.addAttribute("types", VoucherType.values());
+    }
 
     private void preparePromotion(Model model, PromotionForm form, Promotion promotion, Long selectedShopId) {
         User actor = currentUserService.require();

@@ -9,6 +9,7 @@
   <a class="nav-link" th:href="@{/management/products}"><i class="bi bi-cup-straw me-1"></i> Sản phẩm</a>
   <a class="nav-link" th:href="@{/management/toppings}"><i class="bi bi-plus-circle me-1"></i> Topping</a>
   <a class="nav-link" th:href="@{/management/promotions}"><i class="bi bi-percent me-1"></i> Khuyến mãi</a>
+  <a class="nav-link" th:if="${currentUser.role == T(vn.iotstar.entity.DomainEnums.Role).ADMIN}" th:href="@{/management/vouchers}"><i class="bi bi-ticket-perforated me-1"></i> Mã giảm giá</a>
   <a class="nav-link" th:if="${currentUser.role == T(vn.iotstar.entity.DomainEnums.Role).ADMIN}" th:href="@{/management/managers}"><i class="bi bi-person-gear me-1"></i> Phân công Manager</a>
 </nav>
 </body></html>

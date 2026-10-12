@@ -79,6 +79,18 @@ public final class DomainEnums {
         }
     }
 
+    public enum VoucherType {
+        PERCENT("Giảm theo phần trăm"), FIXED("Giảm số tiền cố định"), SHIPPING("Giảm phí vận chuyển");
+        private final String label;
+        VoucherType(String label) { this.label = label; }
+        public String getLabel() { return label; }
+    }
+    public enum VoucherUsageStatus {
+        USED("Đã sử dụng"), CANCELLED("Đã hoàn do hủy đơn"), REFUNDED("Đã hoàn do trả hàng");
+        private final String label;
+        VoucherUsageStatus(String label) { this.label = label; }
+        public String getLabel() { return label; }
+    }
     public enum PromotionType {
         PRODUCT_PERCENT("Giảm giá sản phẩm (%)"),
         SHIPPING_DISCOUNT("Giảm phí vận chuyển");

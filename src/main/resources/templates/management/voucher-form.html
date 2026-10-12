@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Mã giảm giá')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="container py-4 py-lg-5">
+    <div th:replace="~{fragments/management-nav :: nav}"></div>
+    <div class="row justify-content-center">
+        <div class="col-xl-10">
+            <div class="d-flex align-items-center gap-3 mb-4"><a class="btn btn-light rounded-circle" th:href="@{/management/vouchers}" aria-label="Quay lại"><i class="bi bi-arrow-left"></i></a><div><span class="page-kicker"><i class="bi bi-ticket-perforated"></i> Ưu đãi hệ thống</span><h1 class="h3 mb-0" th:text="${voucher == null ? 'Tạo mã giảm giá' : 'Chỉnh sửa mã giảm giá'}"></h1></div></div>
+            <form class="account-panel" th:action="@{/management/vouchers/save}" th:object="${voucherForm}" method="post" novalidate>
+                <input type="hidden" name="id" th:value="${voucher?.id}">
+                <div class="alert alert-danger" th:if="${#fields.hasGlobalErrors()}"><div th:each="error : ${#fields.globalErrors()}" th:text="${error}"></div></div>
+                <div class="account-panel-heading"><div><h2>Thông tin mã</h2><p>Mã sẽ xuất hiện ở trang thanh toán khi đang bật, còn lượt và nằm trong thời gian hiệu lực.</p></div></div>
+                <div class="row g-4">
+                    <div class="col-md-5"><label class="form-label" for="code">Mã giảm giá <span class="required-mark">*</span></label><input id="code" class="form-control text-uppercase" th:classappend="${#fields.hasErrors('code')} ? 'is-invalid'" th:field="*{code}" maxlength="40" autocomplete="off" placeholder="VD: UTETRA20"><div class="invalid-feedback" th:errors="*{code}"></div><div class="form-text">Chỉ dùng chữ, số, dấu gạch ngang hoặc gạch dưới.</div></div>
+                    <div class="col-md-7"><label class="form-label" for="voucherName">Tên chương trình <span class="required-mark">*</span></label><input id="voucherName" class="form-control" th:classappend="${#fields.hasErrors('name')} ? 'is-invalid'" th:field="*{name}" maxlength="180" placeholder="Giảm 20% cho đơn đầu tiên"><div class="invalid-feedback" th:errors="*{name}"></div></div>
+                    <div class="col-md-4"><label class="form-label" for="type">Loại giảm giá <span class="required-mark">*</span></label><select id="type" class="form-select" th:classappend="${#fields.hasErrors('type')} ? 'is-invalid'" th:field="*{type}" data-voucher-type><option th:each="t : ${types}" th:value="${t}" th:text="${t.label}"></option></select><div class="invalid-feedback" th:errors="*{type}"></div></div>
+                    <div class="col-md-4"><label class="form-label" for="discountValue">Giá trị giảm <span class="required-mark">*</span></label><div class="input-group"><input id="discountValue" class="form-control" th:classappend="${#fields.hasErrors('discountValue')} ? 'is-invalid'" type="number" min="0.01" step="0.01" th:field="*{discountValue}"><span class="input-group-text" data-voucher-unit>%</span><div class="invalid-feedback" th:errors="*{discountValue}"></div></div></div>
+                    <div class="col-md-4"><label class="form-label" for="quantity">Tổng lượt còn lại <span class="required-mark">*</span></label><input id="quantity" class="form-control" th:classappend="${#fields.hasErrors('quantity')} ? 'is-invalid'" type="number" min="0" step="1" th:field="*{quantity}"><div class="invalid-feedback" th:errors="*{quantity}"></div></div>
+                    <div class="col-md-4"><label class="form-label" for="maxUsesPerUser">Lượt tối đa mỗi User <span class="required-mark">*</span></label><input id="maxUsesPerUser" class="form-control" th:classappend="${#fields.hasErrors('maxUsesPerUser')} ? 'is-invalid'" type="number" min="1" step="1" th:field="*{maxUsesPerUser}"><div class="invalid-feedback" th:errors="*{maxUsesPerUser}"></div></div>
+                    <div class="col-md-6"><label class="form-label" for="minimumOrder">Giá trị đơn tối thiểu <span class="required-mark">*</span></label><div class="input-group"><input id="minimumOrder" class="form-control" th:classappend="${#fields.hasErrors('minimumOrder')} ? 'is-invalid'" type="number" min="0" step="1000" th:field="*{minimumOrder}"><span class="input-group-text">₫</span><div class="invalid-feedback" th:errors="*{minimumOrder}"></div></div></div>
+                    <div class="col-md-6"><label class="form-label" for="maxDiscount">Mức giảm tối đa <span class="optional-mark">Không bắt buộc</span></label><div class="input-group"><input id="maxDiscount" class="form-control" th:classappend="${#fields.hasErrors('maxDiscount')} ? 'is-invalid'" type="number" min="0.01" step="1000" th:field="*{maxDiscount}" placeholder="Để trống nếu không giới hạn"><span class="input-group-text">₫</span><div class="invalid-feedback" th:errors="*{maxDiscount}"></div></div></div>
+                    <div class="col-md-6"><label class="form-label" for="startsAt">Bắt đầu <span class="required-mark">*</span></label><input id="startsAt" class="form-control" th:classappend="${#fields.hasErrors('startsAt')} ? 'is-invalid'" type="datetime-local" th:field="*{startsAt}"><div class="invalid-feedback" th:errors="*{startsAt}"></div></div>
+                    <div class="col-md-6"><label class="form-label" for="endsAt">Kết thúc <span class="required-mark">*</span></label><input id="endsAt" class="form-control" th:classappend="${#fields.hasErrors('endsAt')} ? 'is-invalid'" type="datetime-local" th:field="*{endsAt}"><div class="invalid-feedback" th:errors="*{endsAt}"></div></div>
+                    <div class="col-12"><div class="form-check form-switch"><input id="voucherActiveToggle" class="form-check-input" type="checkbox" role="switch" th:field="*{active}"><label class="form-check-label fw-semibold" for="voucherActiveToggle">Cho phép sử dụng mã</label></div><div class="form-text">Có thể tắt tạm thời mà không làm mất lịch sử đơn hàng.</div></div>
+                </div>
+                <div class="form-actions"><button class="btn btn-primary"><i class="bi bi-check2-circle me-1"></i>Lưu mã giảm giá</button><a class="btn btn-light" th:href="@{/management/vouchers}">Hủy</a></div>
+            </form>
+        </div>
+    </div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+<script>
+document.addEventListener('DOMContentLoaded',()=>{
+  const type=document.querySelector('[data-voucher-type]');
+  const unit=document.querySelector('[data-voucher-unit]');
+  if(type&&unit){
+    const refresh=()=>unit.textContent=type.value==='PERCENT'?'%':'₫';
+    type.addEventListener('change',refresh);refresh();
+  }
+});
+</script>
+</body>
+</html>
