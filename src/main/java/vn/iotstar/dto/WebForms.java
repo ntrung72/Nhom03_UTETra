@@ -261,27 +261,52 @@ public final class WebForms {
         private LocalTime closingTime;
     }
 
-    @Getter @Setter
+    @Getter
+    @Setter
     public static class CategoryForm {
-        @NotBlank @Size(min = 2, max = 120) private String name;
-        @Size(max = 500) private String description;
+
+        @NotBlank
+        @Size(min = 2, max = 120)
+        private String name;
+
+        @Size(max = 500)
+        private String description;
+
         private boolean active = true;
     }
 
-    @Getter @Setter
+    @Getter
+    @Setter
     public static class ToppingForm {
+
         @NotBlank(message = "Vui lòng nhập tên topping")
-        @Size(min = 2, max = 120, message = "Tên topping phải từ 2 đến 120 ký tự")
+        @Size(
+            min = 2,
+            max = 120,
+            message = "Tên topping phải từ 2 đến 120 ký tự"
+        )
         private String name;
+
         @NotNull(message = "Vui lòng nhập giá topping")
-        @DecimalMin(value = "0", message = "Giá topping không được âm")
+        @DecimalMin(
+            value = "0",
+            message = "Giá topping không được âm"
+        )
         private BigDecimal price = BigDecimal.ZERO;
+
         private boolean active = true;
     }
 
     @Getter
     @Setter
     public static class ProductForm {
+
+        @NotNull(message = "Thiếu phiên bản sản phẩm")
+        @Min(
+            value = 0,
+            message = "Phiên bản sản phẩm không hợp lệ"
+        )
+        private Long version = 0L;
 
         @NotBlank(message = "Vui lòng nhập tên sản phẩm")
         @Size(
@@ -360,7 +385,8 @@ public final class WebForms {
             fraction = 2,
             message = "Phụ thu size L tối đa 12 chữ số nguyên và 2 chữ số thập phân"
         )
-        private BigDecimal sizeLExtraPrice = new BigDecimal("7000");
+        private BigDecimal sizeLExtraPrice =
+            new BigDecimal("7000");
 
         private boolean sizeXlActive = true;
 
@@ -374,67 +400,133 @@ public final class WebForms {
             fraction = 2,
             message = "Phụ thu size XL tối đa 12 chữ số nguyên và 2 chữ số thập phân"
         )
-        private BigDecimal sizeXlExtraPrice = new BigDecimal("12000");
+        private BigDecimal sizeXlExtraPrice =
+            new BigDecimal("12000");
 
         private List<Long> toppingIds = new ArrayList<>();
     }
 
-    @Getter @Setter
+    @Getter
+    @Setter
     public static class CheckoutForm {
-        @NotNull(message = "Vui lòng chọn địa chỉ") @Positive private Long addressId;
-        @NotNull(message = "Vui lòng chọn nhà vận chuyển") @Positive private Long carrierId;
+
+        @NotNull(message = "Vui lòng chọn địa chỉ")
+        @Positive
+        private Long addressId;
+
+        @NotNull(message = "Vui lòng chọn nhà vận chuyển")
+        @Positive
+        private Long carrierId;
+
         @NotEmpty(message = "Vui lòng chọn sản phẩm")
-        private List<@NotNull @Positive Long> itemIds = new ArrayList<>();
-        @Size(max = 40) private String voucherCode;
-        @Size(max = 500, message = "Ghi chú không quá 500 ký tự") private String note;
-        @NotNull private vn.iotstar.entity.DomainEnums.PaymentMethod paymentMethod =
-            vn.iotstar.entity.DomainEnums.PaymentMethod.COD;
+        private List<@NotNull @Positive Long> itemIds =
+            new ArrayList<>();
+
+        @Size(max = 40)
+        private String voucherCode;
+
+        @Size(
+            max = 500,
+            message = "Ghi chú không quá 500 ký tự"
+        )
+        private String note;
+
+        @NotNull
+        private vn.iotstar.entity.DomainEnums.PaymentMethod
+            paymentMethod =
+                vn.iotstar.entity.DomainEnums.PaymentMethod.COD;
     }
 
     @Getter
     @Setter
     public static class CarrierForm {
+
         @NotBlank(message = "Vui lòng nhập tên nhà vận chuyển")
-        @Size(min = 2, max = 150, message = "Tên nhà vận chuyển dài từ 2 đến 150 ký tự")
+        @Size(
+            min = 2,
+            max = 150,
+            message = "Tên nhà vận chuyển dài từ 2 đến 150 ký tự"
+        )
         private String name;
 
         @NotNull(message = "Vui lòng nhập phí vận chuyển")
-        @DecimalMin(value = "0", message = "Phí vận chuyển không được âm")
-        @Digits(integer = 12, fraction = 2, message = "Phí vận chuyển tối đa 12 chữ số nguyên và 2 chữ số thập phân")
+        @DecimalMin(
+            value = "0",
+            message = "Phí vận chuyển không được âm"
+        )
+        @Digits(
+            integer = 12,
+            fraction = 2,
+            message = "Phí vận chuyển tối đa 12 chữ số nguyên và 2 chữ số thập phân"
+        )
         private BigDecimal shippingFee;
 
         private boolean active = true;
     }
 
-    @Getter @Setter
+    @Getter
+    @Setter
     public static class VoucherForm {
+
         @NotBlank(message = "Vui lòng nhập mã giảm giá")
-        @Size(min = 3, max = 40, message = "Mã giảm giá phải có từ 3 đến 40 ký tự")
-        @Pattern(regexp = "^[A-Za-z0-9_-]+$", message = "Mã chỉ được gồm chữ, số, dấu gạch ngang hoặc gạch dưới")
+        @Size(
+            min = 3,
+            max = 40,
+            message = "Mã giảm giá phải có từ 3 đến 40 ký tự"
+        )
+        @Pattern(
+            regexp = "^[A-Za-z0-9_-]+$",
+            message = "Mã chỉ được gồm chữ, số, dấu gạch ngang hoặc gạch dưới"
+        )
         private String code;
+
         @NotBlank(message = "Vui lòng nhập tên chương trình")
-        @Size(max = 180, message = "Tên chương trình không được quá 180 ký tự")
+        @Size(
+            max = 180,
+            message = "Tên chương trình không được quá 180 ký tự"
+        )
         private String name;
+
         @NotNull(message = "Vui lòng chọn loại giảm giá")
         private VoucherType type = VoucherType.PERCENT;
+
         @NotNull(message = "Vui lòng nhập giá trị giảm")
-        @DecimalMin(value = "0.01", message = "Giá trị giảm phải lớn hơn 0")
+        @DecimalMin(
+            value = "0.01",
+            message = "Giá trị giảm phải lớn hơn 0"
+        )
         private BigDecimal discountValue;
+
         @NotNull(message = "Vui lòng nhập giá trị đơn tối thiểu")
-        @DecimalMin(value = "0", message = "Giá trị đơn tối thiểu không được âm")
+        @DecimalMin(
+            value = "0",
+            message = "Giá trị đơn tối thiểu không được âm"
+        )
         private BigDecimal minimumOrder = BigDecimal.ZERO;
-        @DecimalMin(value = "0.01", message = "Mức giảm tối đa phải lớn hơn 0")
+
+        @DecimalMin(
+            value = "0.01",
+            message = "Mức giảm tối đa phải lớn hơn 0"
+        )
         private BigDecimal maxDiscount;
+
         @Min(value = 0, message = "Số lượng không được âm")
         private int quantity;
-        @Min(value = 1, message = "Mỗi người phải được dùng ít nhất 1 lượt")
+
+        @Min(
+            value = 1,
+            message = "Mỗi người phải được dùng ít nhất 1 lượt"
+        )
         private int maxUsesPerUser = 1;
+
         @NotNull(message = "Vui lòng chọn thời gian bắt đầu")
         @DateTimeFormat(pattern = "yyyy-MM-dd'T'HH:mm")
         private LocalDateTime startsAt;
+
         @NotNull(message = "Vui lòng chọn thời gian kết thúc")
         @DateTimeFormat(pattern = "yyyy-MM-dd'T'HH:mm")
         private LocalDateTime endsAt;
+
         private boolean active = true;
     }
 

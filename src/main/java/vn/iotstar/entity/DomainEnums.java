@@ -6,26 +6,54 @@ public final class DomainEnums {
     }
 
     public enum OrderStatus {
-        NEW("Đơn mới"), CONFIRMED("Đã xác nhận"), PREPARING("Đang chuẩn bị"),
-        READY_FOR_PICKUP("Sẵn sàng lấy hàng"), PICKED_UP("Đã lấy hàng"), SHIPPING("Đang giao"),
-        DELIVERED("Đã giao"), DELIVERY_FAILED("Giao thất bại"), CANCELLED("Đã hủy");
+        NEW("Đơn mới"),
+        CONFIRMED("Đã xác nhận"),
+        PREPARING("Đang chuẩn bị"),
+        READY_FOR_PICKUP("Sẵn sàng lấy hàng"),
+        PICKED_UP("Đã lấy hàng"),
+        SHIPPING("Đang giao"),
+        DELIVERED("Đã giao"),
+        DELIVERY_FAILED("Giao thất bại"),
+        CANCELLED("Đã hủy");
+
         private final String label;
-        OrderStatus(String label) { this.label = label; }
-        public String getLabel() { return label; }
+
+        OrderStatus(String label) {
+            this.label = label;
+        }
+
+        public String getLabel() {
+            return label;
+        }
     }
 
     public enum PaymentMethod {
         COD("Thanh toán khi nhận hàng");
+
         private final String label;
-        PaymentMethod(String label) { this.label = label; }
-        public String getLabel() { return label; }
+
+        PaymentMethod(String label) {
+            this.label = label;
+        }
+
+        public String getLabel() {
+            return label;
+        }
     }
 
     public enum PaymentStatus {
-        UNPAID("Chưa thanh toán"), PAID("Đã thanh toán");
+        UNPAID("Chưa thanh toán"),
+        PAID("Đã thanh toán");
+
         private final String label;
-        PaymentStatus(String label) { this.label = label; }
-        public String getLabel() { return label; }
+
+        PaymentStatus(String label) {
+            this.label = label;
+        }
+
+        public String getLabel() {
+            return label;
+        }
     }
 
     public enum ProductStatus {
@@ -103,17 +131,37 @@ public final class DomainEnums {
     }
 
     public enum VoucherType {
-        PERCENT("Giảm theo phần trăm"), FIXED("Giảm số tiền cố định"), SHIPPING("Giảm phí vận chuyển");
+        PERCENT("Giảm theo phần trăm"),
+        FIXED("Giảm số tiền cố định"),
+        SHIPPING("Giảm phí vận chuyển");
+
         private final String label;
-        VoucherType(String label) { this.label = label; }
-        public String getLabel() { return label; }
+
+        VoucherType(String label) {
+            this.label = label;
+        }
+
+        public String getLabel() {
+            return label;
+        }
     }
+
     public enum VoucherUsageStatus {
-        USED("Đã sử dụng"), CANCELLED("Đã hoàn do hủy đơn"), REFUNDED("Đã hoàn do trả hàng");
+        USED("Đã sử dụng"),
+        CANCELLED("Đã hoàn do hủy đơn"),
+        REFUNDED("Đã hoàn do trả hàng");
+
         private final String label;
-        VoucherUsageStatus(String label) { this.label = label; }
-        public String getLabel() { return label; }
+
+        VoucherUsageStatus(String label) {
+            this.label = label;
+        }
+
+        public String getLabel() {
+            return label;
+        }
     }
+
     public enum PromotionType {
         PRODUCT_PERCENT("Giảm giá sản phẩm (%)"),
         SHIPPING_DISCOUNT("Giảm phí vận chuyển");
@@ -121,6 +169,25 @@ public final class DomainEnums {
         private final String label;
 
         PromotionType(String label) {
+            this.label = label;
+        }
+
+        public String getLabel() {
+            return label;
+        }
+    }
+
+    public enum InventoryTransactionType {
+        INITIAL("Nhập kho ban đầu"),
+        RESTOCK("Nhập thêm"),
+        ADJUSTMENT("Điều chỉnh"),
+        SALE("Bán hàng"),
+        CANCELLATION("Hủy đơn"),
+        RETURN_REFUND("Trả hàng - hoàn tiền");
+
+        private final String label;
+
+        InventoryTransactionType(String label) {
             this.label = label;
         }
 

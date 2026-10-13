@@ -1,5 +1,6 @@
 package vn.iotstar.repository;
 
+import jakarta.persistence.LockModeType;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
@@ -7,6 +8,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import vn.iotstar.entity.DomainEnums.ProductStatus;
@@ -16,12 +18,12 @@ import vn.iotstar.entity.Product;
 public interface ProductRepository
         extends JpaRepository<Product, Long> {
 
-    @org.springframework.data.jpa.repository.Lock(
-        jakarta.persistence.LockModeType.PESSIMISTIC_WRITE
-    )
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @EntityGraph(attributePaths = {"shop", "category"})
     @Query("select p from Product p where p.id = :id")
-    Optional<Product> findByIdForUpdate(@Param("id") Long id);
+    Optional<Product> findByIdForUpdate(
+        @Param("id") Long id
+    );
 
     @EntityGraph(attributePaths = {"shop", "category"})
     @Query("""
@@ -90,10 +92,16 @@ public interface ProductRepository
 
     boolean existsBySkuIgnoreCase(String sku);
 
-    boolean existsBySkuIgnoreCaseAndIdNot(String sku, Long id);
+    boolean existsBySkuIgnoreCaseAndIdNot(
+        String sku,
+        Long id
+    );
 
     @EntityGraph(attributePaths = {"shop", "category"})
-    Optional<Product> findByIdAndShopId(Long id, Long shopId);
+    Optional<Product> findByIdAndShopId(
+        Long id,
+        Long shopId
+    );
 
     @EntityGraph(attributePaths = {"shop", "category"})
     @Query("""
@@ -114,26 +122,50 @@ public interface ProductRepository
     @EntityGraph(attributePaths = {"shop", "category"})
     List<Product> findByShopIdOrderByNameAsc(Long shopId);
 
-    long countByShopIdIn(java.util.List<Long> ids);
-
     @EntityGraph(attributePaths = {"shop", "category"})
-    @Query(""" 
-       select p from Product p where (:q is null or lower(p.name) like lower(concat('%', :q, '%'))
-            or lower(p.sku) like lower(concat('%', :q, '%')))
-            and (:shopId is null or p.shop.id = :shopId)
-            and (:categoryId is null or p.category.id = :categoryId)
-       """)
-    Page<Product> searchManagement(@Param("q") String q, @Param("shopId") Long shopId,
-        @Param("categoryId") Long categoryId, Pageable pageable);
+    List<Product>
+        findByShopIdAndStockLessThanEqualOrderByStockAscIdAsc(
+            Long shopId,
+            int stock
+        );
+
+    long countByShopIdIn(List<Long> ids);
 
     @EntityGraph(attributePaths = {"shop", "category"})
     @Query("""
-       select p from Product p where p.shop.id in :shopIds
-            and (:q is null or lower(p.name) like lower(concat('%', :q, '%'))
-                 or lower(p.sku) like lower(concat('%', :q, '%')))
-            and (:shopId is null or p.shop.id = :shopId)
-            and (:categoryId is null or p.category.id = :categoryId)
-       """)
-    Page<Product> searchManagementAssigned(@Param("shopIds") List<Long> shopIds, @Param("q") String q,
-        @Param("shopId") Long shopId, @Param("categoryId") Long categoryId, Pageable pageable);
+        select p from Product p
+        where (
+            :q is null
+            or lower(p.name) like lower(concat('%', :q, '%'))
+            or lower(p.sku) like lower(concat('%', :q, '%'))
+        )
+          and (:shopId is null or p.shop.id = :shopId)
+          and (:categoryId is null or p.category.id = :categoryId)
+        """)
+    Page<Product> searchManagement(
+        @Param("q") String q,
+        @Param("shopId") Long shopId,
+        @Param("categoryId") Long categoryId,
+        Pageable pageable
+    );
+
+    @EntityGraph(attributePaths = {"shop", "category"})
+    @Query("""
+        select p from Product p
+        where p.shop.id in :shopIds
+          and (
+              :q is null
+              or lower(p.name) like lower(concat('%', :q, '%'))
+              or lower(p.sku) like lower(concat('%', :q, '%'))
+          )
+          and (:shopId is null or p.shop.id = :shopId)
+          and (:categoryId is null or p.category.id = :categoryId)
+        """)
+    Page<Product> searchManagementAssigned(
+        @Param("shopIds") List<Long> shopIds,
+        @Param("q") String q,
+        @Param("shopId") Long shopId,
+        @Param("categoryId") Long categoryId,
+        Pageable pageable
+    );
 }
