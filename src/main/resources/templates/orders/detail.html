@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Chi tiết đơn')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="container py-4 py-lg-5">
+    <div th:replace="~{fragments/layout :: flash}"></div>
+    <a class="btn btn-light mb-3" th:href="@{/orders}"><i class="bi bi-arrow-left me-1"></i>Đơn mua</a>
+    <div class="d-flex flex-wrap justify-content-between gap-2 mb-4">
+        <div><h1 class="h3" th:text="${'Đơn ' + order.code}"></h1><span class="text-muted" th:text="${order.shop.name + ' · ' + #temporals.format(order.createdAt,'dd/MM/yyyy HH:mm')}"></span></div>
+        <span class="badge text-bg-primary align-self-start" th:text="${order.status.label}"></span>
+    </div>
+    <div class="row g-4">
+        <section class="col-lg-7">
+            <div class="panel p-4 mb-4">
+                <h2 class="h5">Sản phẩm đã mua</h2>
+                <article class="border-bottom py-3 d-flex gap-3" th:each="i : ${order.items}">
+                    <img width="80" height="80" class="rounded object-fit-cover" th:src="${#strings.isEmpty(i.imageUrl) ? '/images/logo.svg' : i.imageUrl}" th:alt="${i.productName}">
+                    <div class="flex-grow-1">
+                        <strong th:text="${i.productName}"></strong>
+                        <div class="small text-muted" th:if="${i.size != null}">
+                            <span th:text="${'Size ' + i.size + ' · ' + i.sugarLevel.label + ' · ' + i.iceLevel.label}"></span>
+                            <span th:if="${i.toppings != null}" th:text="${' · ' + i.toppings}"></span>
+                        </div>
+                        <div th:text="${i.quantity + ' × ' + #numbers.formatDecimal(i.unitPrice,0,'COMMA',0,'POINT') + ' ₫'}"></div>
+                        <strong th:text="${#numbers.formatDecimal(i.lineTotal,0,'COMMA',0,'POINT') + ' ₫'}"></strong>
+                    </div>
+                </article>
+            </div>
+            <div class="panel p-4">
+                <h2 class="h5">Lịch sử trạng thái</h2>
+                <ol class="list-unstyled mb-0">
+                    <li class="border-start border-primary ps-3 py-2" th:each="h : ${statusHistory}">
+                        <strong th:text="${h.displayLabel}"></strong>
+                        <time class="d-block small text-muted" th:text="${#temporals.format(h.changedAt,'HH:mm · dd/MM/yyyy')}"></time>
+                        <span class="small" th:text="${h.changedBy.fullName + ' · ' + h.note}"></span>
+                    </li>
+                </ol>
+            </div>
+        </section>
+        <aside class="col-lg-5">
+            <div class="panel p-4">
+                <h2 class="h5">Giao hàng và thanh toán</h2>
+                <p class="mb-1" th:text="${order.receiverName + ' · ' + order.receiverPhone}"></p>
+                <p th:text="${order.shippingAddress}"></p>
+                <p th:if="${order.carrier != null}" th:text="${'Nhà vận chuyển: ' + order.carrier.name}"></p>
+                <p th:if="${!#strings.isEmpty(order.note)}"><strong>Ghi chú: </strong><span th:text="${order.note}"></span></p>
+                <div class="border-top pt-3 mb-3">
+                    <div class="d-flex justify-content-between"><span>Phương thức</span><strong th:text="${order.paymentMethod.label}"></strong></div>
+                    <div class="d-flex justify-content-between"><span>Thanh toán</span><strong th:text="${order.paymentStatus.label}"></strong></div>
+                </div>
+                <dl class="row">
+                    <dt class="col-7">Tiền hàng trước giảm</dt><dd class="col-5 text-end" th:text="${#numbers.formatDecimal(order.subtotal,0,'COMMA',0,'POINT') + ' ₫'}"></dd>
+                    <dt class="col-7">Khuyến mãi sản phẩm</dt><dd class="col-5 text-end" th:text="${'-' + #numbers.formatDecimal(order.productDiscount,0,'COMMA',0,'POINT') + ' ₫'}"></dd>
+                    <dt class="col-7">Mã giảm tiền hàng</dt><dd class="col-5 text-end" th:text="${'-' + #numbers.formatDecimal(order.voucherDiscount,0,'COMMA',0,'POINT') + ' ₫'}"></dd>
+                    <dt class="col-7">Phí giao hàng</dt><dd class="col-5 text-end" th:text="${#numbers.formatDecimal(order.shippingFee,0,'COMMA',0,'POINT') + ' ₫'}"></dd>
+                    <dt class="col-7">Giảm phí giao hàng</dt><dd class="col-5 text-end" th:text="${'-' + #numbers.formatDecimal(order.shippingDiscount,0,'COMMA',0,'POINT') + ' ₫'}"></dd>
+                    <dt class="col-7">Phí giao còn lại</dt><dd class="col-5 text-end" th:text="${#numbers.formatDecimal(order.finalShippingFee,0,'COMMA',0,'POINT') + ' ₫'}"></dd>
+                </dl>
+                <div class="d-flex justify-content-between border-top pt-3 mb-3"><strong>Tổng thanh toán</strong><strong class="price" th:text="${#numbers.formatDecimal(order.totalAmount,0,'COMMA',0,'POINT') + ' ₫'}"></strong></div>
+                <form class="confirm-form" th:if="${order.status.name() == 'NEW' and order.paymentStatus.name() == 'UNPAID'}" th:action="@{/orders/{id}/cancel(id=${order.id})}" method="post">
+                    <button class="btn btn-outline-danger w-100">Hủy đơn</button>
+                </form>
+            </div>
+        </aside>
+    </div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

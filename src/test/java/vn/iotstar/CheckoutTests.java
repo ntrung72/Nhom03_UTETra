@@ -156,7 +156,7 @@ class CheckoutTests extends CheckoutTestFixtures {
         mvc.perform(post("/checkout").with(user(customer.getUsername()).roles("USER")).with(csrf())
             .param("addressId", address.getId().toString()).param("carrierId", carrier.getId().toString())
             .param("itemIds", line.getId().toString()).param("totalAmount", "1").param("unitPrice", "0"))
-            .andExpect(redirectedUrl("/cart"));
+            .andExpect(redirectedUrl("/orders"));
         assertThat(orderRepository.findAll().getFirst().getTotalAmount()).isEqualByComparingTo("55000");
     }
 
