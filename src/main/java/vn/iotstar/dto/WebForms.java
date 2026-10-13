@@ -379,6 +379,18 @@ public final class WebForms {
         private List<Long> toppingIds = new ArrayList<>();
     }
 
+    @Getter @Setter
+    public static class CheckoutForm {
+        @NotNull(message = "Vui lòng chọn địa chỉ") @Positive private Long addressId;
+        @NotNull(message = "Vui lòng chọn nhà vận chuyển") @Positive private Long carrierId;
+        @NotEmpty(message = "Vui lòng chọn sản phẩm")
+        private List<@NotNull @Positive Long> itemIds = new ArrayList<>();
+        @Size(max = 40) private String voucherCode;
+        @Size(max = 500, message = "Ghi chú không quá 500 ký tự") private String note;
+        @NotNull private vn.iotstar.entity.DomainEnums.PaymentMethod paymentMethod =
+            vn.iotstar.entity.DomainEnums.PaymentMethod.COD;
+    }
+
     @Getter
     @Setter
     public static class CarrierForm {

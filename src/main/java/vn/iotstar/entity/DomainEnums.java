@@ -5,6 +5,29 @@ public final class DomainEnums {
     private DomainEnums() {
     }
 
+    public enum OrderStatus {
+        NEW("Đơn mới"), CONFIRMED("Đã xác nhận"), PREPARING("Đang chuẩn bị"),
+        READY_FOR_PICKUP("Sẵn sàng lấy hàng"), PICKED_UP("Đã lấy hàng"), SHIPPING("Đang giao"),
+        DELIVERED("Đã giao"), DELIVERY_FAILED("Giao thất bại"), CANCELLED("Đã hủy");
+        private final String label;
+        OrderStatus(String label) { this.label = label; }
+        public String getLabel() { return label; }
+    }
+
+    public enum PaymentMethod {
+        COD("Thanh toán khi nhận hàng");
+        private final String label;
+        PaymentMethod(String label) { this.label = label; }
+        public String getLabel() { return label; }
+    }
+
+    public enum PaymentStatus {
+        UNPAID("Chưa thanh toán"), PAID("Đã thanh toán");
+        private final String label;
+        PaymentStatus(String label) { this.label = label; }
+        public String getLabel() { return label; }
+    }
+
     public enum ProductStatus {
         ACTIVE("Đang bán"),
         HIDDEN("Đã ẩn"),

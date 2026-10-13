@@ -18,6 +18,8 @@ import vn.iotstar.repository.*;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class CartService {
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
     private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
     private final ProductRepository productRepository;
@@ -99,6 +101,43 @@ public class CartService {
             throw new IllegalArgumentException("Một sản phẩm đã chọn không còn khả dụng. Vui lòng cập nhật giỏ hàng.");
         return new CartSelection(view.cart(), selected,
             selected.stream().map(CartItem::getLineTotal).reduce(BigDecimal.ZERO, BigDecimal::add));
+    }
+
+    /** Reprice and lock only selected lines; unselected lines cannot block checkout. */
+    @Transactional
+    public CheckoutSelection prepareCheckoutSelection(User user, List<Long> itemIds) {
+        var cart = get(user);
+        if (itemIds == null || itemIds.isEmpty() || itemIds.stream().anyMatch(id -> id == null || id <= 0))
+            throw new IllegalArgumentException("Vui lòng chọn ít nhất một sản phẩm hợp lệ.");
+        var ids = new LinkedHashSet<>(itemIds);
+        var items = cart.getItems().stream().filter(item -> ids.contains(item.getId())).toList();
+        if (items.size() != ids.size()) throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+            "Sản phẩm đã chọn không thuộc giỏ hàng của bạn.");
+        // Cart loading may have populated the persistence context before locks were obtained.
+        // Refresh under the lock so stock is current even after another checkout commits.
+        items.stream().map(CartItem::getProduct).distinct().sorted(Comparator.comparing(Product::getId))
+            .forEach(product -> entityManager.refresh(product, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE));
+        var quantities = items.stream().collect(Collectors.groupingBy(item -> item.getProduct().getId(),
+            Collectors.summingLong(CartItem::getQuantity)));
+        boolean changed = false;
+        for (var item : items) {
+            var product = item.getProduct();
+            if (!product.isAvailable() || item.getQuantity() <= 0 || quantities.get(product.getId()) > product.getStock())
+                throw new IllegalArgumentException(product.getName() + " không khả dụng hoặc không đủ tồn kho.");
+            var quote = quote(product, item.getSizeId(), item.getSugarLevel(), item.getIceLevel(),
+                parseToppingIds(item.getToppingIds()), false);
+            changed |= item.getUnitPrice().compareTo(quote.unitPrice()) != 0;
+            apply(item, quote);
+        }
+        if (changed) cart.setUpdatedAt(LocalDateTime.now());
+        return new CheckoutSelection(cart, items,
+            items.stream().map(CartItem::getLineTotal).reduce(BigDecimal.ZERO, BigDecimal::add), changed);
+    }
+
+    @Transactional
+    public void removeItems(Cart cart, List<CartItem> items) {
+        cart.getItems().removeAll(items);
+        cart.setUpdatedAt(LocalDateTime.now());
     }
 
     private CartItem ownedItem(Cart cart, Long id) {
@@ -203,5 +242,6 @@ public class CartService {
     private record OptionQuote(String optionKey, Long sizeId, String size, SugarLevel sugar, IceLevel ice,
         String toppingIds, String toppings, BigDecimal basePrice, BigDecimal optionPrice, BigDecimal unitPrice) {}
     public record CartView(Cart cart, boolean pricesChanged, List<String> warnings, Set<Long> invalidItemIds) {}
+    public record CheckoutSelection(Cart cart, List<CartItem> items, BigDecimal subtotal, boolean pricesChanged) {}
     public record CartSelection(Cart cart, List<CartItem> items, BigDecimal subtotal) {}
 }

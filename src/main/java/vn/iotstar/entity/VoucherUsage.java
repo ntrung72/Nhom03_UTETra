@@ -32,7 +32,7 @@ public class VoucherUsage {
     @JoinColumn(name = "voucher_id", nullable = false)
     private Voucher voucher;
 
-    /** Reserved for Step 17: checkout will set this ID when CustomerOrder is introduced. */
+    /** First order in this checkout; one usage covers all shop orders. */
     @Column(name = "order_id")
     private Long orderId;
 
