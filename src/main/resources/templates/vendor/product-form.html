@@ -39,6 +39,14 @@
                           enctype="multipart/form-data"
                           novalidate>
 
+                        <input type="hidden" th:field="*{version}">
+
+                        <div th:if="${#fields.hasErrors('version')}"
+                             class="alert alert-danger" role="alert"
+                             th:errors="*{version}">
+                            Phiên bản sản phẩm không hợp lệ.
+                        </div>
+
                         <div th:if="${#fields.hasGlobalErrors()}"
                              class="alert alert-danger" role="alert">
                             <ul class="mb-0">
@@ -47,6 +55,12 @@
                                     Lỗi lưu sản phẩm
                                 </li>
                             </ul>
+
+                            <a th:if="${editing}"
+                               class="btn btn-sm btn-outline-danger mt-2"
+                               th:href="@{/vendor/products/{id}/edit(id=${productId})}">
+                                Mở lại trang sửa với dữ liệu mới nhất
+                            </a>
                         </div>
 
                         <div class="row g-3">

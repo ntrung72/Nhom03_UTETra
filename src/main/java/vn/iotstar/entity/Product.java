@@ -1,10 +1,27 @@
 package vn.iotstar.entity;
 
-import java.util.ArrayList;
-import java.util.List;
-import jakarta.persistence.*;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.Lob;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderBy;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -14,81 +31,131 @@ import vn.iotstar.entity.DomainEnums.ProductStatus;
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(name = "products", indexes = { @Index(name = "idx_product_shop", columnList = "shop_id"),
-		@Index(name = "idx_product_category", columnList = "category_id"),
-		@Index(name = "idx_product_status_sold", columnList = "status,sold_count") })
+@Table(
+    name = "products",
+    indexes = {
+        @Index(
+            name = "idx_product_shop",
+            columnList = "shop_id"
+        ),
+        @Index(
+            name = "idx_product_category",
+            columnList = "category_id"
+        ),
+        @Index(
+            name = "idx_product_status_sold",
+            columnList = "status,sold_count"
+        )
+    }
+)
 public class Product {
 
-	@Id
-	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	private Long id;
+    public static final int LOW_STOCK_THRESHOLD = 5;
 
-	@ManyToOne(fetch = FetchType.LAZY, optional = false)
-	@JoinColumn(name = "shop_id", nullable = false)
-	private Shop shop;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-	@ManyToOne(fetch = FetchType.LAZY, optional = false)
-	@JoinColumn(name = "category_id", nullable = false)
-	private Category category;
+    @Version
+    @Column(
+        nullable = false,
+        columnDefinition = "bigint default 0"
+    )
+    private long version;
 
-	@Column(nullable = false, length = 180)
-	private String name;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "shop_id", nullable = false)
+    private Shop shop;
 
-	@Column(nullable = false, length = 200)
-	private String slug;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "category_id", nullable = false)
+    private Category category;
 
-	@Column(nullable = false, length = 60, unique = true)
-	private String sku;
+    @Column(nullable = false, length = 180)
+    private String name;
 
-	@Lob
-	@Column(nullable = false)
-	private String description;
+    @Column(nullable = false, length = 200)
+    private String slug;
 
-	@Column(name = "image_url", length = 500)
-	private String imageUrl;
+    @Column(nullable = false, length = 60, unique = true)
+    private String sku;
 
-	@Column(nullable = false, precision = 14, scale = 2)
-	private BigDecimal price;
+    @Lob
+    @Column(nullable = false)
+    private String description;
 
-	@Column(nullable = false)
-	private int stock;
+    @Column(name = "image_url", length = 500)
+    private String imageUrl;
 
-	@Column(name = "sold_count", nullable = false)
-	private long soldCount;
+    @Column(nullable = false, precision = 14, scale = 2)
+    private BigDecimal price;
 
-	@Column(name = "average_rating", nullable = false, precision = 3, scale = 2)
-	private BigDecimal averageRating = BigDecimal.ZERO;
+    @Column(nullable = false)
+    private int stock;
 
-	@Column(name = "review_count", nullable = false)
-	private long reviewCount;
+    @Column(name = "sold_count", nullable = false)
+    private long soldCount;
 
-	@Column(name = "favorite_count", nullable = false, columnDefinition = "bigint default 0")
-	private long favoriteCount;
+    @Column(
+        name = "average_rating",
+        nullable = false,
+        precision = 3,
+        scale = 2
+    )
+    private BigDecimal averageRating = BigDecimal.ZERO;
 
-	@Enumerated(EnumType.STRING)
-	@Column(nullable = false, length = 20)
-	private ProductStatus status = ProductStatus.ACTIVE;
+    @Column(name = "review_count", nullable = false)
+    private long reviewCount;
 
-	@Column(name = "created_at", nullable = false)
-	private LocalDateTime createdAt = LocalDateTime.now();
+    @Column(
+        name = "favorite_count",
+        nullable = false,
+        columnDefinition = "bigint default 0"
+    )
+    private long favoriteCount;
 
-	@Column(name = "updated_at", nullable = false)
-	private LocalDateTime updatedAt = LocalDateTime.now();
-	@OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
-	@OrderBy("displayOrder ASC, id ASC")
-	private List<ProductSize> sizes = new ArrayList<>();
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private ProductStatus status = ProductStatus.ACTIVE;
 
-	@OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
-	@OrderBy("id ASC")
-	private List<ProductTopping> availableToppings = new ArrayList<>();
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt = LocalDateTime.now();
 
-	@PreUpdate
-	void touch() {
-		updatedAt = LocalDateTime.now();
-	}
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt = LocalDateTime.now();
 
-	public boolean isAvailable() {
-		return stock > 0 && status == ProductStatus.ACTIVE && shop != null && shop.isApproved() && category != null
-				&& category.isActive();
-	}
+    @OneToMany(
+        mappedBy = "product",
+        cascade = CascadeType.ALL,
+        orphanRemoval = true
+    )
+    @OrderBy("displayOrder ASC, id ASC")
+    private List<ProductSize> sizes = new ArrayList<>();
+
+    @OneToMany(
+        mappedBy = "product",
+        cascade = CascadeType.ALL,
+        orphanRemoval = true
+    )
+    @OrderBy("id ASC")
+    private List<ProductTopping> availableToppings =
+        new ArrayList<>();
+
+    @PreUpdate
+    void touch() {
+        updatedAt = LocalDateTime.now();
+    }
+
+    public boolean isAvailable() {
+        return stock > 0
+            && status == ProductStatus.ACTIVE
+            && shop != null
+            && shop.isApproved()
+            && category != null
+            && category.isActive();
+    }
+
+    public boolean isLowStock() {
+        return stock <= LOW_STOCK_THRESHOLD;
+    }
 }

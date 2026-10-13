@@ -18,6 +18,7 @@ import vn.iotstar.entity.DomainEnums.ProductStatus;
 import vn.iotstar.entity.DomainEnums.PromotionType;
 import vn.iotstar.entity.DomainEnums.Role;
 import vn.iotstar.entity.DomainEnums.ShopStatus;
+import vn.iotstar.entity.InventoryTransaction;
 import vn.iotstar.entity.Product;
 import vn.iotstar.entity.Promotion;
 import vn.iotstar.entity.Shop;
@@ -42,6 +43,7 @@ public class VendorService {
     private final MediaStorageService mediaStorageService;
     private final ProductGalleryService productGalleryService;
     private final PromotionRepository promotionRepository;
+    private final InventoryService inventoryService;
 
     public Shop findShop(User user) {
         return shopRepository.findByOwnerId(user.getId())
@@ -126,7 +128,6 @@ public class VendorService {
             MultipartFile image) {
 
         Shop shop = requireShop(user);
-
         applyShopDetails(shop, form);
 
         String url = mediaStorageService.upload(image, "shops");
@@ -153,6 +154,41 @@ public class VendorService {
             shop.getId(),
             SlugUtils.cleanQuery(q),
             PageRequest.of(Math.max(page, 0), 20, sort)
+        );
+    }
+
+    public List<Product> inventoryProducts(User user) {
+        Shop shop = requireShop(user);
+
+        return productRepository
+            .findByShopIdOrderByNameAsc(shop.getId());
+    }
+
+    public List<Product> lowStockProducts(User user) {
+        Shop shop = requireShop(user);
+
+        return productRepository
+            .findByShopIdAndStockLessThanEqualOrderByStockAscIdAsc(
+                shop.getId(),
+                Product.LOW_STOCK_THRESHOLD
+            );
+    }
+
+    public Page<InventoryTransaction> inventoryTransactions(
+            User user,
+            Long productId,
+            int page) {
+
+        Shop shop = requireShop(user);
+
+        if (productId != null) {
+            productForEdit(user, productId);
+        }
+
+        return inventoryService.forShop(
+            shop,
+            productId,
+            page
         );
     }
 
@@ -223,9 +259,29 @@ public class VendorService {
 
         Shop shop = requireApprovedShop(user);
 
+        if (form == null
+                || form.getStock() == null
+                || form.getStock() < 0
+                || form.getStatus() == null) {
+            throw new IllegalArgumentException(
+                "Thông tin tồn kho hoặc trạng thái không hợp lệ."
+            );
+        }
+
         Product product = id == null
             ? new Product()
-            : productForEdit(user, id);
+            : productForUpdate(user, id);
+
+        if (id != null
+                && (form.getVersion() == null
+                    || form.getVersion().longValue()
+                        != product.getVersion())) {
+            throw new IllegalArgumentException(
+                "Sản phẩm đã thay đổi trong lúc bạn chỉnh sửa. "
+                    + "Vui lòng mở lại trang sửa sản phẩm "
+                    + "để kiểm tra tồn kho mới nhất trước khi lưu."
+            );
+        }
 
         String name = form.getName().trim();
         String description = form.getDescription().trim();
@@ -281,10 +337,26 @@ public class VendorService {
         product.setSku(sku);
         product.setDescription(description);
         product.setPrice(form.getPrice());
-        product.setStock(form.getStock());
         product.setStatus(status);
 
         Product saved = productRepository.save(product);
+
+        if (id == null) {
+            inventoryService.initialize(
+                saved,
+                form.getStock(),
+                user
+            );
+        } else {
+            inventoryService.setStock(
+                saved,
+                form.getStock(),
+                user
+            );
+        }
+
+        // Giữ trạng thái người bán đã chọn sau khi cập nhật kho.
+        saved.setStatus(status);
 
         productOptionService.saveConfiguration(saved, form);
 
@@ -304,7 +376,7 @@ public class VendorService {
     public void toggleProduct(User user, Long id) {
         requireApprovedShop(user);
 
-        Product product = productForEdit(user, id);
+        Product product = productForUpdate(user, id);
 
         if (product.getStatus() == ProductStatus.HIDDEN) {
             product.setStatus(
@@ -447,6 +519,26 @@ public class VendorService {
                     + "riêng cho sản phẩm."
             );
         }
+    }
+
+    private Product productForUpdate(User user, Long id) {
+        Shop shop = requireShop(user);
+
+        // Kiểm tra quyền trước khi khóa sản phẩm.
+        productForEdit(user, id);
+
+        Product product = inventoryService.lockProduct(id);
+
+        if (product.getShop() == null
+                || !shop.getId().equals(
+                    product.getShop().getId()
+                )) {
+            throw new IllegalArgumentException(
+                "Không tìm thấy sản phẩm của cửa hàng."
+            );
+        }
+
+        return product;
     }
 
     private Shop requireApprovedShop(User user) {

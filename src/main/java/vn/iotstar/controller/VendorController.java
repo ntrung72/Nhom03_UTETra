@@ -201,6 +201,57 @@ public class VendorController {
         return "vendor/products";
     }
 
+    @GetMapping("/inventory")
+    public String inventory(
+            @RequestParam(name = "productId", required = false)
+                Long productId,
+            @RequestParam(name = "page", defaultValue = "0")
+                int page,
+            Model model,
+            RedirectAttributes redirect) {
+
+        User user = currentUserService.require();
+        Shop shop = vendorService.findShop(user);
+
+        if (shop == null) {
+            return "redirect:/vendor/register";
+        }
+
+        try {
+            model.addAttribute(
+                "transactions",
+                vendorService.inventoryTransactions(
+                    user,
+                    productId,
+                    page
+                )
+            );
+        } catch (IllegalArgumentException exception) {
+            redirect.addFlashAttribute(
+                "error",
+                exception.getMessage()
+            );
+            return "redirect:/vendor/inventory";
+        }
+
+        model.addAttribute("shop", shop);
+        model.addAttribute(
+            "products",
+            vendorService.inventoryProducts(user)
+        );
+        model.addAttribute(
+            "lowStockProducts",
+            vendorService.lowStockProducts(user)
+        );
+        model.addAttribute(
+            "lowStockThreshold",
+            Product.LOW_STOCK_THRESHOLD
+        );
+        model.addAttribute("selectedProductId", productId);
+
+        return "vendor/inventory";
+    }
+
     @GetMapping("/products/new")
     public String newProduct(Model model) {
         Shop shop = vendorService.findShop(
@@ -246,6 +297,7 @@ public class VendorController {
         }
 
         ProductForm form = new ProductForm();
+        form.setVersion(product.getVersion());
         form.setName(product.getName());
         form.setSku(product.getSku());
         form.setCategoryId(product.getCategory().getId());
