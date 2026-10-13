@@ -67,12 +67,42 @@ public class OrderController {
             session.removeAttribute("cartSelection"); session.removeAttribute("cartSelectionOwner");
             redirect.addFlashAttribute("success", "Đặt hàng COD thành công: " + orders.stream()
                 .map(o -> o.getCode()).collect(Collectors.joining(", ")));
-            return "redirect:/cart";
+            return "redirect:/orders";
         } catch (IllegalArgumentException ex) {
             redirect.addFlashAttribute("error", ex.getMessage()); redirect.addFlashAttribute("checkoutForm", form);
             return redirectToCheckout(form.getItemIds());
         }
     }
+
+    @GetMapping("/orders")
+    String orders(@RequestParam(required = false) vn.iotstar.entity.DomainEnums.OrderStatus status,
+                  @RequestParam(defaultValue = "0") int page, Model model) {
+        model.addAttribute("orders", orderService.forUser(currentUserService.require(), status, page));
+        model.addAttribute("statuses", vn.iotstar.entity.DomainEnums.OrderStatus.values());
+        model.addAttribute("selectedStatus", status);
+        return "orders/list";
+    }
+
+    @GetMapping("/orders/{id}")
+    String detail(@PathVariable Long id, Model model) {
+        var user = currentUserService.require();
+        model.addAttribute("order", orderService.getForUser(user, id));
+        model.addAttribute("statusHistory", orderService.statusHistory(user, id));
+        return "orders/detail";
+    }
+
+    @PostMapping("/orders/{id}/cancel")
+    String cancel(@PathVariable Long id, RedirectAttributes redirect) {
+        try {
+            orderService.cancelByUser(currentUserService.require(), id);
+            redirect.addFlashAttribute("success", "Đã hủy đơn và hoàn lại tồn kho. Mã giảm giá được hoàn khi tất cả đơn trong checkout đã hủy.");
+        } catch (IllegalArgumentException ex) { redirect.addFlashAttribute("error", ex.getMessage()); }
+        return "redirect:/orders/" + id;
+    }
+
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    @ResponseStatus(org.springframework.http.HttpStatus.BAD_REQUEST)
+    void invalidParameter() {}
 
     private String redirectToCheckout(List<Long> ids) {
         if (ids == null || ids.isEmpty()) return "redirect:/cart";

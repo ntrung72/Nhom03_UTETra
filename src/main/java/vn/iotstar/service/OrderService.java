@@ -20,6 +20,7 @@ public class OrderService {
     @jakarta.persistence.PersistenceContext
     private jakarta.persistence.EntityManager entityManager;
     private final OrderRepository orderRepository;
+    private final UserRepository userRepository;
     private final OrderStatusHistoryRepository historyRepository;
     private final AddressRepository addressRepository;
     private final CarrierRepository carrierRepository;
@@ -102,6 +103,63 @@ public class OrderService {
         }
         cartService.removeItems(selection.cart(), selection.items());
         return List.copyOf(created);
+    }
+
+    public org.springframework.data.domain.Page<CustomerOrder> forUser(User user, OrderStatus status, int page) {
+        return orderRepository.findForUser(user.getId(), status, org.springframework.data.domain.PageRequest.of(
+            Math.max(0, page), 15, org.springframework.data.domain.Sort.by(
+                org.springframework.data.domain.Sort.Order.desc("createdAt"), org.springframework.data.domain.Sort.Order.desc("id"))));
+    }
+
+    public CustomerOrder getForUser(User user, Long id) {
+        return orderRepository.findByIdAndUserId(id, user.getId()).orElseThrow(() ->
+            new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND,
+                "Không tìm thấy đơn hàng của bạn."));
+    }
+
+    public List<OrderStatusHistory> statusHistory(User user, Long id) {
+        getForUser(user, id);
+        return historyRepository.findByOrderIdOrderByChangedAtAscIdAsc(id);
+    }
+
+    @Transactional
+    public void cancelByUser(User user, Long id) {
+        // Serialize all customer mutations, including cancellations of sibling shop orders.
+        var owner = userRepository.findByIdForUpdate(user.getId()).orElseThrow();
+        var order = orderRepository.findOwnedForUpdate(id, owner.getId()).orElseThrow(() ->
+            new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND,
+                "Không tìm thấy đơn hàng của bạn."));
+        entityManager.refresh(order, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        if (order.getStatus() != OrderStatus.NEW || order.getPaymentStatus() != PaymentStatus.UNPAID)
+            throw new IllegalArgumentException("Chỉ có thể hủy đơn mới chưa thanh toán.");
+        var quantities = order.getItems().stream().collect(Collectors.groupingBy(i -> i.getProduct().getId(),
+            Collectors.summingLong(OrderItem::getQuantity)));
+        var products = order.getItems().stream().map(OrderItem::getProduct).distinct()
+            .sorted(Comparator.comparing(Product::getId)).toList();
+        for (var product : products) {
+            entityManager.refresh(product, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+            long restored = (long) product.getStock() + quantities.get(product.getId());
+            if (restored > Integer.MAX_VALUE) throw new IllegalArgumentException("Tồn kho vượt giới hạn cho phép.");
+            product.setStock((int) restored);
+            if (product.getStatus() == ProductStatus.OUT_OF_STOCK) product.setStatus(ProductStatus.ACTIVE);
+        }
+        order.setStatus(OrderStatus.CANCELLED);
+        releaseVoucherWhenCheckoutIsFullyCancelled(order);
+        recordStatus(order, OrderStatus.NEW, OrderStatus.CANCELLED, owner, "Khách hàng hủy đơn");
+    }
+
+    private void releaseVoucherWhenCheckoutIsFullyCancelled(CustomerOrder order) {
+        if (order.getVoucher() == null || orderRepository.countByCheckoutReferenceAndIdNotAndStatusNot(
+                order.getCheckoutReference(), order.getId(), OrderStatus.CANCELLED) > 0) return;
+        var voucher = voucherRepository.findByIdForUpdate(order.getVoucher().getId()).orElseThrow();
+        entityManager.refresh(voucher, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        var usage = usageRepository.findByCheckoutReferenceForUpdate(order.getCheckoutReference()).orElseThrow(() ->
+            new IllegalStateException("Không tìm thấy lượt sử dụng mã giảm giá của checkout."));
+        if (usage.getStatus() != VoucherUsageStatus.USED) return;
+        if (voucher.getQuantity() == Integer.MAX_VALUE) throw new IllegalArgumentException("Số lượt mã giảm giá vượt giới hạn.");
+        voucher.setQuantity(voucher.getQuantity() + 1);
+        usage.setStatus(VoucherUsageStatus.CANCELLED); usage.setReleasedAt(LocalDateTime.now());
+        usage.setReleaseReason("Hoàn lượt do toàn bộ đơn trong checkout đã hủy");
     }
 
     private Carrier carrier(Long id) {

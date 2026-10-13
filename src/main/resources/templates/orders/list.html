@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Đơn mua')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="container py-4">
+    <div th:replace="~{fragments/layout :: flash}"></div>
+    <span class="page-kicker"><i class="bi bi-receipt"></i> Đơn mua</span>
+    <h1 class="h3 mb-1">Lịch sử mua hàng</h1>
+    <p class="text-muted mb-3">Theo dõi tiến trình và xem lại mọi đơn hàng của bạn.</p>
+    <div class="d-flex flex-wrap gap-2 mb-3">
+        <a class="btn btn-sm" th:classappend="${selectedStatus == null} ? 'btn-primary' : 'btn-outline-primary'" th:href="@{/orders}">Tất cả</a>
+        <a class="btn btn-sm" th:classappend="${selectedStatus == s} ? 'btn-primary' : 'btn-outline-primary'" th:each="s : ${statuses}"
+           th:href="@{/orders(status=${s})}" th:text="${s.label}"></a>
+    </div>
+    <article class="card order-card mb-3 p-3 p-md-4" th:each="o : ${orders.content}">
+        <div class="d-flex flex-column flex-sm-row justify-content-between gap-3">
+            <div>
+                <strong th:text="${o.code}"></strong>
+                <span class="badge text-bg-primary ms-2" th:text="${o.status.label}"></span>
+                <span class="badge text-bg-light border ms-1" th:text="${o.paymentMethod.label + ' · ' + o.paymentStatus.label}"></span>
+                <div class="text-muted"
+                     th:text="${o.shop.name + ' · ' + #temporals.format(o.createdAt,'dd/MM/yyyy HH:mm')}"></div>
+            </div>
+            <div class="text-end">
+                <strong class="text-primary"
+                        th:text="${#numbers.formatDecimal(o.totalAmount,0,'COMMA',0,'POINT')} + ' ₫'"></strong><br>
+                <a class="btn btn-sm btn-outline-primary" th:href="@{/orders/{id}(id=${o.id})}">Chi tiết</a>
+            </div>
+        </div>
+    </article>
+    <nav class="d-flex justify-content-center gap-2 mt-4" th:if="${orders.totalPages > 1}">
+        <a class="btn btn-outline-primary" th:classappend="${orders.first} ? 'disabled'"
+           th:href="@{/orders(status=${selectedStatus},page=${orders.number - 1})}">Trước</a>
+        <span class="btn btn-light" th:text="|Trang ${orders.number + 1}/${orders.totalPages}|">Trang 1/1</span>
+        <a class="btn btn-outline-primary" th:classappend="${orders.last} ? 'disabled'"
+           th:href="@{/orders(status=${selectedStatus},page=${orders.number + 1})}">Sau</a>
+    </nav>
+    <div class="panel empty-state" th:if="${orders.empty}"><i class="bi bi-receipt-cutoff fs-1"></i><h2 class="h5">Không có đơn hàng</h2><p class="mb-0">Chưa có đơn phù hợp với trạng thái đã chọn.</p></div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>
