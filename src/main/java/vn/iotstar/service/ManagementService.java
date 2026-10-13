@@ -8,11 +8,13 @@ import vn.iotstar.dto.WebForms.CategoryForm;
 import vn.iotstar.dto.WebForms.ToppingForm;
 import vn.iotstar.dto.WebForms.PromotionForm;
 import vn.iotstar.dto.WebForms.VoucherForm;
+import vn.iotstar.dto.WebForms.CarrierForm;
 import vn.iotstar.entity.Category;
 import vn.iotstar.entity.Topping;
 import vn.iotstar.entity.DomainEnums.PromotionType;
 import vn.iotstar.entity.DomainEnums.VoucherType;
 import vn.iotstar.entity.Voucher;
+import vn.iotstar.entity.Carrier;
 import vn.iotstar.entity.VoucherUsage;
 import vn.iotstar.entity.DomainEnums.ProductStatus;
 import vn.iotstar.repository.CategoryRepository;
@@ -42,14 +44,17 @@ import vn.iotstar.repository.ManagerShopRepository;
 import vn.iotstar.repository.ProductRepository;
 import vn.iotstar.repository.PromotionRepository;
 import vn.iotstar.repository.VoucherRepository;
+import vn.iotstar.repository.CarrierRepository;
 import vn.iotstar.repository.VoucherUsageRepository;
 import vn.iotstar.repository.ShopRepository;
 import vn.iotstar.repository.UserRepository;
 
 /**
- * Scope foundation for Step 12 only. Management CRUD/controllers belong to later steps.
- * Every management operation added later must call requireShopAccess(actor, shopId)
- * before returning or changing shop-owned records.
+ * Shared Management authorization and administration through Step 16.
+ * Every shop-owned operation must enforce requireShopAccess(actor, shopId) on the server.
+ * Commission rule for Step 17: copy Shop.commissionRate into an Order snapshot at
+ * Order creation; subsequent Shop rate edits must not change any saved Order snapshot.
+ * The CustomerOrder entity and checkout belong to TV1's later step, not this service.
  */
 @Service
 @RequiredArgsConstructor
@@ -62,6 +67,7 @@ public class ManagementService {
     private final ProductRepository productRepository;
     private final PromotionRepository promotionRepository;
     private final VoucherRepository voucherRepository;
+    private final CarrierRepository carrierRepository;
     private final VoucherUsageRepository voucherUsageRepository;
     private final CategoryRepository categoryRepository;
     private final ToppingRepository toppingRepository;
@@ -520,6 +526,57 @@ public class ManagementService {
         if (!voucherRepository.existsById(voucherId)) throw new IllegalArgumentException("Không tìm thấy mã giảm giá.");
         return voucherUsageRepository.findByVoucherIdOrderByUsedAtDesc(voucherId,
             PageRequest.of(Math.max(page, 0), 20));
+    }
+
+    // ==================== STEP 16: Carrier and commission ====================
+
+    /** Carrier administration is available to Management roles; vendor/customer code only reads active carriers. */
+    public Page<Carrier> carriers(User actor, String q, int page) {
+        requireManagementRole(actor);
+        return carrierRepository.search(cleanQuery(q),
+            PageRequest.of(Math.max(page, 0), 20, Sort.by("name")));
+    }
+
+    public Carrier getCarrier(User actor, Long id) {
+        requireManagementRole(actor);
+        return carrierRepository.findById(id)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy nhà vận chuyển."));
+    }
+
+    @Transactional
+    public void saveCarrier(User actor, Long id, CarrierForm form) {
+        requireManagementRole(actor);
+        if (form == null || form.getName() == null
+                || form.getName().trim().length() < 2 || form.getName().trim().length() > 150
+                || form.getShippingFee() == null || form.getShippingFee().signum() < 0
+                || form.getShippingFee().scale() > 2 || form.getShippingFee().precision() - form.getShippingFee().scale() > 12) {
+            throw new IllegalArgumentException("Tên hoặc phí vận chuyển không hợp lệ.");
+        }
+        Carrier carrier = id == null ? new Carrier() : carrierRepository.findById(id)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy nhà vận chuyển."));
+        String name = form.getName().trim();
+        boolean duplicatedName = id == null ? carrierRepository.existsByNameIgnoreCase(name)
+            : carrierRepository.existsByNameIgnoreCaseAndIdNot(name, id);
+        if (duplicatedName) throw new IllegalArgumentException("Tên nhà vận chuyển đã tồn tại.");
+        carrier.setName(name);
+        carrier.setShippingFee(form.getShippingFee());
+        carrier.setActive(form.isActive());
+        carrierRepository.save(carrier);
+    }
+
+    @Transactional
+    public void toggleCarrier(User actor, Long id) {
+        Carrier carrier = getCarrier(actor, id);
+        carrier.setActive(!carrier.isActive());
+    }
+
+    @Transactional
+    public void deleteCarrier(User actor, Long id) {
+        Carrier carrier = getCarrier(actor, id);
+        // Step 17 will introduce Order -> Carrier references. Before then, Carrier has no orders.
+        // Once referenced by an Order, persistence FKs prevent deletion; deactivate instead.
+        carrierRepository.delete(carrier);
+        carrierRepository.flush();
     }
 
     private void requireAdmin(User actor) {

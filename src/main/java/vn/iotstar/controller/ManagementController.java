@@ -9,12 +9,14 @@ import vn.iotstar.dto.WebForms.CategoryForm;
 import vn.iotstar.dto.WebForms.ToppingForm;
 import vn.iotstar.dto.WebForms.PromotionForm;
 import vn.iotstar.dto.WebForms.VoucherForm;
+import vn.iotstar.dto.WebForms.CarrierForm;
 import vn.iotstar.dto.WebForms.ProductForm;
 import vn.iotstar.entity.Category;
 import vn.iotstar.entity.Product;
 import vn.iotstar.entity.Topping;
 import vn.iotstar.entity.Promotion;
 import vn.iotstar.entity.Voucher;
+import vn.iotstar.entity.Carrier;
 import vn.iotstar.entity.DomainEnums.VoucherType;
 import vn.iotstar.entity.DomainEnums.PromotionType;
 import vn.iotstar.service.ManagementProductService;
@@ -483,6 +485,73 @@ public class ManagementController {
         model.addAttribute("voucher", voucher);
         model.addAttribute("usages", managementService.voucherUsages(currentUserService.require(), id, page));
         return "management/voucher-usages";
+    }
+
+    // ==================== STEP 16: Carriers ====================
+
+    @GetMapping("/carriers")
+    String carriers(@RequestParam(required = false) String q,
+                    @RequestParam(defaultValue = "0") int page, Model model) {
+        model.addAttribute("carriers", managementService.carriers(currentUserService.require(), q, page));
+        model.addAttribute("q", q);
+        return "management/carriers";
+    }
+
+    @GetMapping("/carriers/new")
+    String newCarrier(Model model) {
+        model.addAttribute("carrierForm", new CarrierForm());
+        return "management/carrier-form";
+    }
+
+    @GetMapping("/carriers/{id}/edit")
+    String editCarrier(@PathVariable Long id, Model model) {
+        Carrier carrier = managementService.getCarrier(currentUserService.require(), id);
+        CarrierForm form = new CarrierForm();
+        form.setName(carrier.getName());
+        form.setShippingFee(carrier.getShippingFee());
+        form.setActive(carrier.isActive());
+        model.addAttribute("carrierForm", form);
+        model.addAttribute("carrier", carrier);
+        return "management/carrier-form";
+    }
+
+    @PostMapping("/carriers/save")
+    String saveCarrier(@RequestParam(required = false) Long id,
+                       @Valid @ModelAttribute("carrierForm") CarrierForm carrierForm,
+                       BindingResult result, Model model, RedirectAttributes flash) {
+        if (!result.hasErrors()) {
+            try {
+                managementService.saveCarrier(currentUserService.require(), id, carrierForm);
+            } catch (IllegalArgumentException ex) {
+                result.reject("carrier.invalid", ex.getMessage());
+            }
+        }
+        if (result.hasErrors()) {
+            if (id != null) model.addAttribute("carrier", managementService.getCarrier(currentUserService.require(), id));
+            return "management/carrier-form";
+        }
+        flash.addFlashAttribute("success", "Đã lưu nhà vận chuyển.");
+        return "redirect:/management/carriers";
+    }
+
+    @PostMapping("/carriers/{id}/toggle")
+    String toggleCarrier(@PathVariable Long id, RedirectAttributes flash) {
+        managementService.toggleCarrier(currentUserService.require(), id);
+        flash.addFlashAttribute("success", "Đã đổi trạng thái nhà vận chuyển.");
+        return "redirect:/management/carriers";
+    }
+
+    @PostMapping("/carriers/{id}/delete")
+    String deleteCarrier(@PathVariable Long id, RedirectAttributes flash) {
+        try {
+            managementService.deleteCarrier(currentUserService.require(), id);
+            flash.addFlashAttribute("success", "Đã xóa nhà vận chuyển.");
+        } catch (org.springframework.dao.DataIntegrityViolationException ex) {
+            flash.addFlashAttribute("error", "Nhà vận chuyển đã được dùng trong đơn hàng; hãy tắt thay vì xóa.");
+        } catch (IllegalArgumentException ex) {
+            flash.addFlashAttribute("error", ex.getMessage());
+        }
+        return "redirect:/management/carriers";
     }
 
     private void prepareVoucher(Model model, VoucherForm form, Voucher voucher) {
