@@ -379,6 +379,21 @@ public final class WebForms {
         private List<Long> toppingIds = new ArrayList<>();
     }
 
+    @Getter
+    @Setter
+    public static class CarrierForm {
+        @NotBlank(message = "Vui lòng nhập tên nhà vận chuyển")
+        @Size(min = 2, max = 150, message = "Tên nhà vận chuyển dài từ 2 đến 150 ký tự")
+        private String name;
+
+        @NotNull(message = "Vui lòng nhập phí vận chuyển")
+        @DecimalMin(value = "0", message = "Phí vận chuyển không được âm")
+        @Digits(integer = 12, fraction = 2, message = "Phí vận chuyển tối đa 12 chữ số nguyên và 2 chữ số thập phân")
+        private BigDecimal shippingFee;
+
+        private boolean active = true;
+    }
+
     @Getter @Setter
     public static class VoucherForm {
         @NotBlank(message = "Vui lòng nhập mã giảm giá")
