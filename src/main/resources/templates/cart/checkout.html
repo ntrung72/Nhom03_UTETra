@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Thanh toán COD')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="container py-4 py-lg-5">
+    <div th:replace="~{fragments/layout :: flash}"></div>
+    <h1 class="h3 mb-3">Thanh toán khi nhận hàng</h1>
+    <div class="alert alert-info" th:if="${pricesChanged}">Giá đã được cập nhật. Vui lòng kiểm tra tổng tiền trước khi đặt hàng.</div>
+    <div class="alert alert-warning" th:if="${carriers.empty}">Hiện chưa có nhà vận chuyển khả dụng. Vui lòng quay lại sau.</div>
+    <form th:action="@{/checkout}" method="post" th:object="${checkoutForm}" class="row g-4">
+        <input type="hidden" name="itemIds" th:each="id : *{itemIds}" th:value="${id}">
+        <input type="hidden" th:field="*{paymentMethod}" value="COD">
+        <section class="col-lg-7">
+            <div class="panel p-4 mb-4">
+                <h2 class="h5">Thông tin nhận hàng</h2>
+                <label for="addressId" class="form-label">Địa chỉ</label>
+                <select class="form-select mb-3" th:field="*{addressId}" required>
+                    <option th:each="a : ${addresses}" th:value="${a.id}" th:text="${a.receiverName + ' · ' + a.phone + ' · ' + a.fullAddress}"></option>
+                </select>
+                <a th:href="@{/user/profile(tab='addresses')}" class="small">Quản lý địa chỉ</a>
+                <label for="carrierId" class="form-label d-block mt-3">Nhà vận chuyển</label>
+                <select class="form-select mb-3" th:field="*{carrierId}" required>
+                    <option th:each="c : ${carriers}" th:value="${c.id}" th:text="${c.name + ' · ' + #numbers.formatDecimal(c.shippingFee,0,'COMMA',0,'POINT') + ' ₫/shop'}"></option>
+                </select>
+                <label for="voucherCode" class="form-label">Mã giảm giá</label>
+                <input class="form-control" th:field="*{voucherCode}" maxlength="40" list="checkout-vouchers" placeholder="Không bắt buộc">
+                <datalist id="checkout-vouchers"><option th:each="v : ${vouchers}" th:value="${v.code}" th:text="${v.name + ' · ' + v.type.label}"></option></datalist>
+                <p class="small text-muted mt-2">Điều kiện mã được kiểm tra trên tiền hàng sau khuyến mãi.</p>
+                <label for="note" class="form-label">Ghi chú cho shop</label>
+                <textarea class="form-control" rows="3" th:field="*{note}" maxlength="500"></textarea>
+                <button class="btn btn-outline-primary mt-3" type="submit" formmethod="get" th:formaction="@{/checkout}">Cập nhật tổng tiền</button>
+            </div>
+            <div class="panel p-4">
+                <h2 class="h5">Sản phẩm đã chọn</h2>
+                <article class="border-bottom py-3" th:each="i : ${selectedItems}">
+                    <strong th:text="${i.product.name}"></strong>
+                    <small class="d-block text-muted" th:text="${i.product.shop.name}"></small>
+                    <div class="small" th:if="${i.size != null}">
+                        <span th:text="${'Size ' + i.size + ' · ' + i.sugarLevel.label + ' · ' + i.iceLevel.label}"></span>
+                        <span th:if="${i.toppings != null}" th:text="${' · ' + i.toppings}"></span>
+                    </div>
+                    <div th:text="${i.quantity + ' × ' + #numbers.formatDecimal(i.unitPrice,0,'COMMA',0,'POINT') + ' ₫'}"></div>
+                </article>
+            </div>
+        </section>
+        <aside class="col-lg-5">
+            <div class="panel p-4" th:if="${preview != null}">
+                <h2 class="h5">Chi tiết thanh toán</h2>
+                <dl class="row mb-3">
+                    <dt class="col-7">Tiền hàng trước giảm</dt><dd class="col-5 text-end" th:text="${#numbers.formatDecimal(preview.subtotal,0,'COMMA',0,'POINT') + ' ₫'}"></dd>
+                    <dt class="col-7">Khuyến mãi sản phẩm</dt><dd class="col-5 text-end" th:text="${'-' + #numbers.formatDecimal(preview.productDiscount,0,'COMMA',0,'POINT') + ' ₫'}"></dd>
+                    <dt class="col-7">Mã giảm tiền hàng</dt><dd class="col-5 text-end" th:text="${'-' + #numbers.formatDecimal(preview.voucherDiscount,0,'COMMA',0,'POINT') + ' ₫'}"></dd>
+                    <dt class="col-7">Phí giao hàng</dt><dd class="col-5 text-end" th:text="${#numbers.formatDecimal(preview.shippingFee,0,'COMMA',0,'POINT') + ' ₫'}"></dd>
+                    <dt class="col-7">Giảm phí giao hàng</dt><dd class="col-5 text-end" th:text="${'-' + #numbers.formatDecimal(preview.shippingDiscount,0,'COMMA',0,'POINT') + ' ₫'}"></dd>
+                    <dt class="col-7">Phí giao còn lại</dt><dd class="col-5 text-end" th:text="${#numbers.formatDecimal(preview.finalShippingFee,0,'COMMA',0,'POINT') + ' ₫'}"></dd>
+                </dl>
+                <div class="d-flex justify-content-between border-top pt-3"><strong>Tổng thanh toán</strong><strong class="price" th:text="${#numbers.formatDecimal(preview.totalAmount,0,'COMMA',0,'POINT') + ' ₫'}"></strong></div>
+                <p class="small text-muted mt-3" th:text="${'Tách thành ' + preview.shopCount + ' đơn theo shop. Thanh toán cho người giao hàng khi nhận.'}"></p>
+                <button class="btn btn-primary w-100 btn-lg">Đặt hàng COD</button>
+            </div>
+            <a class="btn btn-light mt-3" th:href="@{/cart}">Quay lại giỏ hàng</a>
+        </aside>
+    </form>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

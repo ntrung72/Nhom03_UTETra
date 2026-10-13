@@ -1,6 +1,7 @@
 package vn.iotstar;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
@@ -134,7 +135,7 @@ class ManagementStep14Tests {
         form.setEndsAt(form.getStartsAt().minusDays(1));
         assertThatThrownBy(() -> management.savePromotion(promo.getId(), assigned.getId(), form, manager))
             .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> management.getPromotion(manager, promo.getId()))
+        assertThatCode(() -> management.getPromotion(manager, promo.getId()))
             .doesNotThrowAnyException();
     }
 

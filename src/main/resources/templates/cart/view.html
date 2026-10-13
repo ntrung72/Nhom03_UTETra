@@ -90,8 +90,8 @@
                     <div class="price fs-3" data-cart-selected-total
                          th:text="${#numbers.formatDecimal(selectedSubtotal,0,'COMMA',0,'POINT') + ' ₫'}"></div>
                 </div>
-                <button class="btn btn-primary btn-lg" type="submit" form="cart-selection-form" data-cart-save-selection>
-                    Lưu lựa chọn <i class="bi bi-arrow-right ms-1"></i>
+                <button class="btn btn-primary btn-lg" type="submit" form="cart-selection-form" th:formaction="@{/checkout}" formmethod="get" data-cart-save-selection>
+                    Thanh toán COD <i class="bi bi-arrow-right ms-1"></i>
                 </button>
             </div>
         </div>
