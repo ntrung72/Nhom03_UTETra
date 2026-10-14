@@ -85,3 +85,56 @@ document.addEventListener('DOMContentLoaded', () => {
     options.addEventListener('change', preview); preview();
   }
 });
+
+
+// Step 22: UTETra STOMP notifications. A user subscribes only to their own queues.
+document.addEventListener('DOMContentLoaded', () => {
+  const toastEl = document.getElementById('live-notification');
+  if (!toastEl || !window.SockJS || !window.Stomp) return;
+  try {
+    const client = Stomp.over(new SockJS('/ws'));
+    client.debug = () => {};
+    client.connect({}, () => {
+      client.subscribe('/user/queue/notifications', frame => {
+        const data = JSON.parse(frame.body);
+        const title = toastEl.querySelector('.toast-header strong');
+        const message = toastEl.querySelector('.toast-body');
+        if (title) title.textContent = data.title || 'UTETra';
+        if (message) message.textContent = data.message || 'Bạn có thông báo mới.';
+        window.bootstrap?.Toast.getOrCreateInstance(toastEl).show();
+        let badge = document.querySelector('[data-unread-notifications]');
+        if (!badge) {
+          const button = document.querySelector('.navbar-user-button');
+          if (button) {
+            badge = document.createElement('span');
+            badge.className = 'badge bg-danger ms-1';
+            badge.dataset.unreadNotifications = '';
+            button.appendChild(badge);
+            badge.textContent = '0';
+          }
+        }
+        if (badge) badge.textContent = String((Number(badge.textContent) || 0) + 1);
+      });
+      client.subscribe('/user/queue/order-status', frame => {
+        const data = JSON.parse(frame.body);
+        // Bước 22 chỉ dùng DOM hiện có của TV1, không thay template orders/detail.html.
+        const match = window.location.pathname.match(/^\/orders\/(\d+)\/?$/);
+        if (!match || String(data.orderId) !== match[1]) return;
+        const historyHeading = Array.from(document.querySelectorAll('h2')).find(el => el.textContent.includes('Lịch sử trạng thái'));
+        const timeline = historyHeading?.parentElement?.querySelector('ol');
+        if (!timeline) return;
+        const item = document.createElement('li');
+        item.className = 'border-start border-primary ps-3 py-2';
+        const label = document.createElement('strong'); label.textContent = data.label || data.status;
+        const time = document.createElement('time');
+        time.className = 'd-block small text-muted';
+        time.textContent = data.changedAt || '';
+        const meta = document.createElement('span'); meta.className = 'small d-block';
+        meta.textContent = (data.changedBy || '') + (data.note ? ' · ' + data.note : '');
+        item.append(label, time, meta); timeline.appendChild(item);
+      });
+    }, () => { /* Trang vẫn hoạt động bình thường khi mất kết nối realtime. */ });
+  } catch (error) {
+    console.debug('WebSocket chưa sẵn sàng', error);
+  }
+});
