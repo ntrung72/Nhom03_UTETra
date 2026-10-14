@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.LinkedHashMap;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -20,6 +21,7 @@ import vn.iotstar.dto.WebForms.ProductForm;
 import vn.iotstar.dto.WebForms.PromotionForm;
 import vn.iotstar.dto.WebForms.ShopForm;
 import vn.iotstar.entity.DomainEnums.IceLevel;
+import vn.iotstar.entity.DomainEnums.OrderStatus;
 import vn.iotstar.entity.DomainEnums.ProductStatus;
 import vn.iotstar.entity.DomainEnums.PromotionType;
 import vn.iotstar.entity.DomainEnums.SugarLevel;
@@ -32,6 +34,7 @@ import vn.iotstar.service.CurrentUserService;
 import vn.iotstar.service.ProductGalleryService;
 import vn.iotstar.service.ProductOptionService;
 import vn.iotstar.service.VendorService;
+import vn.iotstar.service.OrderService;
 
 @Controller
 @RequestMapping("/vendor")
@@ -43,6 +46,7 @@ public class VendorController {
     private final CustomUserDetailsService userDetailsService;
     private final ProductOptionService productOptionService;
     private final ProductGalleryService productGalleryService;
+    private final OrderService orderService;
 
     @ModelAttribute("currentUser")
     public User currentUser() {
@@ -421,6 +425,104 @@ public class VendorController {
         }
 
         return "redirect:/vendor/products";
+    }
+
+    @GetMapping("/orders")
+    public String orders(
+            @RequestParam(name = "status", required = false)
+                OrderStatus status,
+            @RequestParam(name = "page", defaultValue = "0")
+                int page,
+            @RequestParam(name = "orderId", required = false)
+                Long orderId,
+            Model model) {
+
+        User user = currentUserService.require();
+        Shop shop = vendorService.findShop(user);
+
+        if (shop == null) {
+            return "redirect:/vendor/register";
+        }
+
+        var orders = orderService.forVendor(user, status, page);
+        var allowedTransitions =
+            new LinkedHashMap<Long, List<OrderStatus>>();
+
+        orders.forEach(order ->
+            allowedTransitions.put(
+                order.getId(),
+                orderService.vendorTransitions(order.getStatus())
+            )
+        );
+
+        model.addAttribute("shop", shop);
+        model.addAttribute("orders", orders);
+        model.addAttribute("statuses", OrderStatus.values());
+        model.addAttribute("selectedStatus", status);
+        model.addAttribute("allowedTransitions", allowedTransitions);
+        model.addAttribute(
+            "orderStats",
+            orderService.vendorOrderStats(user)
+        );
+
+        if (orderId != null) {
+            var selectedOrder = orderService.getForVendor(user, orderId);
+
+            model.addAttribute("selectedOrder", selectedOrder);
+            model.addAttribute(
+                "orderHistory",
+                orderService.vendorStatusHistory(user, orderId)
+            );
+            model.addAttribute(
+                "selectedTransitions",
+                orderService.vendorTransitions(selectedOrder.getStatus())
+            );
+        }
+
+        return "vendor/orders";
+    }
+
+    @PostMapping("/orders/{id}/status")
+    public String updateOrder(
+            @PathVariable("id") Long id,
+            @RequestParam(name = "status") OrderStatus status,
+            @RequestParam(name = "note", required = false)
+                String note,
+            @RequestParam(name = "filterStatus", required = false)
+                OrderStatus filterStatus,
+            @RequestParam(name = "page", defaultValue = "0")
+                int page,
+            @RequestParam(name = "showDetail", defaultValue = "false")
+                boolean showDetail,
+            RedirectAttributes redirect) {
+
+        User user = currentUserService.require();
+
+        try {
+            orderService.vendorUpdate(user, id, status, note);
+
+            redirect.addFlashAttribute(
+                "success",
+                "Đã cập nhật trạng thái đơn hàng."
+            );
+        } catch (IllegalArgumentException exception) {
+            redirect.addFlashAttribute(
+                "error",
+                exception.getMessage()
+            );
+        }
+
+        if (filterStatus != null) {
+            redirect.addAttribute("status", filterStatus.name());
+        }
+
+        redirect.addAttribute("page", Math.max(0, page));
+
+        if (showDetail) {
+            redirect.addAttribute("orderId", id);
+        }
+
+        return "redirect:/vendor/orders";
     }
 
     @GetMapping("/promotions")
