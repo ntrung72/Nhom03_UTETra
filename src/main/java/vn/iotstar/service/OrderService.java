@@ -6,8 +6,13 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 import vn.iotstar.dto.WebForms.CheckoutForm;
 import vn.iotstar.entity.*;
 import vn.iotstar.entity.DomainEnums.*;
@@ -32,6 +37,7 @@ public class OrderService {
     private final CartService cartService;
     private final jakarta.validation.Validator validator;
     private final InventoryService inventoryService;
+    private final ShopRepository shopRepository;
 
     public List<Carrier> activeCarriers() {
         return carrierRepository.findByActiveTrueOrderByShippingFeeAsc();
@@ -61,7 +67,9 @@ public class OrderService {
             user,
             itemIds
         );
+
         var carrier = carrier(carrierId);
+
         var voucher = voucher(
             user,
             voucherCode,
@@ -90,8 +98,8 @@ public class OrderService {
             );
         }
 
-        // CartService khóa và refresh các sản phẩm theo thứ tự ID,
-        // kiểm tra tổng số lượng của các dòng cùng sản phẩm.
+        // Khóa và refresh sản phẩm theo thứ tự ID,
+        // kiểm tra tổng số lượng các dòng cùng sản phẩm.
         var selection = cartService.prepareCheckoutSelection(
             user,
             form.getItemIds()
@@ -245,7 +253,7 @@ public class OrderService {
         return List.copyOf(created);
     }
 
-    public org.springframework.data.domain.Page<CustomerOrder> forUser(
+    public Page<CustomerOrder> forUser(
             User user,
             OrderStatus status,
             int page) {
@@ -253,16 +261,7 @@ public class OrderService {
         return orderRepository.findForUser(
             user.getId(),
             status,
-            org.springframework.data.domain.PageRequest.of(
-                Math.max(0, page),
-                15,
-                org.springframework.data.domain.Sort.by(
-                    org.springframework.data.domain.Sort.Order
-                        .desc("createdAt"),
-                    org.springframework.data.domain.Sort.Order
-                        .desc("id")
-                )
-            )
+            orderPage(page)
         );
     }
 
@@ -270,8 +269,8 @@ public class OrderService {
         return orderRepository
             .findByIdAndUserId(id, user.getId())
             .orElseThrow(() ->
-                new org.springframework.web.server.ResponseStatusException(
-                    org.springframework.http.HttpStatus.NOT_FOUND,
+                new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
                     "Không tìm thấy đơn hàng của bạn."
                 )
             );
@@ -296,8 +295,8 @@ public class OrderService {
         var order = orderRepository
             .findOwnedForUpdate(id, owner.getId())
             .orElseThrow(() ->
-                new org.springframework.web.server.ResponseStatusException(
-                    org.springframework.http.HttpStatus.NOT_FOUND,
+                new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
                     "Không tìm thấy đơn hàng của bạn."
                 )
             );
@@ -358,6 +357,204 @@ public class OrderService {
             OrderStatus.CANCELLED,
             owner,
             "Khách hàng hủy đơn"
+        );
+    }
+
+    // =========================
+    // Xử lý đơn hàng của Vendor
+    // =========================
+
+    public Page<CustomerOrder> forVendor(
+            User vendor,
+            OrderStatus status,
+            int page) {
+
+        var shop = requireVendorShop(vendor);
+
+        return orderRepository.findForShop(
+            shop.getId(),
+            status,
+            orderPage(page)
+        );
+    }
+
+    public CustomerOrder getForVendor(User vendor, Long id) {
+        var shop = requireVendorShop(vendor);
+
+        if (id == null || id <= 0) {
+            throw vendorOrderNotFound();
+        }
+
+        return orderRepository
+            .findByIdAndShopId(id, shop.getId())
+            .orElseThrow(this::vendorOrderNotFound);
+    }
+
+    public List<OrderStatusHistory> vendorStatusHistory(
+            User vendor,
+            Long id) {
+
+        // Chỉ đọc lịch sử sau khi xác nhận đơn thuộc shop.
+        var order = getForVendor(vendor, id);
+
+        return historyRepository
+            .findByOrderIdOrderByChangedAtAscIdAsc(order.getId());
+    }
+
+    public VendorOrderStats vendorOrderStats(User vendor) {
+        var shop = requireVendorShop(vendor);
+        var counts = new EnumMap<OrderStatus, Long>(OrderStatus.class);
+
+        for (var row : orderRepository.countByStatusForShop(
+                shop.getId())) {
+            counts.put(
+                (OrderStatus) row[0],
+                ((Number) row[1]).longValue()
+            );
+        }
+
+        return new VendorOrderStats(
+            counts.getOrDefault(OrderStatus.NEW, 0L),
+            counts.getOrDefault(OrderStatus.CONFIRMED, 0L),
+            counts.getOrDefault(OrderStatus.PREPARING, 0L),
+            counts.getOrDefault(OrderStatus.READY_FOR_PICKUP, 0L)
+        );
+    }
+
+    public List<OrderStatus> vendorTransitions(OrderStatus current) {
+        if (current == null) {
+            return List.of();
+        }
+
+        return switch (current) {
+            case NEW -> List.of(OrderStatus.CONFIRMED);
+            case CONFIRMED -> List.of(OrderStatus.PREPARING);
+            case PREPARING -> List.of(OrderStatus.READY_FOR_PICKUP);
+            default -> List.of();
+        };
+    }
+
+    @Transactional
+    public void vendorUpdate(
+            User vendor,
+            Long id,
+            OrderStatus target) {
+
+        vendorUpdate(vendor, id, target, null);
+    }
+
+    @Transactional
+    public void vendorUpdate(
+            User vendor,
+            Long id,
+            OrderStatus target,
+            String note) {
+
+        var shop = requireVendorShop(vendor);
+
+        if (id == null || id <= 0) {
+            throw vendorOrderNotFound();
+        }
+
+        var order = orderRepository
+            .findShopOrderForUpdate(id, shop.getId())
+            .orElseThrow(this::vendorOrderNotFound);
+
+        // Đọc lại trạng thái sau khi lấy khóa.
+        // Khách hủy đơn và Vendor xác nhận dùng cùng khóa đơn.
+        entityManager.refresh(
+            order,
+            jakarta.persistence.LockModeType.PESSIMISTIC_WRITE
+        );
+
+        var oldStatus = order.getStatus();
+
+        if (target == null
+                || !vendorTransitions(oldStatus).contains(target)) {
+            throw new IllegalArgumentException(
+                "Không thể chuyển đơn sang trạng thái đã chọn. "
+                    + "Vui lòng tải lại danh sách đơn hàng."
+            );
+        }
+
+        var historyNote = normalizeVendorNote(note);
+
+        order.setStatus(target);
+
+        recordStatus(
+            order,
+            oldStatus,
+            target,
+            shop.getOwner(),
+            historyNote
+        );
+
+        // Lưu trạng thái và lịch sử trong cùng giao dịch.
+        entityManager.flush();
+    }
+
+    private Shop requireVendorShop(User vendor) {
+        if (vendor == null || vendor.getId() == null) {
+            throw vendorAccessDenied();
+        }
+
+        // Kiểm tra tài khoản trong database.
+        var account = userRepository.findById(vendor.getId())
+            .orElseThrow(this::vendorAccessDenied);
+
+        if (account.getRole() != Role.VENDOR
+                || !account.isEnabled()
+                || account.isLocked()) {
+            throw vendorAccessDenied();
+        }
+
+        return shopRepository.findByOwnerId(account.getId())
+            .orElseThrow(() ->
+                new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Bạn chưa có cửa hàng."
+                )
+            );
+    }
+
+    private String normalizeVendorNote(String note) {
+        if (note == null || note.isBlank()) {
+            return "Cập nhật bởi người bán";
+        }
+
+        var normalized = note.trim();
+
+        if (normalized.length() > 500) {
+            throw new IllegalArgumentException(
+                "Ghi chú xử lý đơn không được vượt quá 500 ký tự."
+            );
+        }
+
+        return normalized;
+    }
+
+    private ResponseStatusException vendorAccessDenied() {
+        return new ResponseStatusException(
+            HttpStatus.FORBIDDEN,
+            "Bạn không có quyền xử lý đơn hàng của cửa hàng."
+        );
+    }
+
+    private ResponseStatusException vendorOrderNotFound() {
+        return new ResponseStatusException(
+            HttpStatus.NOT_FOUND,
+            "Không tìm thấy đơn hàng của cửa hàng."
+        );
+    }
+
+    private PageRequest orderPage(int page) {
+        return PageRequest.of(
+            Math.max(0, page),
+            15,
+            Sort.by(
+                Sort.Order.desc("createdAt"),
+                Sort.Order.desc("id")
+            )
         );
     }
 
@@ -733,6 +930,14 @@ public class OrderService {
         history.setNote(note);
 
         historyRepository.save(history);
+    }
+
+    public record VendorOrderStats(
+        long newOrders,
+        long confirmedOrders,
+        long preparingOrders,
+        long readyOrders
+    ) {
     }
 
     public record CheckoutPreview(
