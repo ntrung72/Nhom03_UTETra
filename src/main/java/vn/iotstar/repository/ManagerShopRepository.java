@@ -12,6 +12,7 @@ public interface ManagerShopRepository extends JpaRepository<ManagerShop, Long> 
     Optional<ManagerShop> findByManagerIdAndShopId(Long managerId, Long shopId);
     boolean existsByManagerIdAndShopId(Long managerId, Long shopId);
     void deleteByManagerId(Long managerId);
+    List<ManagerShop> findByShopId(Long shopId);
 
     @Query("select ms.shop.id from ManagerShop ms where ms.manager.id = :managerId order by ms.shop.name")
     List<Long> findShopIdsByManagerId(@Param("managerId") Long managerId);

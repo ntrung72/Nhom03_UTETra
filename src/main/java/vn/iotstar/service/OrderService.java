@@ -43,6 +43,7 @@ public class OrderService {
     private final ManagerShopRepository managerShopRepository;
     private final MediaStorageService mediaStorageService;
     private final MediaValidationService mediaValidationService;
+    private final NotificationService notificationService;
 
     public List<Carrier> activeCarriers() {
         return carrierRepository.findByActiveTrueOrderByShippingFeeAsc();
@@ -935,6 +936,56 @@ public class OrderService {
         history.setNote(note);
 
         historyRepository.save(history);
+        publishOrderEvent(order, old, next, actor, history);
+    }
+
+    /** Step 22: emit notifications without changing existing Checkout/Vendor/Shipper transitions. */
+    private void publishOrderEvent(CustomerOrder order, OrderStatus previous,
+                                   OrderStatus current, User actor, OrderStatusHistory history) {
+        String code = order.getCode();
+        String detailLink = "/orders/" + order.getId();
+        User customer = order.getUser();
+        User vendor = order.getShop().getOwner();
+        User shipper = order.getShipper();
+        boolean changed = previous != current;
+        boolean created = previous == null;
+
+        if (changed && !created && !sameUser(customer, actor)) {
+            notificationService.sendOrderStatus(customer, history);
+            notificationService.send(customer, "Cập nhật đơn hàng",
+                "Đơn " + code + ": " + current.getLabel(), detailLink);
+        }
+        if (created) {
+            notificationService.send(vendor, "Có đơn hàng mới",
+                "Đơn " + code + " đang chờ xác nhận.", "/vendor/orders");
+        } else if (changed && !sameUser(vendor, actor)) {
+            notificationService.send(vendor, "Trạng thái đơn hàng",
+                "Đơn " + code + ": " + current.getLabel(), "/vendor/orders");
+        }
+        // Assignment (old == new) is an event: the newly assigned shipper must be notified.
+        if (shipper != null && !sameUser(shipper, actor)
+                && (previous == current || current == OrderStatus.READY_FOR_PICKUP)) {
+            notificationService.send(shipper, "Đơn hàng được phân công",
+                "Bạn có đơn " + code + " đang chờ lấy hàng.", "/shipper");
+        }
+        if (current == OrderStatus.DELIVERY_FAILED && changed) {
+            for (var managerShop : managerShopRepository.findByShopId(order.getShop().getId())) {
+                User manager = managerShop.getManager();
+                if (manager.isEnabled() && !manager.isLocked()) {
+                    notificationService.send(manager, "Giao hàng thất bại",
+                        "Đơn " + code + " cần được xử lý.", "/management/orders");
+                }
+            }
+            for (User admin : userRepository.findByRoleAndEnabledTrueAndLockedFalseOrderByFullNameAsc(Role.ADMIN)) {
+                notificationService.send(admin, "Giao hàng thất bại",
+                    "Đơn " + code + " cần được xử lý.", "/management/orders");
+            }
+        }
+    }
+
+    private boolean sameUser(User first, User second) {
+        return first != null && second != null && first.getId() != null
+            && first.getId().equals(second.getId());
     }
 
 
