@@ -48,4 +48,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
         @org.springframework.data.repository.query.Param("ids") java.util.List<Long> ids);
 
     java.util.List<User> findByRoleOrderByFullNameAsc(vn.iotstar.entity.DomainEnums.Role role);
+
+    java.util.List<User> findByRoleAndEnabledTrueAndLockedFalseOrderByFullNameAsc(vn.iotstar.entity.DomainEnums.Role role);
 }

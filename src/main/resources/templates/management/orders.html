@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Điều phối đơn')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="container py-4">
+    <div th:replace="~{fragments/management-nav :: nav}"></div>
+    <div th:replace="~{fragments/layout :: flash}"></div>
+    <h1 class="h3">Điều phối đơn hàng</h1>
+    <form class="row g-2 mb-3">
+        <div class="col"><input class="form-control" name="q" th:value="${q}" placeholder="Mã đơn / khách"></div>
+        <div class="col">
+            <select class="form-select" name="shop">
+                <option value="">Mọi shop</option>
+                <option th:each="s : ${shops}" th:value="${s.id}" th:text="${s.name}" th:selected="${s.id == selectedShop}"></option>
+            </select>
+        </div>
+        <div class="col">
+            <select class="form-select" name="status">
+                <option value="">Mọi trạng thái</option>
+                <option th:each="s : ${statuses}" th:value="${s}" th:text="${s.label}"
+                        th:selected="${s == selectedStatus}"></option>
+            </select>
+        </div>
+        <div class="col-auto"><button class="btn btn-primary">Lọc</button></div>
+    </form>
+    <div class="card table-responsive">
+        <table class="table align-middle">
+            <thead><tr><th>Mã / Shop</th><th>Khách</th><th>Đối soát</th><th>Trạng thái</th><th>Phân shipper</th><th>Cập nhật</th></tr></thead>
+            <tbody>
+            <tr th:each="o : ${orders.content}">
+                <td><strong th:text="${o.code}"></strong><div th:text="${o.shop.name}"></div></td>
+                <td th:text="${o.receiverName}"></td>
+                <td>
+                    <strong th:text="${#numbers.formatDecimal(o.totalAmount,0,'COMMA',0,'POINT')} + ' ₫'"></strong>
+                    <div class="text-muted small" th:text="${'Phí ship: ' + #numbers.formatDecimal(o.finalShippingFee,0,'COMMA',0,'POINT') + ' ₫'}"></div>
+                    <div class="text-danger small" th:if="${o.commissionRate != null}" th:text="${'Chiết khấu app: ' + o.commissionRate + '%'}"></div>
+                </td>
+                <td>
+                    <span th:text="${o.status.label}"></span>
+                    <div class="text-danger small mt-1" th:if="${o.status.name() == 'DELIVERY_FAILED'}" th:text="${o.failureReason}"></div>
+                    <a class="small" target="_blank" rel="noopener" th:if="${o.status.name() == 'DELIVERY_FAILED' and o.deliveryProofUrl != null}"
+                       th:href="${o.deliveryProofUrl}"><i class="bi bi-image"></i> Bằng chứng</a>
+                </td>
+                <td>
+                    <form class="d-flex" th:if="${assignableOrders[o.id]}" th:action="@{/management/orders/{id}/assign(id=${o.id})}" method="post">
+                        <select class="form-select form-select-sm" name="shipperId" required>
+                            <option th:each="s : ${shippers}" th:value="${s.id}" th:text="${s.fullName}"
+                                    th:selected="${o.shipper != null and o.shipper.id == s.id}"></option>
+                        </select>
+                        <button class="btn btn-sm btn-primary">Giao</button>
+                    </form>
+                    <form class="d-flex gap-1" th:if="${o.status.name() == 'DELIVERY_FAILED'}"
+                          th:action="@{/management/orders/{id}/retry-delivery(id=${o.id})}" method="post">
+                        <select class="form-select form-select-sm" name="shipperId" required>
+                            <option value="">Chọn shipper mới</option>
+                            <option th:each="s : ${shippers}" th:value="${s.id}" th:text="${s.fullName}"
+                                    th:disabled="${o.shipper != null and o.shipper.id == s.id}"></option>
+                        </select>
+                        <button class="btn btn-sm btn-warning text-nowrap"><i class="bi bi-arrow-repeat"></i> Giao lại</button>
+                    </form>
+                    <span class="small text-muted" th:if="${!assignableOrders[o.id] and o.status.name() != 'DELIVERY_FAILED'}"
+                          th:text="${o.shipper == null ? 'Không thể phân công ở trạng thái này' : 'Đã khóa: ' + o.shipper.fullName}"></span>
+                </td>
+                <td>
+                    <form th:if="${o.status.name() == 'DELIVERY_FAILED' and (o.paymentMethod.name() != 'VNPAY' or o.paymentStatus.name() != 'PAID')}"
+                          th:action="@{/management/orders/{id}/status(id=${o.id})}" method="post"
+                          onsubmit="return confirm('Hủy đơn giao thất bại và hoàn lại tồn kho?')">
+                        <input type="hidden" name="status" value="CANCELLED">
+                        <button class="btn btn-sm btn-outline-danger"><i class="bi bi-x-circle"></i> Hủy đơn</button>
+                    </form>
+                    <span class="small text-warning" th:if="${o.status.name() == 'DELIVERY_FAILED' and o.paymentMethod.name() == 'VNPAY' and o.paymentStatus.name() == 'PAID'}">
+                        <i class="bi bi-exclamation-triangle"></i> Cần hoàn tiền VNPay trước khi hủy
+                    </span>
+                    <form class="d-flex" th:if="${o.status.name() != 'DELIVERY_FAILED' and !#lists.isEmpty(allowedTransitions[o.id])}" th:action="@{/management/orders/{id}/status(id=${o.id})}" method="post">
+                        <select class="form-select form-select-sm" name="status" required>
+                            <option value="">Bước tiếp theo</option>
+                            <option th:each="s : ${allowedTransitions[o.id]}" th:value="${s}" th:text="${s.label}"></option>
+                        </select>
+                        <button class="btn btn-sm btn-outline-primary">Lưu</button>
+                    </form>
+                    <span class="small text-muted" th:if="${o.status.name() != 'DELIVERY_FAILED' and #lists.isEmpty(allowedTransitions[o.id])}">Không có thao tác quản lý</span>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+    <nav class="mt-3" th:if="${orders.totalPages > 1}">
+      <ul class="pagination justify-content-center">
+        <li class="page-item" th:classappend="${orders.first} ? 'disabled'"><a class="page-link" th:href="@{/management/orders(page=${orders.number - 1},q=${q},shop=${selectedShop},status=${selectedStatus})}">Trước</a></li>
+        <li class="page-item" th:each="i : ${#numbers.sequence(0,orders.totalPages - 1)}" th:classappend="${i == orders.number} ? 'active'"><a class="page-link" th:href="@{/management/orders(page=${i},q=${q},shop=${selectedShop},status=${selectedStatus})}" th:text="${i + 1}"></a></li>
+        <li class="page-item" th:classappend="${orders.last} ? 'disabled'"><a class="page-link" th:href="@{/management/orders(page=${orders.number + 1},q=${q},shop=${selectedShop},status=${selectedStatus})}">Sau</a></li>
+      </ul>
+    </nav>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>
