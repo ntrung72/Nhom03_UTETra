@@ -48,6 +48,7 @@ import vn.iotstar.repository.CarrierRepository;
 import vn.iotstar.repository.VoucherUsageRepository;
 import vn.iotstar.repository.ShopRepository;
 import vn.iotstar.repository.UserRepository;
+import vn.iotstar.repository.OrderRepository;
 
 /**
  * Shared Management authorization and administration through Step 16.
@@ -61,6 +62,7 @@ import vn.iotstar.repository.UserRepository;
 @Transactional(readOnly = true)
 public class ManagementService {
 
+    private final OrderRepository orderRepository;
     private final UserRepository userRepository;
     private final ManagerShopRepository managerShopRepository;
     private final ShopRepository shopRepository;
@@ -577,6 +579,25 @@ public class ManagementService {
         // Once referenced by an Order, persistence FKs prevent deletion; deactivate instead.
         carrierRepository.delete(carrier);
         carrierRepository.flush();
+    }
+
+
+    // ==================== Step 21: Scoped Order Management ====================
+    public Page<vn.iotstar.entity.CustomerOrder> orders(User actor, String q, Long shopId,
+            vn.iotstar.entity.DomainEnums.OrderStatus status, int page) {
+        requireManagementRole(actor);
+        if (shopId != null) requireShopAccess(actor, shopId);
+        var pageable = PageRequest.of(Math.max(page, 0), 20,
+            Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
+        if (isAdmin(actor)) return orderRepository.searchManagement(cleanQuery(q), shopId, status, pageable);
+        List<Long> ids = accessibleShopIds(actor);
+        return ids.isEmpty() ? Page.empty(pageable)
+            : orderRepository.searchManagementAssigned(ids, cleanQuery(q), shopId, status, pageable);
+    }
+
+    public List<User> shippers(User actor) {
+        requireManagementRole(actor);
+        return userRepository.findByRoleAndEnabledTrueAndLockedFalseOrderByFullNameAsc(Role.SHIPPER);
     }
 
     private void requireAdmin(User actor) {

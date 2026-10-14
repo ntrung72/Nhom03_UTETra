@@ -106,4 +106,40 @@ public interface OrderRepository
     List<Object[]> countByStatusForShop(
         @Param("shopId") Long shopId
     );
+
+    // ==================== Step 21: Order Management / Shipper ====================
+    @EntityGraph(attributePaths = {"shop", "user", "shipper", "carrier"})
+    @Query("select o from CustomerOrder o where o.shipper.id = :shipperId and (:status is null or o.status = :status)")
+    Page<CustomerOrder> findForShipper(@Param("shipperId") Long shipperId,
+                                      @Param("status") OrderStatus status, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"shop", "user", "shipper"})
+    @Query("""
+        select o from CustomerOrder o where
+          (:q is null or lower(o.code) like lower(concat('%', :q, '%'))
+              or lower(o.user.username) like lower(concat('%', :q, '%')))
+          and (:shopId is null or o.shop.id = :shopId)
+          and (:status is null or o.status = :status)
+        """)
+    Page<CustomerOrder> searchManagement(@Param("q") String q, @Param("shopId") Long shopId,
+                                          @Param("status") OrderStatus status, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"shop", "user", "shipper"})
+    @Query("""
+        select o from CustomerOrder o where o.shop.id in :shopIds
+          and (:q is null or lower(o.code) like lower(concat('%', :q, '%'))
+              or lower(o.user.username) like lower(concat('%', :q, '%')))
+          and (:shopId is null or o.shop.id = :shopId)
+          and (:status is null or o.status = :status)
+        """)
+    Page<CustomerOrder> searchManagementAssigned(@Param("shopIds") List<Long> shopIds,
+          @Param("q") String q, @Param("shopId") Long shopId,
+          @Param("status") OrderStatus status, Pageable pageable);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select o from CustomerOrder o where o.id = :id")
+    Optional<CustomerOrder> findOrderForDeliveryUpdate(@Param("id") Long id);
+
+    long countByShipperId(Long shipperId);
+    long countByShipperIdAndStatus(Long shipperId, OrderStatus status);
 }

@@ -19,6 +19,7 @@ import vn.iotstar.entity.DomainEnums.PaymentStatus;
 @Table(name = "customer_orders", indexes = {
     @Index(name = "idx_order_user_status", columnList = "user_id,status"),
     @Index(name = "idx_order_shop_status", columnList = "shop_id,status"),
+    @Index(name = "idx_order_shipper_status", columnList = "shipper_id,status"),
     @Index(name = "idx_order_checkout_reference", columnList = "checkout_reference")
 })
 public class CustomerOrder {
@@ -40,6 +41,10 @@ public class CustomerOrder {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "carrier_id")
     private Carrier carrier;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "shipper_id")
+    private User shipper;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "voucher_id")
@@ -98,6 +103,18 @@ public class CustomerOrder {
 
     @Column(name = "commission_rate", precision = 5, scale = 2)
     private BigDecimal commissionRate;
+
+    @Column(name = "failure_reason", length = 500)
+    private String failureReason;
+
+    @Column(name = "delivery_proof_url", length = 500)
+    private String deliveryProofUrl;
+
+    @Column(name = "picked_up_at")
+    private LocalDateTime pickedUpAt;
+
+    @Column(name = "delivered_at")
+    private LocalDateTime deliveredAt;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();

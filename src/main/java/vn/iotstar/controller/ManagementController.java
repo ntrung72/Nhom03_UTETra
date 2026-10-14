@@ -34,6 +34,7 @@ import vn.iotstar.entity.DomainEnums.ShopStatus;
 import vn.iotstar.entity.User;
 import vn.iotstar.service.CurrentUserService;
 import vn.iotstar.service.ManagementService;
+import vn.iotstar.service.OrderService;
 
 /** Step 13 only: dashboard shell, users, shops and Manager assignments. */
 @Controller
@@ -42,6 +43,7 @@ import vn.iotstar.service.ManagementService;
 public class ManagementController {
     private final CurrentUserService currentUserService;
     private final ManagementService managementService;
+    private final OrderService orderService;
     private final ManagementProductService managementProductService;
     private final ProductOptionService productOptionService;
     private final ProductGalleryService productGalleryService;
@@ -53,6 +55,67 @@ public class ManagementController {
     String dashboard(Model model) {
         model.addAttribute("summary", managementService.dashboard(currentUserService.require()));
         return "management/dashboard";
+    }
+
+
+    // ==================== Step 21: Order Management ====================
+    @GetMapping("/orders")
+    String orders(@RequestParam(required = false) String q,
+                  @RequestParam(required = false) Long shop,
+                  @RequestParam(required = false) vn.iotstar.entity.DomainEnums.OrderStatus status,
+                  @RequestParam(defaultValue = "0") int page, Model model) {
+        User actor = currentUserService.require();
+        var orders = managementService.orders(actor, q, shop, status, page);
+        var allowed = new java.util.HashMap<Long, java.util.List<vn.iotstar.entity.DomainEnums.OrderStatus>>();
+        var assignable = new java.util.HashMap<Long, Boolean>();
+        orders.forEach(o -> {
+            allowed.put(o.getId(), orderService.managementTransitions(o.getStatus()));
+            assignable.put(o.getId(), orderService.canAssignShipper(o.getStatus()));
+        });
+        model.addAttribute("orders", orders);
+        model.addAttribute("allowedTransitions", allowed);
+        model.addAttribute("assignableOrders", assignable);
+        model.addAttribute("shops", managementService.accessibleShops(actor));
+        model.addAttribute("shippers", managementService.shippers(actor));
+        model.addAttribute("statuses", vn.iotstar.entity.DomainEnums.OrderStatus.values());
+        model.addAttribute("q", q);
+        model.addAttribute("selectedShop", shop);
+        model.addAttribute("selectedStatus", status);
+        return "management/orders";
+    }
+
+    @PostMapping("/orders/{id}/assign")
+    String assignShipper(@PathVariable Long id, @RequestParam Long shipperId, RedirectAttributes flash) {
+        try {
+            orderService.assignShipper(currentUserService.require(), id, shipperId);
+            flash.addFlashAttribute("success", "Đã phân công shipper.");
+        } catch (IllegalArgumentException ex) {
+            flash.addFlashAttribute("error", ex.getMessage());
+        }
+        return "redirect:/management/orders";
+    }
+
+    @PostMapping("/orders/{id}/retry-delivery")
+    String retryDelivery(@PathVariable Long id, @RequestParam Long shipperId, RedirectAttributes flash) {
+        try {
+            orderService.retryFailedDelivery(currentUserService.require(), id, shipperId);
+            flash.addFlashAttribute("success", "Đã điều phối giao lại.");
+        } catch (IllegalArgumentException ex) {
+            flash.addFlashAttribute("error", ex.getMessage());
+        }
+        return "redirect:/management/orders";
+    }
+
+    @PostMapping("/orders/{id}/status")
+    String managementOrderStatus(@PathVariable Long id,
+              @RequestParam vn.iotstar.entity.DomainEnums.OrderStatus status, RedirectAttributes flash) {
+        try {
+            orderService.managementUpdate(currentUserService.require(), id, status);
+            flash.addFlashAttribute("success", "Đã cập nhật trạng thái đơn hàng.");
+        } catch (IllegalArgumentException ex) {
+            flash.addFlashAttribute("error", ex.getMessage());
+        }
+        return "redirect:/management/orders";
     }
 
     @GetMapping("/users")
