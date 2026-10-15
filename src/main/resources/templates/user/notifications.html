@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Thông báo')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="container py-4 py-lg-5">
+    <div th:replace="~{fragments/layout :: flash}"></div>
+    <div class="mb-4">
+        <span class="page-kicker"><i class="bi bi-bell"></i> Cập nhật</span>
+        <h1 class="h3 mb-1">Thông báo của bạn</h1>
+        <p class="text-muted mb-0" th:text="${'Bạn có ' + unreadNotifications + ' thông báo chưa đọc.'}"></p>
+    </div>
+    <div class="list-group" th:if="${notifications.hasContent()}">
+        <article class="list-group-item p-3 p-md-4" th:each="n : ${notifications.content}"
+                 th:classappend="${!n.read} ? 'list-group-item-primary'"
+                 th:attr="data-notification-id=${n.id}">
+            <div class="d-flex gap-3">
+                <i class="bi bi-bell text-primary fs-4 flex-shrink-0" aria-hidden="true"></i>
+                <div class="flex-grow-1 min-w-0">
+                    <div class="d-flex flex-wrap justify-content-between gap-2">
+                        <strong class="text-break" th:text="${n.title}"></strong>
+                        <small class="text-muted text-nowrap" th:text="${#temporals.format(n.createdAt,'dd/MM/yyyy HH:mm')}"></small>
+                    </div>
+                    <span class="badge mt-1" th:classappend="${n.read} ? 'text-bg-secondary' : 'text-bg-primary'"
+                          th:text="${n.read} ? 'Đã đọc' : 'Chưa đọc'"></span>
+                    <p class="mb-2 mt-2 text-break" th:text="${n.message}"></p>
+                    <div class="d-flex flex-wrap gap-2">
+                        <a class="btn btn-sm btn-outline-primary" th:if="${notificationLinks.containsKey(n.id)}"
+                           th:href="${notificationLinks[n.id]}">Xem chi tiết</a>
+                        <form th:if="${!n.read}" th:action="@{/user/notifications/{id}/read(id=${n.id})}" method="post">
+                            <input type="hidden" name="page" th:value="${notifications.number}">
+                            <button class="btn btn-sm btn-light">Đánh dấu đã đọc</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </article>
+    </div>
+    <div class="panel empty-state" th:unless="${notifications.hasContent()}">
+        <i class="bi bi-bell-slash fs-1"></i>
+        <h2 class="h5">Chưa có thông báo trên trang này</h2>
+        <p>Thông báo về đơn hàng và hoạt động mới sẽ xuất hiện tại đây.</p>
+        <a class="btn btn-outline-primary" th:if="${notifications.number > 0}" th:href="@{/user/notifications}">Về trang đầu</a>
+    </div>
+    <nav aria-label="Phân trang thông báo" class="d-flex flex-wrap justify-content-center align-items-center gap-2 mt-4"
+         th:if="${notifications.totalPages > 1}">
+        <a class="btn btn-outline-primary" th:if="${notifications.hasPrevious()}"
+           th:href="@{/user/notifications(page=${notifications.number - 1})}">Trước</a>
+        <span class="text-muted" th:text="|Trang ${notifications.number + 1}/${notifications.totalPages}|"></span>
+        <a class="btn btn-outline-primary" th:if="${notifications.hasNext()}"
+           th:href="@{/user/notifications(page=${notifications.number + 1})}">Sau</a>
+    </nav>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

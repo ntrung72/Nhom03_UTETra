@@ -25,6 +25,7 @@ public class UserController {
     private final ProfileService profileService;
     private final EngagementService engagementService;
     private final ProductPricingService productPricingService;
+    private final NotificationService notificationService;
 
     @GetMapping
     String userHome() {
@@ -168,6 +169,44 @@ public class UserController {
         model.addAttribute("promotionPrices", productPricingService.prices(
             viewed.getContent().stream().map(productView -> productView.getProduct()).toList()));
         return "user/viewed";
+    }
+
+    @GetMapping("/notifications")
+    String notifications(@RequestParam(defaultValue = "0") int page, Model model) {
+        User user = currentUserService.require();
+        var notifications = notificationService.list(user, page);
+        var links = new java.util.LinkedHashMap<Long, String>();
+        for (var notification : notifications.getContent()) {
+            String link = notificationLink(user, notification.getLink());
+            if (link != null) links.put(notification.getId(), link);
+        }
+        model.addAttribute("notifications", notifications);
+        model.addAttribute("notificationLinks", links);
+        return "user/notifications";
+    }
+
+    @PostMapping("/notifications/{id}/read")
+    String readNotification(@PathVariable Long id, @RequestParam(defaultValue = "0") int page,
+                            RedirectAttributes redirect) {
+        try {
+            notificationService.markRead(currentUserService.require(), id);
+        } catch (IllegalArgumentException ex) {
+            // Return the same response for missing IDs and another recipient's notifications.
+            throw new org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.NOT_FOUND, "Không tìm thấy thông báo.");
+        }
+        redirect.addFlashAttribute("success", "Đã đánh dấu thông báo là đã đọc.");
+        return "redirect:/user/notifications?page=" + Math.max(0, page);
+    }
+
+    private String notificationLink(User user, String value) {
+        if (value == null) return null;
+        String link = value.trim();
+        if (link.matches("/(orders|products)(/[1-9][0-9]*)?")
+            || link.matches("/shops/[A-Za-z0-9_-]+")) return link;
+        if (user.getRole() == vn.iotstar.entity.DomainEnums.Role.VENDOR
+            && link.matches("/vendor/orders(/[1-9][0-9]*)?")) return link;
+        return null;
     }
 
     private void prepareAccountPage(User user, Model model, String activeTab, Long editAddress) {
