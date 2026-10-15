@@ -71,7 +71,8 @@ public class NotificationService {
     @Transactional(readOnly = true)
     public Page<Notification> list(User user, int page) {
         return notificationRepository.findByUserIdOrderByCreatedAtDesc(
-            user.getId(), PageRequest.of(Math.max(0, page), 20));
+            user.getId(), PageRequest.of(Math.max(0, page), 20,
+                org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "id")));
     }
 
     @Transactional(readOnly = true)

@@ -26,7 +26,7 @@
             <div class="dropdown" th:if="${currentUser != null}">
                 <a class="btn btn-outline-light dropdown-toggle navbar-user-button" href="#" data-bs-toggle="dropdown">
                     <i class="bi bi-person-fill"></i>
-                    <span class="badge bg-danger" data-unread-notifications
+                    <span class="badge bg-danger" data-unread-notifications aria-live="polite" title="Thông báo chưa đọc"
                           th:if="${unreadNotifications != null and unreadNotifications > 0}"
                           th:text="${unreadNotifications}">0</span>
                     <span class="text-truncate" th:text="${currentUser.fullName}">Tài khoản</span>
@@ -42,6 +42,7 @@
                     <li th:if="${currentUser.role.name() == 'USER' or currentUser.role.name() == 'VENDOR'}"><a class="dropdown-item" th:href="@{/user/viewed}">Sản phẩm đã xem</a></li>
                     <li th:if="${currentUser.role.name() == 'USER' or currentUser.role.name() == 'VENDOR'}"><a class="dropdown-item" th:href="@{/cart}">Giỏ hàng</a></li>
                     <li th:if="${currentUser.role.name() == 'USER' or currentUser.role.name() == 'VENDOR'}"><a class="dropdown-item" th:href="@{/orders}">Đơn mua</a></li>
+                    <li th:if="${currentUser.role.name() == 'USER' or currentUser.role.name() == 'VENDOR'}"><a class="dropdown-item" th:href="@{/user/notifications}"><i class="bi bi-bell me-2"></i>Thông báo</a></li>
                     <li><hr class="dropdown-divider"></li>
                     <li><form th:action="@{/logout}" method="post"><button class="dropdown-item text-danger"><i class="bi bi-box-arrow-right me-2"></i>Đăng xuất</button></form></li>
                 </ul>

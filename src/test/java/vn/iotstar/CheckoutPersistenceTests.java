@@ -23,6 +23,7 @@ import vn.iotstar.entity.DomainEnums.VoucherType;
 import vn.iotstar.entity.DomainEnums.VoucherUsageStatus;
 import vn.iotstar.repository.CartRepository;
 import vn.iotstar.repository.InventoryTransactionRepository;
+import vn.iotstar.repository.NotificationRepository;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -36,6 +37,9 @@ class CheckoutPersistenceTests extends CheckoutTestFixtures {
 
     @Autowired
     InventoryTransactionRepository inventoryTransactions;
+
+    @Autowired
+    NotificationRepository notificationRepository;
 
     Long voucherId;
     Long extraAddressId;
@@ -351,6 +355,11 @@ class CheckoutPersistenceTests extends CheckoutTestFixtures {
     @AfterEach
     void cleanup() {
         transactions.executeWithoutResult(tx -> {
+            // Notifications created by checkout/cancel must be removed before their test recipients.
+            notificationRepository.deleteAll(notificationRepository.findAll().stream()
+                .filter(n -> n.getUser().getId().equals(customer.getId())
+                    || n.getUser().getId().equals(other.getId())).toList());
+            notificationRepository.flush();
             // Xóa lịch sử kho trước các bản ghi được tham chiếu.
             inventoryTransactions.deleteAll(
                 inventoryTransactions
