@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Xử lý trả hàng')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+
+<main class="container py-4"
+      th:with="state=${returnRequest.status.name()}">
+
+    <div th:replace="~{fragments/vendor-nav :: nav}"></div>
+    <div th:replace="~{fragments/layout :: flash}"></div>
+
+    <div class="d-flex flex-wrap justify-content-between
+                align-items-center gap-3 mb-4">
+        <div>
+            <h1 class="h3 mb-1"
+                th:text="${'Yêu cầu trả hàng #' + returnRequest.id}">
+                Chi tiết yêu cầu trả hàng
+            </h1>
+
+            <p class="text-muted mb-0"
+               th:text="${shop.name + ' · Đơn '
+                   + returnRequest.order.code}">
+                Cửa hàng · Mã đơn hàng
+            </p>
+        </div>
+
+        <a class="btn btn-outline-secondary"
+           th:href="@{/vendor/returns}">
+            Quay lại danh sách
+        </a>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <section class="card mb-4">
+                <div class="card-header bg-white">
+                    <h2 class="h5 mb-0">Thông tin yêu cầu</h2>
+                </div>
+
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Trạng thái</dt>
+                        <dd class="col-sm-8">
+                            <span class="badge text-bg-primary"
+                                  th:text="${returnRequest.status.label}">
+                                Trạng thái
+                            </span>
+                        </dd>
+
+                        <dt class="col-sm-4">Khách hàng</dt>
+                        <dd class="col-sm-8"
+                            th:text="${returnRequest.user.fullName}">
+                            Họ tên
+                        </dd>
+
+                        <dt class="col-sm-4">Điện thoại nhận hàng</dt>
+                        <dd class="col-sm-8"
+                            th:text="${returnRequest.order.receiverPhone}">
+                            Số điện thoại
+                        </dd>
+
+                        <dt class="col-sm-4">Lý do trả hàng</dt>
+                        <dd class="col-sm-8"
+                            th:text="${returnRequest.reason.label}">
+                            Lý do
+                        </dd>
+
+                        <dt class="col-sm-4">Mô tả vấn đề</dt>
+                        <dd class="col-sm-8 text-break"
+                            style="white-space: pre-wrap;"
+                            th:text="${returnRequest.description}">
+                            Mô tả
+                        </dd>
+
+                        <dt class="col-sm-4">Số tiền hoàn toàn đơn</dt>
+                        <dd class="col-sm-8 fw-bold text-danger"
+                            th:text="${#numbers.formatDecimal(
+                                returnRequest.refundAmount,
+                                0, 'COMMA', 0, 'POINT'
+                            ) + ' ₫'}">
+                            0 ₫
+                        </dd>
+
+                        <dt class="col-sm-4">Thời gian gửi</dt>
+                        <dd class="col-sm-8"
+                            th:text="${#temporals.format(
+                                returnRequest.requestedAt,
+                                'dd/MM/yyyy HH:mm'
+                            )}">
+                            Thời gian
+                        </dd>
+
+                        <dt class="col-sm-4">Đơn hàng</dt>
+                        <dd class="col-sm-8 mb-0">
+                            <a th:href="@{/vendor/orders(
+                                   orderId=${returnRequest.order.id}
+                               )}"
+                               th:text="${returnRequest.order.code}">
+                                Xem đơn hàng
+                            </a>
+                        </dd>
+                    </dl>
+                </div>
+            </section>
+
+            <section class="card">
+                <div class="card-header bg-white">
+                    <h2 class="h5 mb-0">Bằng chứng ảnh/video</h2>
+                </div>
+
+                <div class="card-body">
+                    <p class="text-muted mb-0"
+                       th:if="${#lists.isEmpty(returnRequest.media)}">
+                        Yêu cầu chưa có bằng chứng đính kèm.
+                    </p>
+
+                    <div class="row g-3">
+                        <div class="col-sm-6"
+                             th:each="media : ${returnRequest.media}">
+
+                            <a th:if="${media.type.name() == 'IMAGE'}"
+                               th:href="${media.url}"
+                               target="_blank"
+                               rel="noopener noreferrer">
+                                <img class="img-fluid rounded border w-100"
+                                     style="max-height: 300px; object-fit: contain;"
+                                     th:src="${media.url}"
+                                     alt="Ảnh bằng chứng trả hàng"
+                                     loading="lazy">
+                            </a>
+
+                            <div th:if="${media.type.name() == 'VIDEO'}">
+                                <video class="w-100 rounded border"
+                                       style="max-height: 300px;"
+                                       th:src="${media.url}"
+                                       controls
+                                       playsinline
+                                       preload="metadata">
+                                    Trình duyệt không hỗ trợ video.
+                                </video>
+
+                                <a class="small"
+                                   th:href="${media.url}"
+                                   target="_blank"
+                                   rel="noopener noreferrer">
+                                    Mở video trong tab mới
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <div class="col-lg-4">
+            <section class="card">
+                <div class="card-header bg-white">
+                    <h2 class="h5 mb-0">Xử lý yêu cầu</h2>
+                </div>
+
+                <div class="card-body">
+                    <form th:if="${state == 'REQUESTED'}"
+                          th:action="@{/vendor/returns/{id}/decision(
+                              id=${returnRequest.id}
+                          )}"
+                          method="post">
+
+                        <div class="alert alert-info small">
+                            Yêu cầu áp dụng cho toàn bộ đơn hàng.
+                            Số tiền hoàn phải bằng tổng thanh toán:
+                            <strong th:text="${#numbers.formatDecimal(
+                                returnRequest.order.totalAmount,
+                                0, 'COMMA', 0, 'POINT'
+                            ) + ' ₫'}">
+                                0 ₫
+                            </strong>.
+                        </div>
+
+                        <input type="hidden"
+                               name="refundAmount"
+                               th:value="${returnRequest.order.totalAmount}">
+
+                        <label for="decision-note" class="form-label">
+                            Ghi chú xử lý
+                        </label>
+                        <textarea id="decision-note"
+                                  class="form-control mb-3"
+                                  name="note"
+                                  rows="4"
+                                  minlength="5"
+                                  maxlength="1000"
+                                  required></textarea>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit"
+                                    class="btn btn-success"
+                                    name="decision"
+                                    value="APPROVED">
+                                Chấp nhận trả hàng
+                            </button>
+
+                            <button type="submit"
+                                    class="btn btn-outline-danger"
+                                    name="decision"
+                                    value="REJECTED">
+                                Từ chối yêu cầu
+                            </button>
+                        </div>
+                    </form>
+
+                    <div th:if="${state == 'APPROVED'}"
+                         class="alert alert-info mb-0">
+                        Đã chấp nhận yêu cầu. Đang chờ khách xác nhận
+                        đã gửi hàng trả.
+                    </div>
+
+                    <form th:if="${state == 'RETURNING'}"
+                          th:action="@{/vendor/returns/{id}/status(
+                              id=${returnRequest.id}
+                          )}"
+                          method="post">
+
+                        <input type="hidden" name="status" value="RECEIVED">
+
+                        <label for="received-note" class="form-label">
+                            Ghi chú nhận hàng
+                        </label>
+                        <textarea id="received-note"
+                                  class="form-control mb-3"
+                                  name="note"
+                                  rows="3"
+                                  maxlength="1000"></textarea>
+
+                        <button type="submit" class="btn btn-primary w-100">
+                            Xác nhận đã nhận hàng
+                        </button>
+                    </form>
+
+                    <form th:if="${state == 'RECEIVED'}"
+                          th:action="@{/vendor/returns/{id}/status(
+                              id=${returnRequest.id}
+                          )}"
+                          method="post">
+
+                        <input type="hidden"
+                               name="status"
+                               value="REFUND_PENDING">
+
+                        <label for="pending-note" class="form-label">
+                            Kế hoạch xử lý hoàn tiền
+                        </label>
+                        <textarea id="pending-note"
+                                  class="form-control mb-3"
+                                  name="note"
+                                  rows="4"
+                                  minlength="5"
+                                  maxlength="1000"
+                                  placeholder="Nhập phương thức và thời gian dự kiến hoàn tiền"
+                                  required></textarea>
+
+                        <button type="submit" class="btn btn-warning w-100">
+                            Chuyển sang chờ hoàn tiền
+                        </button>
+                    </form>
+
+                    <form th:if="${state == 'REFUND_PENDING'
+                                  and canConfirmRefund}"
+                          th:action="@{/vendor/returns/{id}/refund(
+                              id=${returnRequest.id}
+                          )}"
+                          method="post"
+                          onsubmit="return window.confirm(
+                              'Bạn xác nhận đã thực sự hoàn tiền cho khách?'
+                          );">
+
+                        <div class="alert alert-warning small">
+                            Chỉ xác nhận sau khi đã hoàn tiền cho khách
+                            bằng tiền mặt hoặc chuyển khoản và có
+                            mã tham chiếu để đối soát.
+                        </div>
+
+                        <label for="refund-reference" class="form-label">
+                            Mã tham chiếu hoàn tiền
+                        </label>
+                        <input id="refund-reference"
+                               class="form-control mb-3"
+                               type="text"
+                               name="refundReference"
+                               minlength="4"
+                               maxlength="120"
+                               placeholder="Ví dụ: BANK-20261015-001"
+                               required>
+
+                        <label for="refund-note" class="form-label">
+                            Ghi chú hoàn tiền
+                        </label>
+                        <textarea id="refund-note"
+                                  class="form-control mb-3"
+                                  name="refundNote"
+                                  rows="4"
+                                  minlength="5"
+                                  maxlength="1000"
+                                  placeholder="Phương thức hoàn tiền và thông tin đối soát"
+                                  required></textarea>
+
+                        <button type="submit" class="btn btn-success w-100">
+                            Xác nhận tiền đã hoàn
+                        </button>
+                    </form>
+
+                    <div th:if="${state == 'REFUND_PENDING'
+                                 and !canConfirmRefund}"
+                         class="alert alert-info mb-0">
+                        Đang chờ chủ cửa hàng hoặc Admin xác nhận hoàn tiền.
+                    </div>
+
+                    <div th:if="${state == 'REJECTED'
+                                 or state == 'REFUNDED'}"
+                         class="alert alert-secondary mb-0">
+                        <strong th:text="${returnRequest.status.label}">
+                            Đã xử lý
+                        </strong>
+                    </div>
+
+                    <div class="border-top mt-3 pt-3"
+                         th:if="${returnRequest.resolutionNote != null
+                                  or returnRequest.refundReference != null}">
+
+                        <h3 class="h6">Thông tin xử lý</h3>
+
+                        <p class="text-break"
+                           style="white-space: pre-wrap;"
+                           th:if="${returnRequest.resolutionNote != null}"
+                           th:text="${returnRequest.resolutionNote}">
+                            Ghi chú xử lý
+                        </p>
+
+                        <p class="small text-break"
+                           th:if="${returnRequest.refundReference != null}">
+                            <strong>Mã tham chiếu:</strong>
+                            <span th:text="${returnRequest.refundReference}">
+                                Mã tham chiếu
+                            </span>
+                        </p>
+
+                        <p class="small text-break"
+                           style="white-space: pre-wrap;"
+                           th:if="${returnRequest.refundNote != null}"
+                           th:text="${returnRequest.refundNote}">
+                            Ghi chú hoàn tiền
+                        </p>
+
+                        <p class="small text-muted"
+                           th:if="${returnRequest.refundedAt != null}"
+                           th:text="${'Hoàn tiền lúc '
+                               + #temporals.format(
+                                   returnRequest.refundedAt,
+                                   'dd/MM/yyyy HH:mm'
+                               )}">
+                            Thời gian hoàn tiền
+                        </p>
+
+                        <p class="small text-muted mb-0"
+                           th:if="${returnRequest.resolvedBy != null
+                                    and returnRequest.resolvedAt != null}"
+                           th:text="${'Xử lý bởi '
+                               + returnRequest.resolvedBy.fullName
+                               + ' · '
+                               + #temporals.format(
+                                   returnRequest.resolvedAt,
+                                   'dd/MM/yyyy HH:mm'
+                               )}">
+                            Người xử lý
+                        </p>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

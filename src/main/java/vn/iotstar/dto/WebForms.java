@@ -11,6 +11,7 @@ import lombok.Setter;
 import org.springframework.format.annotation.DateTimeFormat;
 import vn.iotstar.entity.DomainEnums.ProductStatus;
 import vn.iotstar.entity.DomainEnums.PromotionType;
+import vn.iotstar.entity.DomainEnums.ReturnReason;
 import vn.iotstar.entity.DomainEnums.VoucherType;
 
 public final class WebForms {
@@ -569,5 +570,33 @@ public final class WebForms {
         private LocalDateTime endsAt;
 
         private boolean active = true;
+    }
+
+    @Getter
+    @Setter
+    public static class ReturnRequestForm {
+
+        @NotNull(message = "Vui lòng chọn lý do trả hàng")
+        private ReturnReason reason;
+
+        @NotBlank(message = "Vui lòng mô tả vấn đề")
+        @Size(
+            min = 20,
+            max = 2000,
+            message = "Mô tả phải có từ 20 đến 2.000 ký tự"
+        )
+        private String description;
+
+        @NotNull(message = "Vui lòng nhập số tiền đề nghị hoàn")
+        @DecimalMin(
+            value = "0.01",
+            message = "Số tiền hoàn phải lớn hơn 0"
+        )
+        @Digits(
+            integer = 12,
+            fraction = 2,
+            message = "Số tiền hoàn tối đa 12 chữ số nguyên và 2 chữ số thập phân"
+        )
+        private BigDecimal refundAmount;
     }
 }

@@ -400,7 +400,6 @@ public class OrderService {
             User vendor,
             Long id) {
 
-        // Chỉ đọc lịch sử sau khi xác nhận đơn thuộc shop.
         var order = getForVendor(vendor, id);
 
         return historyRepository
@@ -466,8 +465,6 @@ public class OrderService {
             .findShopOrderForUpdate(id, shop.getId())
             .orElseThrow(this::vendorOrderNotFound);
 
-        // Đọc lại trạng thái sau khi lấy khóa.
-        // Khách hủy đơn và Vendor xác nhận dùng cùng khóa đơn.
         entityManager.refresh(
             order,
             jakarta.persistence.LockModeType.PESSIMISTIC_WRITE
@@ -495,7 +492,6 @@ public class OrderService {
             historyNote
         );
 
-        // Lưu trạng thái và lịch sử trong cùng giao dịch.
         entityManager.flush();
     }
 
@@ -504,7 +500,6 @@ public class OrderService {
             throw vendorAccessDenied();
         }
 
-        // Kiểm tra tài khoản trong database.
         var account = userRepository.findById(vendor.getId())
             .orElseThrow(this::vendorAccessDenied);
 
@@ -614,6 +609,160 @@ public class OrderService {
         usage.setReleaseReason(
             "Hoàn lượt do toàn bộ đơn trong checkout đã hủy"
         );
+    }
+
+    // Gọi từ ReturnRequestService sau khi đã khóa và kiểm tra yêu cầu.
+    @Transactional(
+        propagation = org.springframework.transaction.annotation.Propagation.MANDATORY
+    )
+    void applyReturnStatus(
+            CustomerOrder order,
+            OrderStatus target,
+            User actor,
+            String note) {
+
+        requireReturnOrderLock(order);
+
+        var account = requireReturnAccount(actor);
+        var oldStatus = order.getStatus();
+
+        boolean requesting = target == OrderStatus.RETURN_REQUESTED
+            && oldStatus == OrderStatus.DELIVERED;
+        boolean rejecting = target == OrderStatus.DELIVERED
+            && oldStatus == OrderStatus.RETURN_REQUESTED;
+        boolean refunding = target == OrderStatus.RETURNED_REFUNDED
+            && oldStatus == OrderStatus.RETURN_REQUESTED;
+
+        if (!requesting && !rejecting && !refunding) {
+            throw new IllegalArgumentException(
+                "Trạng thái đơn không phù hợp để xử lý trả hàng."
+            );
+        }
+
+        if (requesting) {
+            if ((account.getRole() != Role.USER
+                    && account.getRole() != Role.VENDOR)
+                    || !sameUser(account, order.getUser())) {
+                throw new AccessDeniedException(
+                    "Chỉ người mua được tạo yêu cầu trả hàng cho đơn này."
+                );
+            }
+        } else {
+            boolean owner = account.getRole() == Role.VENDOR
+                && sameUser(account, order.getShop().getOwner());
+            boolean admin = account.getRole() == Role.ADMIN;
+            boolean manager = account.getRole() == Role.MANAGER
+                && managerShopRepository.existsByManagerIdAndShopId(
+                    account.getId(),
+                    order.getShop().getId()
+                );
+
+            if (!owner && !admin && !(rejecting && manager)) {
+                throw new AccessDeniedException(
+                    "Bạn không có quyền thực hiện thao tác trả hàng này."
+                );
+            }
+        }
+
+        if (order.getPaymentStatus() != PaymentStatus.PAID) {
+            throw new IllegalArgumentException(
+                "Chỉ xử lý trả hàng và hoàn tiền cho đơn đã thanh toán."
+            );
+        }
+
+        String historyNote = note == null || note.isBlank()
+            ? "Xử lý yêu cầu trả hàng"
+            : note.trim();
+
+        if (historyNote.length() > 500) {
+            throw new IllegalArgumentException(
+                "Ghi chú lịch sử đơn không được vượt quá 500 ký tự."
+            );
+        }
+
+        if (refunding) {
+            restoreRefundedOrderInventory(order, account);
+            order.setPaymentStatus(PaymentStatus.REFUNDED);
+
+            // Theo ZIP: trả hàng không hoàn lượt voucher.
+            // Voucher chỉ được hoàn khi toàn bộ checkout bị hủy.
+        }
+
+        order.setStatus(target);
+        recordStatus(order, oldStatus, target, account, historyNote);
+        entityManager.flush();
+    }
+
+    private void restoreRefundedOrderInventory(
+            CustomerOrder order,
+            User actor) {
+
+        var quantities = order.getItems().stream()
+            .collect(Collectors.groupingBy(
+                item -> item.getProduct().getId(),
+                TreeMap::new,
+                Collectors.summingLong(OrderItem::getQuantity)
+            ));
+
+        for (var entry : quantities.entrySet()) {
+            long quantity = entry.getValue();
+
+            if (quantity <= 0 || quantity > Integer.MAX_VALUE) {
+                throw new IllegalArgumentException(
+                    "Số lượng hoàn kho không hợp lệ."
+                );
+            }
+
+            var product = inventoryService.lockProduct(entry.getKey());
+            int restoredQuantity = (int) quantity;
+
+            product.setSoldCount(
+                Math.max(0L, product.getSoldCount() - restoredQuantity)
+            );
+
+            inventoryService.restoreAfterRefund(
+                product,
+                restoredQuantity,
+                actor,
+                order
+            );
+        }
+    }
+
+    private User requireReturnAccount(User actor) {
+        if (actor == null || actor.getId() == null) {
+            throw new AccessDeniedException(
+                "Bạn không có quyền xử lý trả hàng."
+            );
+        }
+
+        return userRepository.findById(actor.getId())
+            .filter(account -> account.isEnabled() && !account.isLocked())
+            .orElseThrow(() ->
+                new AccessDeniedException(
+                    "Tài khoản không còn quyền xử lý trả hàng."
+                )
+            );
+    }
+
+    private void requireReturnOrderLock(CustomerOrder order) {
+        if (order == null
+                || order.getId() == null
+                || !entityManager.contains(order)) {
+            throw new IllegalStateException(
+                "Đơn hàng phải thuộc giao dịch xử lý trả hàng."
+            );
+        }
+
+        var lockMode = entityManager.getLockMode(order);
+
+        if (lockMode != jakarta.persistence.LockModeType.PESSIMISTIC_WRITE
+                && lockMode
+                    != jakarta.persistence.LockModeType.PESSIMISTIC_FORCE_INCREMENT) {
+            throw new IllegalStateException(
+                "Phải khóa đơn hàng trước khi xử lý trả hàng."
+            );
+        }
     }
 
     private Carrier carrier(Long id) {
@@ -939,62 +1088,114 @@ public class OrderService {
         publishOrderEvent(order, old, next, actor, history);
     }
 
-    /** Step 22: emit notifications without changing existing Checkout/Vendor/Shipper transitions. */
-    private void publishOrderEvent(CustomerOrder order, OrderStatus previous,
-                                   OrderStatus current, User actor, OrderStatusHistory history) {
+    /** Step 22: thông báo dùng chung cho các luồng đơn hàng. */
+    private void publishOrderEvent(
+            CustomerOrder order,
+            OrderStatus previous,
+            OrderStatus current,
+            User actor,
+            OrderStatusHistory history) {
+
         String code = order.getCode();
         String detailLink = "/orders/" + order.getId();
         User customer = order.getUser();
         User vendor = order.getShop().getOwner();
         User shipper = order.getShipper();
+
         boolean changed = previous != current;
         boolean created = previous == null;
 
         if (changed && !created && !sameUser(customer, actor)) {
             notificationService.sendOrderStatus(customer, history);
-            notificationService.send(customer, "Cập nhật đơn hàng",
-                "Đơn " + code + ": " + current.getLabel(), detailLink);
+            notificationService.send(
+                customer,
+                "Cập nhật đơn hàng",
+                "Đơn " + code + ": " + current.getLabel(),
+                detailLink
+            );
         }
+
         if (created) {
-            notificationService.send(vendor, "Có đơn hàng mới",
-                "Đơn " + code + " đang chờ xác nhận.", "/vendor/orders");
+            notificationService.send(
+                vendor,
+                "Có đơn hàng mới",
+                "Đơn " + code + " đang chờ xác nhận.",
+                "/vendor/orders"
+            );
         } else if (changed && !sameUser(vendor, actor)) {
-            notificationService.send(vendor, "Trạng thái đơn hàng",
-                "Đơn " + code + ": " + current.getLabel(), "/vendor/orders");
+            notificationService.send(
+                vendor,
+                "Trạng thái đơn hàng",
+                "Đơn " + code + ": " + current.getLabel(),
+                "/vendor/orders"
+            );
         }
-        // Assignment (old == new) is an event: the newly assigned shipper must be notified.
-        if (shipper != null && !sameUser(shipper, actor)
-                && (previous == current || current == OrderStatus.READY_FOR_PICKUP)) {
-            notificationService.send(shipper, "Đơn hàng được phân công",
-                "Bạn có đơn " + code + " đang chờ lấy hàng.", "/shipper");
+
+        // Phân công là một sự kiện dù trạng thái đơn không đổi.
+        if (shipper != null
+                && !sameUser(shipper, actor)
+                && (previous == current
+                    || current == OrderStatus.READY_FOR_PICKUP)) {
+            notificationService.send(
+                shipper,
+                "Đơn hàng được phân công",
+                "Bạn có đơn " + code + " đang chờ lấy hàng.",
+                "/shipper"
+            );
         }
+
         if (current == OrderStatus.DELIVERY_FAILED && changed) {
-            for (var managerShop : managerShopRepository.findByShopId(order.getShop().getId())) {
+            for (var managerShop : managerShopRepository.findByShopId(
+                    order.getShop().getId())) {
                 User manager = managerShop.getManager();
+
                 if (manager.isEnabled() && !manager.isLocked()) {
-                    notificationService.send(manager, "Giao hàng thất bại",
-                        "Đơn " + code + " cần được xử lý.", "/management/orders");
+                    notificationService.send(
+                        manager,
+                        "Giao hàng thất bại",
+                        "Đơn " + code + " cần được xử lý.",
+                        "/management/orders"
+                    );
                 }
             }
-            for (User admin : userRepository.findByRoleAndEnabledTrueAndLockedFalseOrderByFullNameAsc(Role.ADMIN)) {
-                notificationService.send(admin, "Giao hàng thất bại",
-                    "Đơn " + code + " cần được xử lý.", "/management/orders");
+
+            for (User admin : userRepository
+                    .findByRoleAndEnabledTrueAndLockedFalseOrderByFullNameAsc(
+                        Role.ADMIN
+                    )) {
+                notificationService.send(
+                    admin,
+                    "Giao hàng thất bại",
+                    "Đơn " + code + " cần được xử lý.",
+                    "/management/orders"
+                );
             }
         }
     }
 
     private boolean sameUser(User first, User second) {
-        return first != null && second != null && first.getId() != null
+        return first != null
+            && second != null
+            && first.getId() != null
             && first.getId().equals(second.getId());
     }
 
+    // =========================
+    // Management / Shipper
+    // =========================
 
-    // ==================== Step 21: Management / Shipper ====================
-    // All writes use the same pessimistic row lock as Vendor/Customer order writes.
+    public Page<CustomerOrder> forShipper(
+            User actor,
+            OrderStatus status,
+            int page) {
 
-    public Page<CustomerOrder> forShipper(User actor, OrderStatus status, int page) {
         requireActiveShipper(actor);
-        return orderRepository.findForShipper(actor.getId(), status, orderPage(page));
+
+        return orderRepository.findForShipper(
+            actor.getId(),
+            status,
+            orderPage(page)
+        );
     }
 
     public long shipperTotal(User actor) {
@@ -1004,14 +1205,21 @@ public class OrderService {
 
     public long shipperCount(User actor, OrderStatus status) {
         requireActiveShipper(actor);
-        return orderRepository.countByShipperIdAndStatus(actor.getId(), status);
+
+        return orderRepository.countByShipperIdAndStatus(
+            actor.getId(),
+            status
+        );
     }
 
     public List<OrderStatus> shipperTransitions(OrderStatus current) {
         return switch (current) {
             case READY_FOR_PICKUP -> List.of(OrderStatus.PICKED_UP);
             case PICKED_UP -> List.of(OrderStatus.SHIPPING);
-            case SHIPPING -> List.of(OrderStatus.DELIVERED, OrderStatus.DELIVERY_FAILED);
+            case SHIPPING -> List.of(
+                OrderStatus.DELIVERED,
+                OrderStatus.DELIVERY_FAILED
+            );
             default -> List.of();
         };
     }
@@ -1029,164 +1237,368 @@ public class OrderService {
     }
 
     @Transactional
-    public void assignShipper(User actor, Long orderId, Long shipperId) {
+    public void assignShipper(
+            User actor,
+            Long orderId,
+            Long shipperId) {
+
         CustomerOrder order = lockDeliveryOrder(orderId);
         requireManagementAccess(actor, order);
+
         if (!canAssignShipper(order.getStatus())) {
-            throw new IllegalArgumentException("Chỉ được phân công khi đơn đã xác nhận, đang chuẩn bị hoặc sẵn sàng lấy hàng.");
+            throw new IllegalArgumentException(
+                "Chỉ được phân công khi đơn đã xác nhận, "
+                    + "đang chuẩn bị hoặc sẵn sàng lấy hàng."
+            );
         }
+
         User shipper = requireAssignableShipper(shipperId);
-        if (order.getShipper() != null && order.getShipper().getId().equals(shipper.getId())) return;
-        String previous = order.getShipper() == null ? "chưa phân công" : order.getShipper().getFullName();
+
+        if (order.getShipper() != null
+                && order.getShipper().getId().equals(shipper.getId())) {
+            return;
+        }
+
+        String previous = order.getShipper() == null
+            ? "chưa phân công"
+            : order.getShipper().getFullName();
+
         order.setShipper(shipper);
-        // Assignment is an event even though OrderStatus itself stays the same.
-        recordStatus(order, order.getStatus(), order.getStatus(), actor,
-            "Phân công shipper: " + previous + " → " + shipper.getFullName());
+
+        recordStatus(
+            order,
+            order.getStatus(),
+            order.getStatus(),
+            actor,
+            "Phân công shipper: " + previous
+                + " → " + shipper.getFullName()
+        );
+
         entityManager.flush();
     }
 
     @Transactional
-    public void retryFailedDelivery(User actor, Long orderId, Long shipperId) {
+    public void retryFailedDelivery(
+            User actor,
+            Long orderId,
+            Long shipperId) {
+
         CustomerOrder order = lockDeliveryOrder(orderId);
         requireManagementAccess(actor, order);
+
         if (order.getStatus() != OrderStatus.DELIVERY_FAILED) {
-            throw new IllegalArgumentException("Chỉ đơn giao thất bại mới được điều phối giao lại.");
+            throw new IllegalArgumentException(
+                "Chỉ đơn giao thất bại mới được điều phối giao lại."
+            );
         }
+
         User shipper = requireAssignableShipper(shipperId);
-        if (order.getShipper() != null && order.getShipper().getId().equals(shipper.getId())) {
-            throw new IllegalArgumentException("Vui lòng chọn shipper khác cho lần giao lại.");
+
+        if (order.getShipper() != null
+                && order.getShipper().getId().equals(shipper.getId())) {
+            throw new IllegalArgumentException(
+                "Vui lòng chọn shipper khác cho lần giao lại."
+            );
         }
+
         order.setShipper(shipper);
         order.setPickedUpAt(null);
         order.setDeliveredAt(null);
         order.setFailureReason(null);
         order.setDeliveryProofUrl(null);
         order.setStatus(OrderStatus.READY_FOR_PICKUP);
-        recordStatus(order, OrderStatus.DELIVERY_FAILED, OrderStatus.READY_FOR_PICKUP, actor,
-            "Điều phối giao lại cho " + shipper.getFullName());
+
+        recordStatus(
+            order,
+            OrderStatus.DELIVERY_FAILED,
+            OrderStatus.READY_FOR_PICKUP,
+            actor,
+            "Điều phối giao lại cho " + shipper.getFullName()
+        );
+
         entityManager.flush();
     }
 
     @Transactional
-    public void managementUpdate(User actor, Long orderId, OrderStatus target) {
+    public void managementUpdate(
+            User actor,
+            Long orderId,
+            OrderStatus target) {
+
         CustomerOrder order = lockDeliveryOrder(orderId);
         requireManagementAccess(actor, order);
+
         OrderStatus old = order.getStatus();
-        if (target == null || !managementTransitions(old).contains(target)) {
-            throw new IllegalArgumentException("Không thể chuyển trạng thái đơn hàng như yêu cầu.");
+
+        if (target == null
+                || !managementTransitions(old).contains(target)) {
+            throw new IllegalArgumentException(
+                "Không thể chuyển trạng thái đơn hàng như yêu cầu."
+            );
         }
-        if (old == OrderStatus.DELIVERY_FAILED && target == OrderStatus.CANCELLED) {
+
+        if (old == OrderStatus.DELIVERY_FAILED
+                && target == OrderStatus.CANCELLED) {
             if (order.getPaymentStatus() != PaymentStatus.UNPAID) {
-                throw new IllegalArgumentException("Đơn đã thanh toán cần xử lý hoàn tiền trước khi hủy.");
+                throw new IllegalArgumentException(
+                    "Đơn đã thanh toán cần xử lý hoàn tiền trước khi hủy."
+                );
             }
+
             restoreFailedOrderInventory(order, actor);
             order.setStatus(OrderStatus.CANCELLED);
             releaseVoucherWhenCheckoutIsFullyCancelled(order);
-            recordStatus(order, old, OrderStatus.CANCELLED, actor,
-                "Manager/Admin hủy đơn sau khi giao thất bại");
+
+            recordStatus(
+                order,
+                old,
+                OrderStatus.CANCELLED,
+                actor,
+                "Manager/Admin hủy đơn sau khi giao thất bại"
+            );
         } else {
-            // Management pre-pickup status transitions follow existing Vendor workflow.
             order.setStatus(target);
-            recordStatus(order, old, target, actor, "Cập nhật bởi " + actor.getRole().getLabel());
+
+            recordStatus(
+                order,
+                old,
+                target,
+                actor,
+                "Cập nhật bởi " + actor.getRole().getLabel()
+            );
         }
+
         entityManager.flush();
     }
 
     @Transactional
-    public void shipperUpdate(User actor, Long orderId, OrderStatus target,
-                              String failureReason, MultipartFile deliveryProof) {
+    public void shipperUpdate(
+            User actor,
+            Long orderId,
+            OrderStatus target,
+            String failureReason,
+            MultipartFile deliveryProof) {
+
         requireActiveShipper(actor);
+
         CustomerOrder order = lockDeliveryOrder(orderId);
-        if (order.getShipper() == null || !order.getShipper().getId().equals(actor.getId())) {
-            throw new AccessDeniedException("Đơn hàng chưa được phân công cho bạn.");
+
+        if (order.getShipper() == null
+                || !order.getShipper().getId().equals(actor.getId())) {
+            throw new AccessDeniedException(
+                "Đơn hàng chưa được phân công cho bạn."
+            );
         }
+
         OrderStatus old = order.getStatus();
-        if (target == null || !shipperTransitions(old).contains(target)) {
-            throw new IllegalArgumentException("Không thể chuyển từ " + old.getLabel()
-                + " sang trạng thái yêu cầu.");
+
+        if (target == null
+                || !shipperTransitions(old).contains(target)) {
+            throw new IllegalArgumentException(
+                "Không thể chuyển từ " + old.getLabel()
+                    + " sang trạng thái yêu cầu."
+            );
         }
+
         String note = "Cập nhật bởi nhân viên giao hàng";
+
         if (target == OrderStatus.PICKED_UP) {
             order.setPickedUpAt(LocalDateTime.now());
         } else if (target == OrderStatus.DELIVERED) {
             validateDeliveryProof(deliveryProof, true);
-            order.setDeliveryProofUrl(mediaStorageService.upload(deliveryProof, "delivery-proofs"));
+
+            order.setDeliveryProofUrl(
+                mediaStorageService.upload(
+                    deliveryProof,
+                    "delivery-proofs"
+                )
+            );
+
             order.setDeliveredAt(LocalDateTime.now());
             order.setFailureReason(null);
-            if (order.getPaymentMethod() == PaymentMethod.COD) order.setPaymentStatus(PaymentStatus.PAID);
+
+            if (order.getPaymentMethod() == PaymentMethod.COD) {
+                order.setPaymentStatus(PaymentStatus.PAID);
+            }
+
             note = "Giao thành công, đã đính kèm ảnh bằng chứng";
         } else if (target == OrderStatus.DELIVERY_FAILED) {
-            String reason = failureReason == null ? "" : failureReason.trim();
+            String reason = failureReason == null
+                ? ""
+                : failureReason.trim();
+
             if (reason.length() < 5 || reason.length() > 500) {
-                throw new IllegalArgumentException("Lý do giao thất bại phải từ 5 đến 500 ký tự.");
+                throw new IllegalArgumentException(
+                    "Lý do giao thất bại phải từ 5 đến 500 ký tự."
+                );
             }
+
             validateDeliveryProof(deliveryProof, false);
+
             if (deliveryProof != null && !deliveryProof.isEmpty()) {
-                order.setDeliveryProofUrl(mediaStorageService.upload(deliveryProof, "delivery-proofs"));
+                order.setDeliveryProofUrl(
+                    mediaStorageService.upload(
+                        deliveryProof,
+                        "delivery-proofs"
+                    )
+                );
             }
+
             order.setFailureReason(reason);
             note = reason;
         }
+
         order.setStatus(target);
         recordStatus(order, old, target, actor, note);
+
         entityManager.flush();
     }
 
-    private void validateDeliveryProof(MultipartFile proof, boolean required) {
+    private void validateDeliveryProof(
+            MultipartFile proof,
+            boolean required) {
+
         if (proof == null || proof.isEmpty()) {
-            if (required) throw new IllegalArgumentException("Vui lòng tải ảnh bằng chứng giao hàng.");
+            if (required) {
+                throw new IllegalArgumentException(
+                    "Vui lòng tải ảnh bằng chứng giao hàng."
+                );
+            }
             return;
         }
+
         mediaValidationService.validate(proof, "delivery-proofs");
     }
 
     private CustomerOrder lockDeliveryOrder(Long orderId) {
-        if (orderId == null || orderId <= 0) throw new IllegalArgumentException("Đơn hàng không hợp lệ.");
-        CustomerOrder order = orderRepository.findOrderForDeliveryUpdate(orderId)
-            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đơn hàng."));
-        entityManager.refresh(order, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        if (orderId == null || orderId <= 0) {
+            throw new IllegalArgumentException(
+                "Đơn hàng không hợp lệ."
+            );
+        }
+
+        CustomerOrder order = orderRepository
+            .findOrderForDeliveryUpdate(orderId)
+            .orElseThrow(() ->
+                new IllegalArgumentException(
+                    "Không tìm thấy đơn hàng."
+                )
+            );
+
+        entityManager.refresh(
+            order,
+            jakarta.persistence.LockModeType.PESSIMISTIC_WRITE
+        );
+
         return order;
     }
 
-    private void requireManagementAccess(User actor, CustomerOrder order) {
-        if (actor == null || actor.getId() == null) throw new AccessDeniedException("Không có quyền điều phối đơn.");
+    private void requireManagementAccess(
+            User actor,
+            CustomerOrder order) {
+
+        if (actor == null || actor.getId() == null) {
+            throw new AccessDeniedException(
+                "Không có quyền điều phối đơn."
+            );
+        }
+
         User account = userRepository.findById(actor.getId())
-            .orElseThrow(() -> new AccessDeniedException("Không có quyền điều phối đơn."));
-        if (!account.isEnabled() || account.isLocked()
-                || (account.getRole() != Role.ADMIN && (account.getRole() != Role.MANAGER
-                    || !managerShopRepository.existsByManagerIdAndShopId(account.getId(), order.getShop().getId())))) {
-            throw new AccessDeniedException("Bạn không được điều phối đơn hàng của shop này.");
+            .orElseThrow(() ->
+                new AccessDeniedException(
+                    "Không có quyền điều phối đơn."
+                )
+            );
+
+        if (!account.isEnabled()
+                || account.isLocked()
+                || (account.getRole() != Role.ADMIN
+                    && (account.getRole() != Role.MANAGER
+                        || !managerShopRepository
+                            .existsByManagerIdAndShopId(
+                                account.getId(),
+                                order.getShop().getId()
+                            )))) {
+            throw new AccessDeniedException(
+                "Bạn không được điều phối đơn hàng của shop này."
+            );
         }
     }
 
     private void requireActiveShipper(User actor) {
-        if (actor == null || actor.getId() == null) throw new AccessDeniedException("Chỉ Shipper được xử lý giao hàng.");
+        if (actor == null || actor.getId() == null) {
+            throw new AccessDeniedException(
+                "Chỉ Shipper được xử lý giao hàng."
+            );
+        }
+
         User account = userRepository.findById(actor.getId())
-            .orElseThrow(() -> new AccessDeniedException("Chỉ Shipper được xử lý giao hàng."));
-        if (account.getRole() != Role.SHIPPER || !account.isEnabled() || account.isLocked()) {
-            throw new AccessDeniedException("Chỉ Shipper đang hoạt động được xử lý giao hàng.");
+            .orElseThrow(() ->
+                new AccessDeniedException(
+                    "Chỉ Shipper được xử lý giao hàng."
+                )
+            );
+
+        if (account.getRole() != Role.SHIPPER
+                || !account.isEnabled()
+                || account.isLocked()) {
+            throw new AccessDeniedException(
+                "Chỉ Shipper đang hoạt động được xử lý giao hàng."
+            );
         }
     }
 
     private User requireAssignableShipper(Long shipperId) {
-        return userRepository.findById(shipperId == null ? -1L : shipperId)
-            .filter(u -> u.getRole() == Role.SHIPPER && u.isEnabled() && !u.isLocked())
-            .orElseThrow(() -> new IllegalArgumentException("Shipper không hợp lệ hoặc đã bị khóa."));
+        return userRepository
+            .findById(shipperId == null ? -1L : shipperId)
+            .filter(u ->
+                u.getRole() == Role.SHIPPER
+                    && u.isEnabled()
+                    && !u.isLocked()
+            )
+            .orElseThrow(() ->
+                new IllegalArgumentException(
+                    "Shipper không hợp lệ hoặc đã bị khóa."
+                )
+            );
     }
 
-    private void restoreFailedOrderInventory(CustomerOrder order, User actor) {
-        // Reuse TV2's inventory service; do not recreate product stock logic here.
-        var quantities = order.getItems().stream().collect(Collectors.groupingBy(
-            item -> item.getProduct().getId(), Collectors.summingLong(OrderItem::getQuantity)));
-        var products = order.getItems().stream().map(OrderItem::getProduct).distinct()
-            .sorted(Comparator.comparing(Product::getId)).toList();
+    private void restoreFailedOrderInventory(
+            CustomerOrder order,
+            User actor) {
+
+        var quantities = order.getItems().stream()
+            .collect(Collectors.groupingBy(
+                item -> item.getProduct().getId(),
+                Collectors.summingLong(OrderItem::getQuantity)
+            ));
+
+        var products = order.getItems().stream()
+            .map(OrderItem::getProduct)
+            .distinct()
+            .sorted(Comparator.comparing(Product::getId))
+            .toList();
+
         for (var product : products) {
-            entityManager.refresh(product, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+            entityManager.refresh(
+                product,
+                jakarta.persistence.LockModeType.PESSIMISTIC_WRITE
+            );
+
             long quantity = quantities.get(product.getId());
+
             if (quantity <= 0 || quantity > Integer.MAX_VALUE) {
-                throw new IllegalArgumentException("Số lượng hoàn kho không hợp lệ.");
+                throw new IllegalArgumentException(
+                    "Số lượng hoàn kho không hợp lệ."
+                );
             }
-            inventoryService.restoreAfterCancellation(product, (int) quantity, actor, order);
+
+            inventoryService.restoreAfterCancellation(
+                product,
+                (int) quantity,
+                actor,
+                order
+            );
         }
     }
 

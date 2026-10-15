@@ -3,6 +3,7 @@ package vn.iotstar.controller;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
@@ -24,6 +25,8 @@ import vn.iotstar.entity.DomainEnums.IceLevel;
 import vn.iotstar.entity.DomainEnums.OrderStatus;
 import vn.iotstar.entity.DomainEnums.ProductStatus;
 import vn.iotstar.entity.DomainEnums.PromotionType;
+import vn.iotstar.entity.DomainEnums.ReturnStatus;
+import vn.iotstar.entity.DomainEnums.Role;
 import vn.iotstar.entity.DomainEnums.SugarLevel;
 import vn.iotstar.entity.Product;
 import vn.iotstar.entity.Promotion;
@@ -35,6 +38,7 @@ import vn.iotstar.service.ProductGalleryService;
 import vn.iotstar.service.ProductOptionService;
 import vn.iotstar.service.VendorService;
 import vn.iotstar.service.OrderService;
+import vn.iotstar.service.ReturnRequestService;
 
 @Controller
 @RequestMapping("/vendor")
@@ -47,6 +51,7 @@ public class VendorController {
     private final ProductOptionService productOptionService;
     private final ProductGalleryService productGalleryService;
     private final OrderService orderService;
+    private final ReturnRequestService returnRequestService;
 
     @ModelAttribute("currentUser")
     public User currentUser() {
@@ -523,6 +528,137 @@ public class VendorController {
         }
 
         return "redirect:/vendor/orders";
+    }
+
+    @GetMapping("/returns")
+    public String returnRequests(
+            @RequestParam(name = "status", required = false)
+                ReturnStatus status,
+            @RequestParam(name = "page", defaultValue = "0")
+                int page,
+            Model model) {
+
+        User user = currentUserService.require();
+        Shop shop = vendorService.findShop(user);
+
+        if (shop == null) {
+            return "redirect:/vendor/register";
+        }
+
+        model.addAttribute("shop", shop);
+        model.addAttribute(
+            "requests",
+            returnRequestService.forShop(user, status, page)
+        );
+        model.addAttribute("returnStatuses", ReturnStatus.values());
+        model.addAttribute("selectedReturnStatus", status);
+
+        return "vendor/returns";
+    }
+
+    @GetMapping("/returns/{id}")
+    public String returnDetail(
+            @PathVariable("id") Long id,
+            Model model) {
+
+        User user = currentUserService.require();
+        var request = returnRequestService.getForShop(user, id);
+
+        boolean canConfirmRefund = user.getRole() == Role.ADMIN
+            || (user.getRole() == Role.VENDOR
+                && request.getShop().getOwner().getId()
+                    .equals(user.getId()));
+
+        model.addAttribute("shop", request.getShop());
+        model.addAttribute("returnRequest", request);
+        model.addAttribute("canConfirmRefund", canConfirmRefund);
+
+        return "vendor/return-detail";
+    }
+
+    @PostMapping("/returns/{id}/decision")
+    public String decideReturn(
+            @PathVariable("id") Long id,
+            @RequestParam(name = "decision") ReturnStatus decision,
+            @RequestParam(name = "refundAmount", required = false)
+                BigDecimal refundAmount,
+            @RequestParam(name = "note", required = false)
+                String note,
+            RedirectAttributes redirect) {
+
+        try {
+            returnRequestService.decide(
+                currentUserService.require(),
+                id,
+                decision,
+                refundAmount,
+                note
+            );
+
+            redirect.addFlashAttribute(
+                "success",
+                "Đã xử lý yêu cầu trả hàng."
+            );
+        } catch (IllegalArgumentException exception) {
+            redirect.addFlashAttribute("error", exception.getMessage());
+        }
+
+        return "redirect:/vendor/returns/" + id;
+    }
+
+    @PostMapping("/returns/{id}/status")
+    public String updateReturnStatus(
+            @PathVariable("id") Long id,
+            @RequestParam(name = "status") ReturnStatus status,
+            @RequestParam(name = "note", required = false)
+                String note,
+            RedirectAttributes redirect) {
+
+        try {
+            returnRequestService.vendorTransition(
+                currentUserService.require(),
+                id,
+                status,
+                note
+            );
+
+            redirect.addFlashAttribute(
+                "success",
+                "Đã cập nhật trạng thái xử lý trả hàng."
+            );
+        } catch (IllegalArgumentException exception) {
+            redirect.addFlashAttribute("error", exception.getMessage());
+        }
+
+        return "redirect:/vendor/returns/" + id;
+    }
+
+    @PostMapping("/returns/{id}/refund")
+    public String confirmRefund(
+            @PathVariable("id") Long id,
+            @RequestParam(name = "refundReference", required = false)
+                String refundReference,
+            @RequestParam(name = "refundNote", required = false)
+                String refundNote,
+            RedirectAttributes redirect) {
+
+        try {
+            returnRequestService.confirmRefund(
+                currentUserService.require(),
+                id,
+                refundReference,
+                refundNote
+            );
+
+            redirect.addFlashAttribute(
+                "success",
+                "Đã ghi nhận xác nhận hoàn tiền."
+            );
+        } catch (IllegalArgumentException exception) {
+            redirect.addFlashAttribute("error", exception.getMessage());
+        }
+
+        return "redirect:/vendor/returns/" + id;
     }
 
     @GetMapping("/promotions")
