@@ -165,6 +165,40 @@ public class InventoryService {
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
+    public void restoreAfterRefund(
+            Product product,
+            int quantity,
+            User actor,
+            CustomerOrder order) {
+
+        requirePositiveQuantity(quantity);
+        requireOrder(order);
+
+        if (product == null) {
+            throw new IllegalArgumentException(
+                "Sản phẩm không hợp lệ."
+            );
+        }
+
+        long restored = (long) product.getStock() + quantity;
+
+        if (restored > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException(
+                "Tồn kho vượt giới hạn cho phép."
+            );
+        }
+
+        changeStock(
+            product,
+            (int) restored,
+            InventoryTransactionType.RETURN_REFUND,
+            actor,
+            order,
+            "Hoàn kho khi xác nhận hoàn tiền"
+        );
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
     public void record(
             Product product,
             int before,

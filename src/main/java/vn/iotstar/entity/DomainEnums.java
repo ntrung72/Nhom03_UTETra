@@ -14,7 +14,9 @@ public final class DomainEnums {
         SHIPPING("Đang giao"),
         DELIVERED("Đã giao"),
         DELIVERY_FAILED("Giao thất bại"),
-        CANCELLED("Đã hủy");
+        CANCELLED("Đã hủy"),
+        RETURN_REQUESTED("Yêu cầu trả hàng"),
+        RETURNED_REFUNDED("Đã trả hàng - hoàn tiền");
 
         private final String label;
 
@@ -43,7 +45,8 @@ public final class DomainEnums {
 
     public enum PaymentStatus {
         UNPAID("Chưa thanh toán"),
-        PAID("Đã thanh toán");
+        PAID("Đã thanh toán"),
+        REFUNDED("Đã hoàn tiền");
 
         private final String label;
 
@@ -188,6 +191,44 @@ public final class DomainEnums {
         private final String label;
 
         InventoryTransactionType(String label) {
+            this.label = label;
+        }
+
+        public String getLabel() {
+            return label;
+        }
+    }
+
+    public enum ReturnReason {
+        WRONG_ITEM("Giao sai sản phẩm"),
+        DAMAGED("Sản phẩm hư hỏng/đổ vỡ"),
+        QUALITY("Chất lượng không đúng mô tả"),
+        MISSING_ITEM("Thiếu sản phẩm"),
+        OTHER("Lý do khác");
+
+        private final String label;
+
+        ReturnReason(String label) {
+            this.label = label;
+        }
+
+        public String getLabel() {
+            return label;
+        }
+    }
+
+    public enum ReturnStatus {
+        REQUESTED("Chờ shop xử lý"),
+        APPROVED("Đã chấp nhận"),
+        REJECTED("Đã từ chối"),
+        RETURNING("Khách đang gửi trả"),
+        RECEIVED("Shop đã nhận hàng"),
+        REFUND_PENDING("Chờ xác nhận hoàn tiền"),
+        REFUNDED("Đã hoàn tiền");
+
+        private final String label;
+
+        ReturnStatus(String label) {
             this.label = label;
         }
 
