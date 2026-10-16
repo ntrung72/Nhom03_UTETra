@@ -176,6 +176,27 @@
             Mô tả
         </p>
     </section>
+<section class="panel p-4 mt-4" id="reviews">
+    <h2 class="h4">Đánh giá sau mua</h2>
+    <p class="text-muted" th:text="${product.reviewCount + ' đánh giá · ' + product.averageRating + '/5 sao'}"></p>
+    <article class="border-top py-3" th:each="r : ${reviews.content}">
+        <div class="d-flex flex-wrap justify-content-between gap-2"><strong th:text="${r.user.fullName}"></strong><span class="text-warning" th:text="${r.rating + '/5 sao'}"></span></div>
+        <small class="text-muted" th:text="${#temporals.format(r.createdAt,'dd/MM/yyyy HH:mm')}"></small>
+        <p class="mt-2 text-break" style="white-space:pre-wrap" th:text="${r.content}"></p>
+        <div class="row row-cols-2 row-cols-md-5 g-2">
+            <a class="col" th:each="m : ${r.media}" th:href="${m.url}" target="_blank" rel="noopener">
+                <img class="img-fluid rounded" th:if="${m.type.name() == 'IMAGE'}" th:src="${m.url}" alt="Ảnh đánh giá sản phẩm">
+                <video class="w-100 rounded" th:if="${m.type.name() == 'VIDEO'}" th:src="${m.url}" controls preload="metadata"></video>
+            </a>
+        </div>
+    </article>
+    <p class="text-muted" th:if="${reviews.empty}">Chưa có đánh giá. Khách đã nhận hàng có thể đánh giá trong chi tiết đơn mua.</p>
+    <nav class="d-flex justify-content-center align-items-center gap-3 mt-3" aria-label="Phân trang đánh giá" th:if="${reviews.totalPages > 1}">
+        <a th:if="${reviews.hasPrevious()}" th:href="@{/products/{id}(id=${product.id},reviewPage=${reviews.number - 1})} + '#reviews'">Trước</a>
+        <span th:text="|Trang ${reviews.number + 1}/${reviews.totalPages}|"></span>
+        <a th:if="${reviews.hasNext()}" th:href="@{/products/{id}(id=${product.id},reviewPage=${reviews.number + 1})} + '#reviews'">Sau</a>
+    </nav>
+</section>
 </main>
 
 <footer th:replace="~{fragments/layout :: footer}"></footer>
