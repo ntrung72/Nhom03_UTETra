@@ -30,6 +30,9 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import vn.iotstar.entity.DomainEnums.Role;
+import vn.iotstar.entity.DomainEnums.AuditAction;
+import vn.iotstar.entity.DomainEnums.PaymentTransactionStatus;
+import vn.iotstar.service.AuditLogService;
 import vn.iotstar.entity.DomainEnums.ShopStatus;
 import vn.iotstar.entity.User;
 import vn.iotstar.service.CurrentUserService;
@@ -47,9 +50,37 @@ public class ManagementController {
     private final ManagementProductService managementProductService;
     private final ProductOptionService productOptionService;
     private final ProductGalleryService productGalleryService;
+    private final AuditLogService auditLogService;
 
     @ModelAttribute("currentUser")
     User currentUser() { return currentUserService.optional().orElse(null); }
+
+    // ==================== Step 28: Payment management & Audit trail ====================
+    @GetMapping("/payments")
+    String payments(@RequestParam(required = false) String q,
+                    @RequestParam(required = false) PaymentTransactionStatus status,
+                    @RequestParam(required = false) Long shop,
+                    @RequestParam(defaultValue = "0") int page, Model model) {
+        User actor = currentUserService.require();
+        model.addAttribute("payments", managementService.payments(actor, q, status, shop, page));
+        model.addAttribute("statuses", PaymentTransactionStatus.values());
+        model.addAttribute("shops", managementService.accessibleShops(actor));
+        model.addAttribute("selectedShop", shop);
+        model.addAttribute("selectedStatus", status);
+        model.addAttribute("q", q);
+        return "management/payments";
+    }
+
+    @GetMapping("/audit-logs")
+    String auditLogs(@RequestParam(required = false) String q,
+                     @RequestParam(required = false) AuditAction action,
+                     @RequestParam(defaultValue = "0") int page, Model model) {
+        model.addAttribute("logs", auditLogService.search(currentUserService.require(), q, action, page));
+        model.addAttribute("actions", AuditAction.values());
+        model.addAttribute("selectedAction", action);
+        model.addAttribute("q", q);
+        return "management/audit-logs";
+    }
 
     @GetMapping({"", "/"})
     String dashboard(Model model) {
