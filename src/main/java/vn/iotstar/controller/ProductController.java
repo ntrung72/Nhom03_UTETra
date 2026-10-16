@@ -76,7 +76,7 @@ public class ProductController {
     }
 
     @GetMapping("/products/{id}")
-    String detail(@PathVariable Long id, Model model) {
+    String detail(@PathVariable Long id, @RequestParam(defaultValue = "0") int reviewPage, Model model) {
         var product = catalogService.getPublicProduct(id);
         var customer = currentUserService.optional().filter(user ->
             user.getRole() == vn.iotstar.entity.DomainEnums.Role.USER
@@ -84,6 +84,7 @@ public class ProductController {
         engagementService.recordView(product, customer);
         model.addAttribute("favorite", engagementService.isFavorite(customer, product));
 
+        model.addAttribute("reviews", engagementService.reviews(product, reviewPage));
         model.addAttribute("product", product);
         model.addAttribute(
             "gallery",

@@ -572,6 +572,13 @@ public final class WebForms {
         private boolean active = true;
     }
 
+    @Getter @Setter
+    public static class ReviewForm {
+        @NotNull @Min(1) @Max(5) private Integer rating = 5;
+        @NotBlank @Size(min = 50, max = 3000, message = "Nhận xét phải từ 50 đến 3.000 ký tự")
+        private String content;
+    }
+
     @Getter
     @Setter
     public static class ReturnRequestForm {

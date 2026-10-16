@@ -24,6 +24,20 @@
                         </div>
                         <div th:text="${i.quantity + ' × ' + #numbers.formatDecimal(i.unitPrice,0,'COMMA',0,'POINT') + ' ₫'}"></div>
                         <strong th:text="${#numbers.formatDecimal(i.lineTotal,0,'COMMA',0,'POINT') + ' ₫'}"></strong>
+                        <span class="badge text-bg-success d-block mt-2" th:if="${reviewedItemIds.contains(i.id)}">Đã đánh giá</span>
+                        <form class="mt-3" th:if="${order.status.name() == 'DELIVERED' and !reviewedItemIds.contains(i.id)}"
+                              th:action="@{/orders/{oid}/items/{iid}/review(oid=${order.id},iid=${i.id})}" method="post" enctype="multipart/form-data">
+                            <label class="form-label" th:for="${'rating-' + i.id}">Đánh giá sản phẩm</label>
+                            <select class="form-select mb-2" name="rating" th:id="${'rating-' + i.id}" required>
+                                <option th:each="n : ${#numbers.sequence(5,1)}" th:value="${n}" th:text="${n + ' sao'}"></option>
+                            </select>
+                            <label class="visually-hidden" th:for="${'review-' + i.id}">Nhận xét</label>
+                            <textarea class="form-control mb-2" name="content" th:id="${'review-' + i.id}" minlength="50" maxlength="3000" required rows="3" placeholder="Chia sẻ trải nghiệm, ít nhất 50 ký tự"></textarea>
+                            <label class="form-label small" th:for="${'review-media-' + i.id}">Ảnh/video (không bắt buộc)</label>
+                            <input class="form-control mb-2" type="file" name="media" th:id="${'review-media-' + i.id}" multiple accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime">
+                            <small class="text-muted d-block mb-2">Tối đa 5 tệp; ảnh tối đa 10 MB, video tối đa 25 MB mỗi tệp.</small>
+                            <button class="btn btn-primary btn-sm">Gửi đánh giá</button>
+                        </form>
                     </div>
                 </article>
             </div>

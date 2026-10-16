@@ -25,6 +25,7 @@ public class OrderController {
     private final ProfileService profileService;
     private final OrderService orderService;
     private final vn.iotstar.service.ReturnRequestService returnRequestService;
+    private final vn.iotstar.service.EngagementService engagementService;
 
     @GetMapping("/checkout")
     String checkout(@ModelAttribute("checkoutForm") CheckoutForm form, BindingResult result,
@@ -90,6 +91,7 @@ public class OrderController {
         model.addAttribute("order", orderService.getForUser(user, id));
         model.addAttribute("statusHistory", orderService.statusHistory(user, id));
         model.addAttribute("returnRequest", returnRequestService.forOrder(user, id));
+        model.addAttribute("reviewedItemIds", engagementService.reviewedItemIds(user, id));
         return "orders/detail";
     }
 
@@ -154,6 +156,27 @@ public class OrderController {
             vn.iotstar.dto.WebForms.ReturnRequestForm form) {
         model.addAttribute("order", order); model.addAttribute("returnRequestForm", form);
         model.addAttribute("returnReasons", vn.iotstar.entity.DomainEnums.ReturnReason.values());
+    }
+
+    @InitBinder("reviewForm")
+    void trimReview(org.springframework.web.bind.WebDataBinder binder) {
+        binder.registerCustomEditor(String.class, new org.springframework.beans.propertyeditors.StringTrimmerEditor(true));
+    }
+
+    @PostMapping("/orders/{orderId}/items/{itemId}/review")
+    String review(@PathVariable Long orderId, @PathVariable Long itemId,
+            @Valid @ModelAttribute("reviewForm") vn.iotstar.dto.WebForms.ReviewForm form, BindingResult result,
+            @RequestParam(required = false) org.springframework.web.multipart.MultipartFile[] media, RedirectAttributes redirect) {
+        var user = currentUserService.require(); orderService.getForUser(user, orderId);
+        if (result.hasErrors()) redirect.addFlashAttribute("error", "Cần 1–5 sao và nhận xét từ 50 đến 3.000 ký tự.");
+        else {
+            try {
+                engagementService.addReview(user, orderId, itemId, form, media);
+                redirect.addFlashAttribute("success", "Cảm ơn bạn đã đánh giá sản phẩm.");
+            } catch (IllegalArgumentException ex) { redirect.addFlashAttribute("error", ex.getMessage()); }
+            catch (IllegalStateException ex) { redirect.addFlashAttribute("error", "Chưa thể lưu media đánh giá. Vui lòng thử lại."); }
+        }
+        return "redirect:/orders/" + orderId;
     }
 
     @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
