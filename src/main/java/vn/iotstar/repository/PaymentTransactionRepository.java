@@ -3,6 +3,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Page;
+import org.springframework.data.jpa.repository.EntityGraph;
+import vn.iotstar.entity.DomainEnums.PaymentTransactionStatus;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import jakarta.persistence.LockModeType;
@@ -26,4 +29,35 @@ public interface PaymentTransactionRepository extends JpaRepository<PaymentTrans
         @Param("paymentStatus") vn.iotstar.entity.DomainEnums.PaymentStatus paymentStatus, Pageable pageable);
     @Query("select t from PaymentTransaction t where t.checkoutReference = :reference order by t.id")
     List<PaymentTransaction> findForCheckout(@Param("reference") String reference);
+
+    /** Read-only Management search; never update payment transaction or VNPay signature. */
+    @EntityGraph(attributePaths = {"order", "order.user", "order.shop"})
+    @Query("""
+        select t from PaymentTransaction t
+        where (:q is null or lower(t.transactionCode) like lower(concat('%', :q, '%'))
+            or lower(t.order.code) like lower(concat('%', :q, '%'))
+            or lower(t.order.user.username) like lower(concat('%', :q, '%'))
+            or lower(t.order.user.email) like lower(concat('%', :q, '%')))
+          and (:status is null or t.status = :status)
+          and (:shopId is null or t.order.shop.id = :shopId)
+        """)
+    Page<PaymentTransaction> searchManagement(@Param("q") String q,
+        @Param("status") PaymentTransactionStatus status,
+        @Param("shopId") Long shopId, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"order", "order.user", "order.shop"})
+    @Query("""
+        select t from PaymentTransaction t
+        where (:q is null or lower(t.transactionCode) like lower(concat('%', :q, '%'))
+            or lower(t.order.code) like lower(concat('%', :q, '%'))
+            or lower(t.order.user.username) like lower(concat('%', :q, '%'))
+            or lower(t.order.user.email) like lower(concat('%', :q, '%')))
+          and (:status is null or t.status = :status)
+          and (:shopId is null or t.order.shop.id = :shopId)
+          and t.order.shop.id in :shopIds
+        """)
+    Page<PaymentTransaction> searchAssigned(@Param("q") String q,
+        @Param("status") PaymentTransactionStatus status,
+        @Param("shopId") Long shopId, @Param("shopIds") List<Long> shopIds,
+        Pageable pageable);
 }

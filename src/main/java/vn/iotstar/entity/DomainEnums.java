@@ -188,6 +188,18 @@ public final class DomainEnums {
         }
     }
 
+    /** Step 28 – administration and delivery audit events (UTETra reference). */
+    public enum AuditAction {
+        USER_LOCKED("Khóa tài khoản"), USER_UNLOCKED("Mở khóa tài khoản"),
+        USER_ROLE_CHANGED("Đổi vai trò"), MANAGER_SHOPS_ASSIGNED("Phân công Manager"),
+        SHOP_APPROVED("Duyệt cửa hàng"), SHOP_STATUS_CHANGED("Đổi trạng thái cửa hàng"),
+        SHOP_COMMISSION_CHANGED("Đổi chiết khấu ứng dụng"), SHIPPER_ASSIGNED("Phân công Shipper"),
+        ORDER_STATUS_CHANGED("Đổi trạng thái đơn"), SHIPPER_ORDER_STATUS("Shipper cập nhật giao hàng");
+        private final String label;
+        AuditAction(String label) { this.label = label; }
+        public String getLabel() { return label; }
+    }
+
     public enum InventoryTransactionType {
         INITIAL("Nhập kho ban đầu"),
         RESTOCK("Nhập thêm"),

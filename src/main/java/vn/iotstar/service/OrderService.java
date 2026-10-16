@@ -45,6 +45,7 @@ public class OrderService {
     private final MediaStorageService mediaStorageService;
     private final MediaValidationService mediaValidationService;
     private final NotificationService notificationService;
+    private final AuditLogService auditLogService;
 
     public List<Carrier> activeCarriers() {
         return carrierRepository.findByActiveTrueOrderByShippingFeeAsc();
@@ -1090,6 +1091,13 @@ public class OrderService {
         history.setNote(note);
 
         historyRepository.save(history);
+        if (actor != null && actor.getRole() != Role.USER && old != next) {
+            auditLogService.record(actor.getRole() == Role.SHIPPER
+                    ? AuditAction.SHIPPER_ORDER_STATUS : AuditAction.ORDER_STATUS_CHANGED,
+                actor, "ORDER", order.getId(), order.getCode(),
+                old == null ? null : old.getLabel(),
+                next == null ? null : next.getLabel(), note);
+        }
         publishOrderEvent(order, old, next, actor, history);
     }
 
@@ -1269,6 +1277,8 @@ public class OrderService {
             : order.getShipper().getFullName();
 
         order.setShipper(shipper);
+        auditLogService.record(AuditAction.SHIPPER_ASSIGNED, actor, "ORDER", order.getId(), order.getCode(),
+            previous, shipper.getFullName(), "Phân công nhân viên giao hàng");
 
         recordStatus(
             order,
@@ -1306,7 +1316,11 @@ public class OrderService {
             );
         }
 
+        String previousShipper = order.getShipper() == null ? "chưa phân công"
+            : order.getShipper().getFullName();
         order.setShipper(shipper);
+        auditLogService.record(AuditAction.SHIPPER_ASSIGNED, actor, "ORDER", order.getId(), order.getCode(),
+            previousShipper, shipper.getFullName(), "Điều phối giao lại");
         order.setPickedUpAt(null);
         order.setDeliveredAt(null);
         order.setFailureReason(null);

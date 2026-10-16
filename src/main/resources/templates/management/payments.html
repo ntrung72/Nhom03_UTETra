@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Quản lý giao dịch VNPay')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="container py-4">
+    <div th:replace="~{fragments/management-nav :: nav}"></div>
+    <div th:replace="~{fragments/layout :: flash}"></div>
+
+    <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
+        <div>
+            <span class="page-kicker"><i class="bi bi-credit-card-2-front"></i> Thanh toán trực tuyến</span>
+            <h1 class="h3 mb-1">Giao dịch VNPay</h1>
+            <p class="text-muted mb-0">Tra cứu trạng thái thanh toán và đối soát giao dịch của toàn hệ thống.</p>
+        </div>
+        <div class="text-end">
+            <strong class="fs-4" th:text="${payments.totalElements}">0</strong>
+            <small class="d-block text-muted">giao dịch phù hợp</small>
+        </div>
+    </div>
+
+    <form class="card p-3 mb-3" method="get" th:action="@{/management/payments}">
+        <div class="row g-2 align-items-end">
+            <div class="col-lg-5">
+                <label class="form-label" for="paymentQuery">Tìm giao dịch</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input class="form-control" id="paymentQuery" name="q" th:value="${q}"
+                           placeholder="Mã giao dịch, mã đơn, username hoặc email">
+                </div>
+            </div>
+            <div class="col-lg-2">
+                <label class="form-label" for="paymentStatus">Trạng thái</label>
+                <select class="form-select" id="paymentStatus" name="status">
+                    <option value="">Tất cả trạng thái</option>
+                    <option th:each="item : ${statuses}" th:value="${item}"
+                            th:selected="${item == selectedStatus}" th:text="${item.label}"></option>
+                </select>
+            </div>
+            <div class="col-lg-3">
+                <label class="form-label" for="paymentShop">Cửa hàng</label>
+                <select class="form-select" id="paymentShop" name="shop">
+                    <option value="">Tất cả cửa hàng được phép xem</option>
+                    <option th:each="item : ${shops}" th:value="${item.id}"
+                            th:selected="${item.id == selectedShop}" th:text="${item.name}"></option>
+                </select>
+            </div>
+            <div class="col-lg-2 d-grid"><button class="btn btn-primary"><i class="bi bi-funnel me-1"></i>Lọc</button></div>
+        </div>
+    </form>
+
+    <div class="card table-responsive">
+        <table class="table align-middle mb-0">
+            <thead>
+            <tr><th>Mã giao dịch</th><th>Đơn hàng</th><th>Khách hàng</th><th>Cửa hàng</th><th class="text-end">Số tiền</th><th>Trạng thái</th><th>Thời gian</th></tr>
+            </thead>
+            <tbody>
+            <tr th:each="payment : ${payments.content}">
+                <td><code class="fw-semibold" th:text="${payment.transactionCode}"></code><small class="d-block text-muted" th:text="${'#' + payment.id}"></small></td>
+                <td><strong th:text="${payment.order.code}"></strong><small class="d-block text-muted" th:text="${payment.order.paymentMethod.label}"></small></td>
+                <td><strong th:text="${payment.order.user.username}"></strong><small class="d-block text-muted" th:text="${payment.order.user.email}"></small></td>
+                <td th:text="${payment.order.shop.name}"></td>
+                <td class="text-end fw-bold text-nowrap" th:text="${#numbers.formatDecimal(payment.amount,0,'COMMA',0,'POINT') + ' ₫'}"></td>
+                <td>
+                    <span class="badge rounded-pill"
+                          th:classappend="${payment.status.name() == 'SUCCESS'} ? ' text-bg-success' : (${payment.status.name() == 'PENDING'} ? ' text-bg-warning' : (${payment.status.name() == 'FAILED'} ? ' text-bg-danger' : ' text-bg-secondary'))"
+                          th:text="${payment.status.label}"></span>
+                </td>
+                <td class="text-nowrap">
+                    <span th:text="${#temporals.format(payment.createdAt,'HH:mm · dd/MM/yyyy')}"></span>
+                    <small class="d-block text-muted" th:if="${payment.expiresAt != null and payment.status.name() == 'PENDING'}"
+                           th:text="${'Hết hạn: ' + #temporals.format(payment.expiresAt,'HH:mm · dd/MM/yyyy')}"></small>
+                    <small class="d-block text-success" th:if="${payment.paidAt != null}" th:text="${'Thanh toán: ' + #temporals.format(payment.paidAt,'HH:mm · dd/MM/yyyy')}"></small>
+                </td>
+            </tr>
+            <tr th:if="${payments.empty}"><td colspan="7" class="text-center text-muted py-5"><i class="bi bi-receipt-cutoff fs-2 d-block mb-2"></i>Không tìm thấy giao dịch phù hợp.</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <nav class="mt-3" th:if="${payments.totalPages > 1}" aria-label="Phân trang giao dịch">
+        <ul class="pagination justify-content-center">
+            <li class="page-item" th:classappend="${payments.first} ? 'disabled'"><a class="page-link" th:href="@{/management/payments(page=${payments.number - 1},q=${q},status=${selectedStatus},shop=${selectedShop})}">Trước</a></li>
+            <li class="page-item" th:each="i : ${#numbers.sequence(0, payments.totalPages - 1)}" th:classappend="${i == payments.number} ? 'active'"><a class="page-link" th:href="@{/management/payments(page=${i},q=${q},status=${selectedStatus},shop=${selectedShop})}" th:text="${i + 1}"></a></li>
+            <li class="page-item" th:classappend="${payments.last} ? 'disabled'"><a class="page-link" th:href="@{/management/payments(page=${payments.number + 1},q=${q},status=${selectedStatus},shop=${selectedShop})}">Sau</a></li>
+        </ul>
+    </nav>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

@@ -39,6 +39,10 @@ import vn.iotstar.entity.Promotion;
 import vn.iotstar.entity.Shop;
 import vn.iotstar.entity.User;
 import vn.iotstar.entity.DomainEnums.Role;
+import vn.iotstar.entity.DomainEnums.AuditAction;
+import vn.iotstar.entity.DomainEnums.PaymentTransactionStatus;
+import vn.iotstar.entity.PaymentTransaction;
+import vn.iotstar.repository.PaymentTransactionRepository;
 import vn.iotstar.entity.DomainEnums.ShopStatus;
 import vn.iotstar.repository.ManagerShopRepository;
 import vn.iotstar.repository.ProductRepository;
@@ -75,6 +79,8 @@ public class ManagementService {
     private final ToppingRepository toppingRepository;
     private final ProductToppingRepository productToppingRepository;
     private final MediaStorageService mediaStorageService;
+    private final PaymentTransactionRepository paymentTransactionRepository;
+    private final AuditLogService auditLogService;
 
     /** Admin can see every shop; Manager can see only assigned shops. */
     public List<Shop> accessibleShops(User actor) {
@@ -203,7 +209,12 @@ public class ManagementService {
                 throw forbiddenShop();
             }
         }
-        target.setLocked(!target.isLocked());
+        boolean wasLocked = target.isLocked();
+        target.setLocked(!wasLocked);
+        auditLogService.record(target.isLocked() ? AuditAction.USER_LOCKED : AuditAction.USER_UNLOCKED,
+            actor, "USER", target.getId(), target.getUsername(),
+            wasLocked ? "Đã khóa" : "Hoạt động",
+            target.isLocked() ? "Đã khóa" : "Hoạt động", null);
     }
 
     @Transactional
@@ -224,7 +235,10 @@ public class ManagementService {
             managerShopRepository.deleteByManagerId(target.getId());
             managerShopRepository.flush();
         }
+        Role previousRole = target.getRole();
         target.setRole(newRole);
+        auditLogService.record(AuditAction.USER_ROLE_CHANGED, actor, "USER", target.getId(),
+            target.getUsername(), previousRole.getLabel(), newRole.getLabel(), null);
     }
 
     public Page<Shop> shops(User actor, String q, ShopStatus status, int page) {
@@ -249,9 +263,20 @@ public class ManagementService {
         }
         Shop shop = shopRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy cửa hàng."));
+        ShopStatus previousStatus = shop.getStatus();
+        BigDecimal previousCommission = shop.getCommissionRate();
         shop.setStatus(status);
         shop.setEnabled(status != ShopStatus.SUSPENDED && status != ShopStatus.REJECTED);
         shop.setCommissionRate(commissionRate);
+        if (previousStatus != status) {
+            auditLogService.record(status == ShopStatus.APPROVED ? AuditAction.SHOP_APPROVED : AuditAction.SHOP_STATUS_CHANGED,
+                actor, "SHOP", shop.getId(), shop.getName(), previousStatus.name(), status.name(), null);
+        }
+        if (previousCommission == null || previousCommission.compareTo(commissionRate) != 0) {
+            auditLogService.record(AuditAction.SHOP_COMMISSION_CHANGED, actor, "SHOP", shop.getId(),
+                shop.getName(), previousCommission == null ? null : previousCommission.toPlainString() + "%",
+                commissionRate.toPlainString() + "%", null);
+        }
     }
 
     public List<User> managers(User actor) {
@@ -284,6 +309,7 @@ public class ManagementService {
         }
         List<Shop> chosenShops = ids.isEmpty() ? List.of() : shopRepository.findAllById(ids);
         if (chosenShops.size() != ids.size()) throw new IllegalArgumentException("Có cửa hàng không tồn tại.");
+        List<Long> previousIds = managerShopRepository.findShopIdsByManagerId(managerId);
         // The manager_shop row has a unique (manager_id, shop_id) constraint.
         managerShopRepository.deleteByManagerId(managerId);
         managerShopRepository.flush();
@@ -293,6 +319,10 @@ public class ManagementService {
             link.setShop(chosen);
             link.setAssignedBy(actor);
             managerShopRepository.save(link);
+        }
+        if (!new java.util.HashSet<>(previousIds).equals(new java.util.HashSet<>(ids))) {
+            auditLogService.record(AuditAction.MANAGER_SHOPS_ASSIGNED, actor, "USER", manager.getId(),
+                manager.getUsername(), previousIds.toString(), ids.toString(), "Danh sách ID cửa hàng được phân công");
         }
     }
 
@@ -583,6 +613,22 @@ public class ManagementService {
 
 
     // ==================== Step 21: Scoped Order Management ====================
+    /** Step 28: scoped, read-only VNPay transaction monitor for Management. */
+    public Page<PaymentTransaction> payments(User actor, String q,
+            PaymentTransactionStatus status, Long shopId, int page) {
+        requireManagementRole(actor);
+        var pageable = PageRequest.of(Math.max(0, page), 20,
+            Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
+        String query = cleanQuery(q);
+        if (shopId != null) requireShopAccess(actor, shopId);
+        if (isAdmin(actor)) {
+            return paymentTransactionRepository.searchManagement(query, status, shopId, pageable);
+        }
+        List<Long> shopIds = accessibleShopIds(actor);
+        return shopIds.isEmpty() ? Page.empty(pageable)
+            : paymentTransactionRepository.searchAssigned(query, status, shopId, shopIds, pageable);
+    }
+
     public Page<vn.iotstar.entity.CustomerOrder> orders(User actor, String q, Long shopId,
             vn.iotstar.entity.DomainEnums.OrderStatus status, int page) {
         requireManagementRole(actor);
