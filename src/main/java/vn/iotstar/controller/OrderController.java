@@ -24,6 +24,7 @@ public class OrderController {
     private final CartService cartService;
     private final ProfileService profileService;
     private final OrderService orderService;
+    private final vn.iotstar.service.ReturnRequestService returnRequestService;
 
     @GetMapping("/checkout")
     String checkout(@ModelAttribute("checkoutForm") CheckoutForm form, BindingResult result,
@@ -88,6 +89,7 @@ public class OrderController {
         var user = currentUserService.require();
         model.addAttribute("order", orderService.getForUser(user, id));
         model.addAttribute("statusHistory", orderService.statusHistory(user, id));
+        model.addAttribute("returnRequest", returnRequestService.forOrder(user, id));
         return "orders/detail";
     }
 
@@ -98,6 +100,60 @@ public class OrderController {
             redirect.addFlashAttribute("success", "Đã hủy đơn và hoàn lại tồn kho. Mã giảm giá được hoàn khi tất cả đơn trong checkout đã hủy.");
         } catch (IllegalArgumentException ex) { redirect.addFlashAttribute("error", ex.getMessage()); }
         return "redirect:/orders/" + id;
+    }
+
+    @InitBinder("returnRequestForm")
+    void trimReturnDescription(org.springframework.web.bind.WebDataBinder binder) {
+        binder.registerCustomEditor(String.class, new org.springframework.beans.propertyeditors.StringTrimmerEditor(true));
+    }
+
+    @GetMapping("/orders/{id}/return")
+    String returnForm(@PathVariable Long id, Model model, RedirectAttributes redirect) {
+        var user = currentUserService.require();
+        var order = orderService.getForUser(user, id);
+        if (order.getStatus() != vn.iotstar.entity.DomainEnums.OrderStatus.DELIVERED
+            || order.getPaymentStatus() != vn.iotstar.entity.DomainEnums.PaymentStatus.PAID
+            || returnRequestService.forOrder(user, id) != null) {
+            redirect.addFlashAttribute("error", "Chỉ đơn đã giao và thanh toán, chưa có yêu cầu trả hàng mới được mở yêu cầu.");
+            return "redirect:/orders/" + id;
+        }
+        var form = new vn.iotstar.dto.WebForms.ReturnRequestForm(); form.setRefundAmount(order.getTotalAmount());
+        prepareReturnForm(model, order, form);
+        return "orders/return-form";
+    }
+
+    @PostMapping("/orders/{id}/return")
+    String requestReturn(@PathVariable Long id,
+            @Valid @ModelAttribute("returnRequestForm") vn.iotstar.dto.WebForms.ReturnRequestForm form,
+            BindingResult result, @RequestParam(required = false) org.springframework.web.multipart.MultipartFile[] evidence,
+            Model model, RedirectAttributes redirect) {
+        var user = currentUserService.require();
+        var order = orderService.getForUser(user, id);
+        if (!result.hasErrors()) {
+            try {
+                returnRequestService.create(user, id, form, evidence);
+                redirect.addFlashAttribute("success", "Đã gửi yêu cầu trả hàng. Shop sẽ xem xét bằng chứng của bạn.");
+                return "redirect:/orders/" + id;
+            } catch (IllegalArgumentException ex) { result.reject("return.invalid", ex.getMessage()); }
+            catch (IllegalStateException ex) { result.reject("return.upload", "Chưa thể lưu bằng chứng. Vui lòng thử lại."); }
+        }
+        prepareReturnForm(model, order, form);
+        return "orders/return-form";
+    }
+
+    @PostMapping("/orders/{id}/return/shipped")
+    String markReturnShipped(@PathVariable Long id, RedirectAttributes redirect) {
+        try {
+            returnRequestService.markReturning(currentUserService.require(), id);
+            redirect.addFlashAttribute("success", "Đã xác nhận bạn đang gửi hàng trả về shop.");
+        } catch (IllegalArgumentException ex) { redirect.addFlashAttribute("error", ex.getMessage()); }
+        return "redirect:/orders/" + id;
+    }
+
+    private void prepareReturnForm(Model model, vn.iotstar.entity.CustomerOrder order,
+            vn.iotstar.dto.WebForms.ReturnRequestForm form) {
+        model.addAttribute("order", order); model.addAttribute("returnRequestForm", form);
+        model.addAttribute("returnReasons", vn.iotstar.entity.DomainEnums.ReturnReason.values());
     }
 
     @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)

@@ -61,7 +61,34 @@
                 <form class="confirm-form" th:if="${order.status.name() == 'NEW' and order.paymentStatus.name() == 'UNPAID'}" th:action="@{/orders/{id}/cancel(id=${order.id})}" method="post">
                     <button class="btn btn-outline-danger w-100">Hủy đơn</button>
                 </form>
+                <a class="btn btn-outline-warning w-100 mt-3" th:if="${order.status.name() == 'DELIVERED' and order.paymentStatus.name() == 'PAID' and returnRequest == null}"
+                   th:href="@{/orders/{id}/return(id=${order.id})}">Yêu cầu trả hàng / hoàn tiền</a>
             </div>
+            <section class="panel p-4 mt-4" th:if="${returnRequest != null}">
+                <h2 class="h5">Trả hàng / hoàn tiền</h2>
+                <span class="badge text-bg-info" th:text="${returnRequest.status.label}"></span>
+                <p class="mt-3 mb-1" th:text="${returnRequest.reason.label}"></p>
+                <p class="text-break" th:text="${returnRequest.description}"></p>
+                <div class="d-flex flex-wrap justify-content-between gap-2"><span>Số tiền hoàn</span><strong th:text="${#numbers.formatDecimal(returnRequest.refundAmount,0,'COMMA',0,'POINT') + ' ₫'}"></strong></div>
+                <div class="row row-cols-2 g-2 mt-2">
+                    <a class="col" th:each="media : ${returnRequest.media}" th:href="${media.url}" target="_blank" rel="noopener">
+                        <img class="img-fluid rounded" th:if="${media.type.name() == 'IMAGE'}" th:src="${media.url}" alt="Bằng chứng trả hàng">
+                        <video class="w-100 rounded" th:if="${media.type.name() == 'VIDEO'}" th:src="${media.url}" controls preload="metadata"></video>
+                    </a>
+                </div>
+                <p class="small mt-3" th:if="${returnRequest.resolutionNote != null}" th:text="${'Phản hồi shop: ' + returnRequest.resolutionNote}"></p>
+                <div class="alert alert-info mt-3" th:if="${returnRequest.status.name() == 'APPROVED'}">Shop đã chấp nhận. Hãy gửi hàng trả về shop rồi xác nhận bên dưới.</div>
+                <form th:if="${returnRequest.status.name() == 'APPROVED'}" th:action="@{/orders/{id}/return/shipped(id=${order.id})}" method="post">
+                    <button class="btn btn-primary w-100">Tôi đã gửi hàng trả</button>
+                </form>
+                <p class="alert alert-warning mt-3" th:if="${returnRequest.status.name() == 'REFUND_PENDING'}">Shop đang xử lý hoàn tiền. Trạng thái sẽ cập nhật khi shop xác nhận hoàn tất.</p>
+                <div class="mt-3" th:if="${returnRequest.refundedAt != null}">
+                    <strong>Đã xác nhận hoàn tiền</strong>
+                    <p class="small mb-1" th:text="${#temporals.format(returnRequest.refundedAt,'dd/MM/yyyy HH:mm')}"></p>
+                    <p class="small text-break" th:text="${'Tham chiếu: ' + returnRequest.refundReference}"></p>
+                    <p class="small" th:text="${returnRequest.refundNote}"></p>
+                </div>
+            </section>
         </aside>
     </div>
 </main>
