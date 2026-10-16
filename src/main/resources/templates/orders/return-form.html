@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Yêu cầu trả hàng')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="container py-4 py-lg-5">
+    <div class="return-form-shell mx-auto">
+        <a class="btn btn-light btn-sm mb-3" th:href="@{/orders/{id}(id=${order.id})}"><i class="bi bi-arrow-left"></i> Quay lại đơn hàng</a>
+        <div class="card p-4 p-lg-5">
+            <span class="page-kicker"><i class="bi bi-arrow-counterclockwise"></i> Đơn <span th:text="${order.code}"></span></span>
+            <h1 class="h3 mb-2">Yêu cầu trả hàng / hoàn tiền</h1>
+            <p class="text-muted">Yêu cầu này áp dụng cho toàn bộ đơn hàng. Mô tả rõ vấn đề và tải bằng chứng để shop có thể xử lý nhanh chóng.</p>
+            <form th:action="@{/orders/{id}/return(id=${order.id})}" th:object="${returnRequestForm}"
+                  method="post" enctype="multipart/form-data" novalidate>
+                <div class="alert alert-danger" th:if="${#fields.hasGlobalErrors()}" th:each="e : ${#fields.globalErrors()}" th:text="${e}"></div>
+                <label class="form-label fw-bold" for="reason">Lý do <span class="required-mark">*</span></label>
+                <select class="form-select" required th:classappend="${#fields.hasErrors('reason')} ? 'is-invalid'" th:field="*{reason}">
+                    <option value="">-- Chọn lý do --</option>
+                    <option th:each="reason : ${returnReasons}" th:value="${reason}" th:text="${reason.label}"></option>
+                </select>
+                <div class="invalid-feedback" th:errors="*{reason}"></div>
+
+                <label class="form-label fw-bold mt-3" for="description">Mô tả vấn đề <span class="required-mark">*</span></label>
+                <textarea class="form-control" required rows="5" minlength="20" maxlength="2000"
+                          th:classappend="${#fields.hasErrors('description')} ? 'is-invalid'" th:field="*{description}"
+                          placeholder="Sản phẩm gặp vấn đề gì, tình trạng khi nhận hàng..."></textarea>
+                <div class="invalid-feedback" th:errors="*{description}"></div>
+
+                <label class="form-label fw-bold mt-3">Số tiền hoàn toàn đơn</label>
+                <input type="hidden" th:field="*{refundAmount}">
+                <div class="alert alert-light border d-flex flex-wrap justify-content-between gap-2">
+                    <span>Toàn bộ giá trị đã thanh toán</span>
+                    <strong th:text="${#numbers.formatDecimal(order.totalAmount,0,'COMMA',0,'POINT') + ' ₫'}"></strong>
+                </div>
+                <div class="invalid-feedback d-block" th:errors="*{refundAmount}"></div>
+                <div class="alert alert-warning mt-2 mb-0 py-2 small">
+                    Hiện hệ thống chỉ hỗ trợ trả toàn bộ đơn. Khi hoàn tất, toàn bộ sản phẩm trong đơn sẽ được nhập lại kho.
+                </div>
+
+                <label class="form-label fw-bold mt-3" for="evidence">Ảnh/video bằng chứng <span class="required-mark">*</span></label>
+                <input id="evidence" class="form-control" type="file" name="evidence" multiple required accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime">
+                <div class="form-text">Tối đa 5 file. Ảnh JPG/PNG/WEBP ≤ 10 MB mỗi file; video MP4/WEBM/MOV ≤ 25 MB mỗi file.</div>
+
+                <button class="btn btn-warning btn-lg w-100 mt-4"><i class="bi bi-send me-1"></i> Gửi yêu cầu</button>
+            </form>
+        </div>
+    </div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>
