@@ -140,6 +140,15 @@ public interface OrderRepository
     @Query("select o from CustomerOrder o where o.id = :id")
     Optional<CustomerOrder> findOrderForDeliveryUpdate(@Param("id") Long id);
 
+    interface PaymentSummary {
+        String getCheckoutReference();
+        vn.iotstar.entity.DomainEnums.PaymentMethod getPaymentMethod();
+    }
+    @Query("select o.checkoutReference as checkoutReference, o.paymentMethod as paymentMethod from CustomerOrder o where o.id = :id and o.user.id = :userId")
+    Optional<PaymentSummary> findOwnedPaymentSummary(@Param("id") Long id, @Param("userId") Long userId);
+
+    List<CustomerOrder> findByCheckoutReferenceOrderByIdAsc(String checkoutReference);
+
     long countByShipperId(Long shipperId);
     long countByShipperIdAndStatus(Long shipperId, OrderStatus status);
 }

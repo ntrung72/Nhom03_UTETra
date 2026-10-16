@@ -83,6 +83,7 @@ public class SecurityConfig {
                 .requestMatchers("/", "/products/**", "/shops/**", "/login", "/register", "/verify-account",
                     "/resend-otp", "/forgot-password", "/reset-password", "/css/**", "/js/**", "/images/**",
                     "/uploads/**", "/error", "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs", "/v3/api-docs/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/payments/vnpay/return", "/payments/vnpay/ipn").permitAll()
                 .requestMatchers("/vendor/register").hasAnyRole("USER", "VENDOR")
                 .requestMatchers("/vendor/**").hasRole("VENDOR")
                 .requestMatchers("/management/managers", "/management/managers/**", "/management/vouchers", "/management/vouchers/**").hasRole("ADMIN")

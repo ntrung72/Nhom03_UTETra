@@ -1,16 +1,24 @@
 <!doctype html>
 <html lang="vi" xmlns:th="http://www.thymeleaf.org">
-<head th:replace="~{fragments/layout :: head('Thanh toán COD')}"></head>
+<head th:replace="~{fragments/layout :: head('Thanh toán')}"></head>
 <body>
 <header th:replace="~{fragments/layout :: header}"></header>
 <main class="container py-4 py-lg-5">
     <div th:replace="~{fragments/layout :: flash}"></div>
-    <h1 class="h3 mb-3">Thanh toán khi nhận hàng</h1>
+    <h1 class="h3 mb-3">Thanh toán</h1>
     <div class="alert alert-info" th:if="${pricesChanged}">Giá đã được cập nhật. Vui lòng kiểm tra tổng tiền trước khi đặt hàng.</div>
     <div class="alert alert-warning" th:if="${carriers.empty}">Hiện chưa có nhà vận chuyển khả dụng. Vui lòng quay lại sau.</div>
     <form th:action="@{/checkout}" method="post" th:object="${checkoutForm}" class="row g-4">
         <input type="hidden" name="itemIds" th:each="id : *{itemIds}" th:value="${id}">
-        <input type="hidden" th:field="*{paymentMethod}" value="COD">
+        <div class="col-12">
+            <fieldset class="panel p-4">
+                <legend class="h5">Phương thức thanh toán</legend>
+                <label class="form-check"><input class="form-check-input" type="radio" th:field="*{paymentMethod}" value="COD"> Thanh toán khi nhận hàng (COD)</label>
+                <label class="form-check"><input class="form-check-input" type="radio" th:field="*{paymentMethod}" value="VNPAY" th:disabled="${!vnPayAvailable}"> Thanh toán online qua VNPay</label>
+                <small class="text-muted" th:if="${!vnPayAvailable}">Thanh toán online hiện chưa sẵn sàng. Bạn có thể chọn COD.</small>
+                <small class="text-muted d-block" th:if="${vnPayAvailable}">Với VNPay, các đơn cùng lần đặt hàng được thanh toán chung; khi hủy sẽ hủy toàn bộ các đơn chưa thanh toán của lần đặt hàng đó.</small>
+            </fieldset>
+        </div>
         <section class="col-lg-7">
             <div class="panel p-4 mb-4">
                 <h2 class="h5">Thông tin nhận hàng</h2>
@@ -56,8 +64,8 @@
                     <dt class="col-7">Phí giao còn lại</dt><dd class="col-5 text-end" th:text="${#numbers.formatDecimal(preview.finalShippingFee,0,'COMMA',0,'POINT') + ' ₫'}"></dd>
                 </dl>
                 <div class="d-flex justify-content-between border-top pt-3"><strong>Tổng thanh toán</strong><strong class="price" th:text="${#numbers.formatDecimal(preview.totalAmount,0,'COMMA',0,'POINT') + ' ₫'}"></strong></div>
-                <p class="small text-muted mt-3" th:text="${'Tách thành ' + preview.shopCount + ' đơn theo shop. Thanh toán cho người giao hàng khi nhận.'}"></p>
-                <button class="btn btn-primary w-100 btn-lg">Đặt hàng COD</button>
+                <p class="small text-muted mt-3" th:text="${'Tách thành ' + preview.shopCount + ' đơn theo shop. Tổng tiền được xác nhận theo phương thức bạn chọn.'}"></p>
+                <button class="btn btn-primary w-100 btn-lg">Xác nhận đặt hàng</button>
             </div>
             <a class="btn btn-light mt-3" th:href="@{/cart}">Quay lại giỏ hàng</a>
         </aside>
