@@ -24,6 +24,7 @@ import vn.iotstar.repository.*;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class OrderService {
+    private final vn.iotstar.config.VnPayProperties vnPayProperties;
 
     @jakarta.persistence.PersistenceContext
     private jakarta.persistence.EntityManager entityManager;
@@ -97,7 +98,7 @@ public class OrderService {
 
         if (form == null
                 || !validator.validate(form).isEmpty()
-                || form.getPaymentMethod() != PaymentMethod.COD) {
+                || form.getPaymentMethod() == null) {
             throw new IllegalArgumentException(
                 "Vui lòng kiểm tra sản phẩm, địa chỉ, "
                     + "nhà vận chuyển và ghi chú."
@@ -163,6 +164,9 @@ public class OrderService {
                     .toUpperCase(Locale.ROOT)
             );
 
+            order.setPaymentMethod(form.getPaymentMethod());
+            if (form.getPaymentMethod() == PaymentMethod.VNPAY)
+                order.setPaymentExpiresAt(LocalDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh")).plusMinutes(vnPayProperties.getExpirationMinutes()));
             order.setCheckoutReference(reference);
             order.setUser(owner);
             order.setShop(shop);
@@ -470,6 +474,7 @@ public class OrderService {
             jakarta.persistence.LockModeType.PESSIMISTIC_WRITE
         );
 
+        requireOnlinePayment(order);
         var oldStatus = order.getStatus();
 
         if (target == null
@@ -1327,7 +1332,7 @@ public class OrderService {
 
         CustomerOrder order = lockDeliveryOrder(orderId);
         requireManagementAccess(actor, order);
-
+        requireOnlinePayment(order);
         OrderStatus old = order.getStatus();
 
         if (target == null
@@ -1390,6 +1395,7 @@ public class OrderService {
             );
         }
 
+        requireOnlinePayment(order);
         OrderStatus old = order.getStatus();
 
         if (target == null
@@ -1468,6 +1474,11 @@ public class OrderService {
         }
 
         mediaValidationService.validate(proof, "delivery-proofs");
+    }
+
+    private void requireOnlinePayment(CustomerOrder order) {
+        if (order.getPaymentMethod() == PaymentMethod.VNPAY && order.getPaymentStatus() != PaymentStatus.PAID)
+            throw new IllegalArgumentException("Đơn VNPay cần thanh toán thành công trước khi xử lý giao hàng.");
     }
 
     private CustomerOrder lockDeliveryOrder(Long orderId) {

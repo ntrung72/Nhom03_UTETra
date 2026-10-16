@@ -26,12 +26,15 @@ public class OrderController {
     private final OrderService orderService;
     private final vn.iotstar.service.ReturnRequestService returnRequestService;
     private final vn.iotstar.service.EngagementService engagementService;
+    private final vn.iotstar.service.CheckoutPaymentService checkoutPaymentService;
+    private final vn.iotstar.service.VnPayService vnPayService;
 
     @GetMapping("/checkout")
     String checkout(@ModelAttribute("checkoutForm") CheckoutForm form, BindingResult result,
                     Model model, RedirectAttributes redirect) {
         if (result.hasErrors()) { redirect.addFlashAttribute("error", "Thông tin thanh toán không hợp lệ."); return "redirect:/cart"; }
-        form.setPaymentMethod(vn.iotstar.entity.DomainEnums.PaymentMethod.COD);
+        if (form.getPaymentMethod() == null) form.setPaymentMethod(vn.iotstar.entity.DomainEnums.PaymentMethod.COD);
+        model.addAttribute("vnPayAvailable", vnPayService.isConfigured());
         var user = currentUserService.require();
         var addresses = profileService.addresses(user);
         if (addresses.isEmpty()) {
@@ -59,14 +62,16 @@ public class OrderController {
 
     @PostMapping("/checkout")
     String checkout(@Valid @ModelAttribute("checkoutForm") CheckoutForm form, BindingResult result,
-                    HttpSession session, RedirectAttributes redirect) {
+                    HttpSession session, jakarta.servlet.http.HttpServletRequest request, RedirectAttributes redirect) {
         if (result.hasErrors()) {
             redirect.addFlashAttribute("error", result.getAllErrors().getFirst().getDefaultMessage());
             redirect.addFlashAttribute("checkoutForm", form); return redirectToCheckout(form.getItemIds());
         }
         try {
-            var orders = orderService.checkout(currentUserService.require(), form);
+            var checkout = checkoutPaymentService.checkout(currentUserService.require(), form, request.getRemoteAddr());
+            var orders = checkout.orders();
             session.removeAttribute("cartSelection"); session.removeAttribute("cartSelectionOwner");
+            if (checkout.paymentUrl() != null) return "redirect:" + checkout.paymentUrl();
             redirect.addFlashAttribute("success", "Đặt hàng COD thành công: " + orders.stream()
                 .map(o -> o.getCode()).collect(Collectors.joining(", ")));
             return "redirect:/orders";
@@ -92,13 +97,16 @@ public class OrderController {
         model.addAttribute("statusHistory", orderService.statusHistory(user, id));
         model.addAttribute("returnRequest", returnRequestService.forOrder(user, id));
         model.addAttribute("reviewedItemIds", engagementService.reviewedItemIds(user, id));
+        model.addAttribute("paymentTransaction", vnPayService.latestForOrder(user, id));
+        model.addAttribute("paymentNeedsReconciliation", vnPayService.needsReconciliation(user, id));
+        model.addAttribute("vnPayAvailable", vnPayService.isConfigured());
         return "orders/detail";
     }
 
     @PostMapping("/orders/{id}/cancel")
     String cancel(@PathVariable Long id, RedirectAttributes redirect) {
         try {
-            orderService.cancelByUser(currentUserService.require(), id);
+            checkoutPaymentService.cancel(currentUserService.require(), id);
             redirect.addFlashAttribute("success", "Đã hủy đơn và hoàn lại tồn kho. Mã giảm giá được hoàn khi tất cả đơn trong checkout đã hủy.");
         } catch (IllegalArgumentException ex) { redirect.addFlashAttribute("error", ex.getMessage()); }
         return "redirect:/orders/" + id;
@@ -177,6 +185,42 @@ public class OrderController {
             catch (IllegalStateException ex) { redirect.addFlashAttribute("error", "Chưa thể lưu media đánh giá. Vui lòng thử lại."); }
         }
         return "redirect:/orders/" + orderId;
+    }
+
+    @PostMapping("/orders/{id}/payment/retry")
+    String retryPayment(@PathVariable Long id, jakarta.servlet.http.HttpServletRequest request, RedirectAttributes redirect) {
+        try { return "redirect:" + vnPayService.retryPaymentUrl(currentUserService.require(), id, request.getRemoteAddr()); }
+        catch (IllegalArgumentException ex) { redirect.addFlashAttribute("error", ex.getMessage()); return "redirect:/orders/" + id; }
+    }
+
+    @GetMapping("/payments/vnpay/return")
+    String paymentReturn(jakarta.servlet.http.HttpServletRequest request, RedirectAttributes redirect) {
+        try {
+            var parameters = paymentParameters(request);
+            redirect.addFlashAttribute(vnPayService.returnSuccessful(parameters) ? "success" : "error", vnPayService.returnMessage(parameters));
+        }
+        catch (IllegalArgumentException ex) { redirect.addFlashAttribute("error", "Thông tin phản hồi thanh toán không hợp lệ."); }
+        return "redirect:/orders";
+    }
+
+    @GetMapping("/payments/vnpay/ipn") @ResponseBody
+    java.util.Map<String,String> paymentIpn(jakarta.servlet.http.HttpServletRequest request) {
+        try {
+            var result = vnPayService.processCallback(paymentParameters(request));
+            return java.util.Map.of("RspCode", result.responseCode(), "Message", result.message());
+        } catch (IllegalArgumentException ex) { return java.util.Map.of("RspCode", "97", "Message", "Invalid parameters"); }
+        catch (RuntimeException ex) { return java.util.Map.of("RspCode", "99", "Message", "Processing error"); }
+    }
+
+    private java.util.Map<String,String> paymentParameters(jakarta.servlet.http.HttpServletRequest request) {
+        var result = new java.util.TreeMap<String,String>();
+        request.getParameterMap().forEach((key, values) -> {
+            if (key.startsWith("vnp_")) {
+                if (values == null || values.length != 1) throw new IllegalArgumentException("Duplicate payment parameter");
+                result.put(key, values[0]);
+            }
+        });
+        return result;
     }
 
     @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)

@@ -30,7 +30,7 @@ public final class DomainEnums {
     }
 
     public enum PaymentMethod {
-        COD("Thanh toán khi nhận hàng");
+        COD("Thanh toán khi nhận hàng"), VNPAY("Thanh toán qua VNPay");
 
         private final String label;
 
@@ -41,6 +41,14 @@ public final class DomainEnums {
         public String getLabel() {
             return label;
         }
+    }
+
+    public enum PaymentTransactionStatus {
+        PENDING("Chờ thanh toán"), SUCCESS("Thành công"), FAILED("Thất bại"),
+        CANCELLED("Đã hủy"), EXPIRED("Hết hạn");
+        private final String label;
+        PaymentTransactionStatus(String label) { this.label = label; }
+        public String getLabel() { return label; }
     }
 
     public enum PaymentStatus {
