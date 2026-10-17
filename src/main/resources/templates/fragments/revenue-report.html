@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<body>
+	<section th:fragment="panel" class="card dashboard-panel mb-4"
+		aria-labelledby="revenue-report-title">
+		<div class="dashboard-panel-heading">
+			<div>
+				<span class="section-kicker">BÁO CÁO</span>
+				<h2 id="revenue-report-title" class="h5 mb-0">Xuất doanh thu và
+					thống kê</h2>
+			</div>
+			<span class="badge rounded-pill text-bg-light">CSV · Excel mở
+				được</span>
+		</div>
+		<form class="row g-3 align-items-end" method="get"
+			th:action="${reportDashboardUrl}">
+			<div class="col-sm-6 col-xl-2">
+				<label class="form-label" for="report-from">Từ ngày</label> <input
+					id="report-from" class="form-control" type="date" name="from"
+					required th:value="${report.filter.from}">
+			</div>
+			<div class="col-sm-6 col-xl-2">
+				<label class="form-label" for="report-to">Đến ngày</label> <input
+					id="report-to" class="form-control" type="date" name="to" required
+					th:value="${report.filter.to}">
+			</div>
+			<div class="col-sm-6 col-xl-3"
+				th:if="${#lists.size(reportShops) > 1}">
+				<label class="form-label" for="report-shop">Cửa hàng</label> <select
+					id="report-shop" class="form-select" name="shopId">
+					<option value="">Tất cả trong phạm vi</option>
+					<option th:each="item : ${reportShops}" th:value="${item.id}"
+						th:text="${item.name}"
+						th:selected="${report.filter.shopId == item.id}">Cửa hàng</option>
+				</select>
+			</div>
+			<div class="col-sm-6 col-xl-2">
+				<label class="form-label" for="report-status">Trạng thái đơn</label>
+				<select id="report-status" class="form-select" name="status">
+					<option value="ALL" th:selected="${report.filter.status == null}">Tất
+						cả</option>
+					<option th:each="item : ${reportStatuses}"
+						th:value="${item.name()}" th:text="${item.label}"
+						th:selected="${report.filter.status == item}">Trạng thái</option>
+				</select>
+			</div>
+			<div class="col-sm-12 col-xl-auto d-flex flex-wrap gap-2">
+				<button class="btn btn-outline-primary" type="submit">
+					<i class="bi bi-funnel"></i> Áp dụng
+				</button>
+				<button class="btn btn-primary" type="submit"
+					th:formaction="${reportExportUrl}">
+					<i class="bi bi-file-earmark-arrow-down"></i> Xuất CSV
+				</button>
+			</div>
+		</form>
+		<p class="small text-muted mt-3 mb-3">
+			Biểu đồ và báo cáo dùng cùng phạm vi ngày/shop đang chọn; lọc trạng
+			thái chỉ áp dụng cho bảng báo cáo. Đơn hoàn tất lọc theo ngày giao,
+			đơn khác theo ngày tạo. Doanh thu, giảm giá, phí ship và chiết khấu
+			chỉ ghi nhận khi đơn <strong>đã giao và đã thanh toán</strong>; đơn
+			chưa hoàn tất có tiền ghi nhận bằng 0.
+		</p>
+		<div class="row row-cols-2 row-cols-lg-3 row-cols-xl-6 g-2">
+			<div class="col">
+				<div class="border rounded-3 p-3 h-100">
+					<small class="text-muted d-block">Số đơn</small><strong
+						th:text="${report.totals.orderCount}">0</strong><small
+						class="d-block text-muted"
+						th:text="|${report.totals.recognizedCount} hoàn tất|">0
+						hoàn tất</small>
+				</div>
+			</div>
+			<div class="col">
+				<div class="border rounded-3 p-3 h-100">
+					<small class="text-muted d-block">Khách thanh toán</small><strong
+						th:text="${#numbers.formatDecimal(report.totals.grossRevenue, 0, 'COMMA', 0, 'POINT')} + ' ₫'">0
+						₫</strong>
+				</div>
+			</div>
+			<div class="col">
+				<div class="border rounded-3 p-3 h-100">
+					<small class="text-muted d-block">Giảm hàng + voucher</small><strong
+						th:text="${#numbers.formatDecimal(report.totals.productDiscount.add(report.totals.voucherDiscount), 0, 'COMMA', 0, 'POINT')} + ' ₫'">0
+						₫</strong>
+				</div>
+			</div>
+			<div class="col">
+				<div class="border rounded-3 p-3 h-100">
+					<small class="text-muted d-block">Phí ship thực thu</small><strong
+						th:text="${#numbers.formatDecimal(report.totals.finalShippingFee, 0, 'COMMA', 0, 'POINT')} + ' ₫'">0
+						₫</strong>
+				</div>
+			</div>
+			<div class="col">
+				<div class="border rounded-3 p-3 h-100">
+					<small class="text-muted d-block">Chiết khấu app</small><strong
+						th:text="${#numbers.formatDecimal(report.totals.commission, 0, 'COMMA', 0, 'POINT')} + ' ₫'">0
+						₫</strong>
+				</div>
+			</div>
+			<div class="col">
+				<div class="border rounded-3 p-3 h-100">
+					<small class="text-muted d-block">Shop thực nhận</small><strong
+						class="text-success"
+						th:text="${#numbers.formatDecimal(report.totals.sellerRevenue, 0, 'COMMA', 0, 'POINT')} + ' ₫'">0
+						₫</strong>
+				</div>
+			</div>
+		</div>
+		<form class="dashboard-table-search mt-4" method="get"
+			th:action="${reportDashboardUrl}">
+			<input type="hidden" name="from" th:value="${report.filter.from}">
+			<input type="hidden" name="to" th:value="${report.filter.to}">
+			<input type="hidden" name="shopId"
+				th:if="${report.filter.shopId != null}"
+				th:value="${report.filter.shopId}"> <input type="hidden"
+				name="status" th:value="${report.filter.statusValue}"> <label
+				class="visually-hidden" for="report-table-query">Tìm đơn
+				trong bảng</label> <input id="report-table-query" class="form-control"
+				type="search" name="q" th:value="${reportQuery}"
+				placeholder="Tìm mã đơn, shop hoặc trạng thái">
+			<button class="btn btn-outline-primary" type="submit">
+				<i class="bi bi-search me-1"></i>Tìm đơn
+			</button>
+		</form>
+		<div class="table-responsive mt-3" th:if="${reportRows.hasContent()}">
+			<table class="table table-sm dashboard-table align-middle mb-0">
+				<thead>
+					<tr>
+						<th>Mã đơn</th>
+						<th>Cửa hàng</th>
+						<th>Ngày ghi nhận</th>
+						<th>Trạng thái</th>
+						<th class="text-end">Khách trả</th>
+						<th class="text-end">App</th>
+						<th class="text-end">Shop nhận</th>
+						<th>Thao tác</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr th:each="item : ${reportRows.content}">
+						<td th:text="${item.code}">UTE...</td>
+						<td th:text="${item.shopName}">Shop</td>
+						<td th:text="${#temporals.format(item.date, 'dd/MM/yyyy HH:mm')}">01/01/2026</td>
+						<td><span class="badge"
+							th:classappend="${item.status.name() == 'DELIVERED'} ? ' text-bg-success' : (${item.status.name() == 'CANCELLED' or item.status.name() == 'DELIVERY_FAILED'} ? ' text-bg-danger' : ' text-bg-primary')"
+							th:text="${item.status.label}">Đã giao</span><small
+							class="d-block text-muted" th:if="${!item.recognized}">Chưa
+								ghi nhận doanh thu</small></td>
+						<td class="text-end"
+							th:text="${#numbers.formatDecimal(item.amounts.grossRevenue, 0, 'COMMA', 0, 'POINT')} + ' ₫'">0
+							₫</td>
+						<td class="text-end"
+							th:text="${#numbers.formatDecimal(item.amounts.commission, 0, 'COMMA', 0, 'POINT')} + ' ₫'">0
+							₫</td>
+						<td class="text-end"
+							th:text="${#numbers.formatDecimal(item.amounts.sellerRevenue, 0, 'COMMA', 0, 'POINT')} + ' ₫'">0
+							₫</td>
+						<td><a class="btn btn-sm btn-outline-primary text-nowrap"
+							th:href="@{${reportOrderUrl}(orderId=${item.orderId})}"><i
+								class="bi bi-arrow-up-right-square me-1"></i>Xem/Xử lý</a></td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+		<nav class="dashboard-table-pagination"
+			th:if="${reportRows.totalPages > 1}"
+			aria-label="Phân trang đơn trong báo cáo">
+			<a class="btn btn-sm btn-light" th:if="${!reportRows.first}"
+				th:href="@{${reportDashboardUrl}(from=${report.filter.from},to=${report.filter.to},shopId=${report.filter.shopId},status=${report.filter.statusValue},q=${reportQuery},page=${reportRows.number - 1})}">Trước</a>
+			<span
+				th:text="|Trang ${reportRows.number + 1}/${reportRows.totalPages} · ${reportRows.totalElements} đơn|"></span>
+			<a class="btn btn-sm btn-light" th:if="${!reportRows.last}"
+				th:href="@{${reportDashboardUrl}(from=${report.filter.from},to=${report.filter.to},shopId=${report.filter.shopId},status=${report.filter.statusValue},q=${reportQuery},page=${reportRows.number + 1})}">Sau</a>
+		</nav>
+		<p class="small text-muted mt-3 mb-0"
+			th:if="${!reportRows.hasContent()}">Không có đơn hàng phù hợp với
+			bộ lọc và từ khóa đã chọn.</p>
+	</section>
+</body>
+</html>
