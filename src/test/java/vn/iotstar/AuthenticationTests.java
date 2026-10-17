@@ -168,14 +168,14 @@ class AuthenticationTests {
     }
 
     @Test
-    void swaggerDescribesOnlyInitialAuthenticationApiAndBearerScheme() throws Exception {
+    void swaggerDescribesAuthenticationAndCustomerApisWithBearerScheme() throws Exception {
         mvc.perform(get("/v3/api-docs"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.scheme").value("bearer"))
             .andExpect(jsonPath("$.paths['/api/auth/login'].post").exists())
             .andExpect(jsonPath("$.paths['/api/me'].get.security[0].bearerAuth").isArray())
-            .andExpect(jsonPath("$.paths['/api/orders']").doesNotExist())
-            .andExpect(jsonPath("$.paths['/api/cart']").doesNotExist());
+            .andExpect(jsonPath("$.paths['/api/orders'].get.security[0].bearerAuth").isArray())
+            .andExpect(jsonPath("$.paths['/api/cart'].get.security[0].bearerAuth").isArray());
         mvc.perform(get("/swagger-ui/index.html")).andExpect(status().isOk());
     }
 

@@ -60,7 +60,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/products").permitAll()
-                .requestMatchers("/api/checkout", "/api/checkout/**", "/api/orders", "/api/favorites", "/api/cart")
+                .requestMatchers("/api/checkout", "/api/checkout/**", "/api/orders", "/api/orders/**",
+                    "/api/favorites", "/api/favorites/**", "/api/cart", "/api/cart/**")
                     .hasAnyRole("USER", "VENDOR")
                 .requestMatchers("/api/me").authenticated()
                 .anyRequest().authenticated())
