@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<body>
+	<section class="dashboard-filter card mb-4" th:fragment="panel"
+		aria-label="Bộ lọc dashboard">
+		<div class="dashboard-filter-heading">
+			<div>
+				<strong><i class="bi bi-calendar-range me-2"></i>Phạm vi số
+					liệu</strong> <small
+					th:text="|${#temporals.format(dashboardRange.from,'dd/MM/yyyy')} – ${#temporals.format(dashboardRange.to,'dd/MM/yyyy')}|">01/01
+					– 30/01</small>
+			</div>
+			<span class="badge text-bg-light">Chỉ tính doanh thu đơn đã
+				giao và thanh toán</span>
+		</div>
+		<form class="dashboard-filter-form" method="get"
+			th:action="${reportDashboardUrl}">
+			<div class="dashboard-range-buttons" role="group"
+				aria-label="Chọn khoảng thời gian nhanh">
+				<button class="btn btn-sm"
+					th:classappend="${dashboardRange.preset == '7'} ? ' btn-primary' : ' btn-outline-primary'"
+					type="submit" name="range" value="7">7 ngày</button>
+				<button class="btn btn-sm"
+					th:classappend="${dashboardRange.preset == '30'} ? ' btn-primary' : ' btn-outline-primary'"
+					type="submit" name="range" value="30">30 ngày</button>
+				<button class="btn btn-sm"
+					th:classappend="${dashboardRange.preset == '90'} ? ' btn-primary' : ' btn-outline-primary'"
+					type="submit" name="range" value="90">90 ngày</button>
+			</div>
+			<label>Từ ngày <input class="form-control form-control-sm"
+				type="date" name="from" th:value="${dashboardRange.from}" required></label>
+			<label>Đến ngày <input class="form-control form-control-sm"
+				type="date" name="to" th:value="${dashboardRange.to}" required></label>
+			<label th:if="${#lists.size(reportShops) > 1}">Cửa hàng <select
+				class="form-select form-select-sm" name="shopId">
+					<option value="">Tất cả trong phạm vi</option>
+					<option th:each="item : ${reportShops}" th:value="${item.id}"
+						th:text="${item.name}"
+						th:selected="${report.filter.shopId == item.id}">Shop</option>
+			</select>
+			</label>
+			<button class="btn btn-sm btn-dark" type="submit" name="range"
+				value="custom">
+				<i class="bi bi-funnel me-1"></i>Áp dụng
+			</button>
+		</form>
+		<small class="text-muted d-block mt-2">Khoảng tùy chọn tối đa
+			366 ngày gần nhất; số đơn đang chờ xử lý luôn là hàng đợi hiện tại.</small>
+	</section>
+</body>
+</html>
