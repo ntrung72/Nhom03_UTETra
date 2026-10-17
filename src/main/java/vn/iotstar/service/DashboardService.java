@@ -2,6 +2,12 @@ package vn.iotstar.service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import org.springframework.data.domain.Sort;
+import vn.iotstar.entity.User;
+import vn.iotstar.entity.DomainEnums.Role;
+import vn.iotstar.repository.ManagerShopRepository;
+import vn.iotstar.repository.ShopRepository;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -32,6 +38,8 @@ public class DashboardService {
 
 	private final OrderRepository orderRepository;
 	private final ProductRepository productRepository;
+	private final ShopRepository shopRepository;
+	private final ManagerShopRepository managerShopRepository;
 
 	@Transactional(readOnly = true)
 	public DashboardData forVendor(Shop shop) {
@@ -48,6 +56,42 @@ public class DashboardService {
 				PageRequest.of(0, 8));
 		return build(orders, statuses, List.of(shop), lowStock, today, range, true);
 	}
+
+    @Transactional(readOnly = true)
+    public DashboardData forManagement(User actor) {
+        return forManagement(actor, null, range("30", null, null));
+    }
+
+    @Transactional(readOnly = true)
+    public DashboardData forManagement(User actor, Long shopId, DashboardRange range) {
+        if (actor == null || (actor.getRole() != Role.ADMIN && actor.getRole() != Role.MANAGER)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Không có quyền xem dashboard quản trị.");
+        }
+        boolean admin = actor.getRole() == Role.ADMIN;
+        List<Shop> allowed = admin ? shopRepository.findAll(Sort.by("name"))
+            : managerShopRepository.findByManagerIdOrderByShopNameAsc(actor.getId()).stream()
+                .map(assignment -> assignment.getShop()).toList();
+        if (shopId != null && allowed.stream().noneMatch(shop -> shop.getId().equals(shopId))) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Cửa hàng không thuộc phạm vi quản lý.");
+        }
+        List<Shop> shops = shopId == null ? allowed : allowed.stream()
+            .filter(shop -> shop.getId().equals(shopId)).toList();
+        if (shops.isEmpty()) return empty(range);
+
+        LocalDate today = LocalDate.now();
+        LocalDateTime from = queryFrom(today, range.from()).atStartOfDay();
+        List<Long> shopIds = shops.stream().map(Shop::getId).toList();
+        List<CustomerOrder> orders = admin && shopId == null ? orderRepository.findDashboardOrders(from)
+            : orderRepository.findDashboardOrdersByShopIds(shopIds, from);
+        Map<OrderStatus, Long> statuses = statusMap(admin && shopId == null
+            ? orderRepository.countByStatusForAllShops()
+            : orderRepository.countByStatusForShopIds(shopIds));
+        List<Product> lowStock = admin && shopId == null
+            ? productRepository.findLowStock(LOW_STOCK_THRESHOLD, PageRequest.of(0, 8))
+            : productRepository.findLowStockByShopIds(shopIds, LOW_STOCK_THRESHOLD, PageRequest.of(0, 8));
+        return build(orders, statuses, shops, lowStock, today, range, false);
+    }
+
 
 	public DashboardRange range(String preset, LocalDate from, LocalDate to) {
 		LocalDate today = LocalDate.now();
@@ -178,6 +222,21 @@ public class DashboardService {
 				periodStatuses.getOrDefault(OrderStatus.RETURN_REQUESTED, 0L)
 						+ periodStatuses.getOrDefault(OrderStatus.RETURNED_REFUNDED, 0L));
 	}
+
+    private DashboardData empty(DashboardRange range) {
+        Map<LocalDate, DailyAmounts> daily = new LinkedHashMap<>();
+        for (LocalDate day = range.from(); !day.isAfter(range.to()); day = day.plusDays(1)) {
+            daily.put(day, new DailyAmounts());
+        }
+        return new DashboardData(daily.keySet().stream().map(DAY_LABEL::format).toList(),
+            daily.values().stream().map(value -> BigDecimal.ZERO).toList(),
+            daily.values().stream().map(value -> BigDecimal.ZERO).toList(),
+            daily.values().stream().map(value -> BigDecimal.ZERO).toList(),
+            List.of(), List.of(), List.of(), List.of(), List.of(),
+            BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0,
+            BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0, 0, 0, 0, 0);
+    }
+
 
 	private Map<OrderStatus, Long> statusMap(List<Object[]> rows) {
 		Map<OrderStatus, Long> result = new EnumMap<>(OrderStatus.class);

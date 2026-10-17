@@ -127,6 +127,24 @@ public interface OrderRepository extends JpaRepository<CustomerOrder, Long> {
 			""")
 	List<CustomerOrder> findDashboardOrdersByShop(@Param("shopId") Long shopId, @Param("from") LocalDateTime from);
 
+    @EntityGraph(attributePaths = {"items", "items.product", "shop"})
+    @Query("""
+        select distinct o from CustomerOrder o where o.shop.id in :shopIds
+          and ((o.deliveredAt is not null and o.deliveredAt >= :from)
+            or (o.deliveredAt is null and o.createdAt >= :from))
+        """)
+    List<CustomerOrder> findDashboardOrdersByShopIds(@Param("shopIds") List<Long> shopIds,
+                                                      @Param("from") LocalDateTime from);
+
+    @EntityGraph(attributePaths = {"items", "items.product", "shop"})
+    @Query("""
+        select distinct o from CustomerOrder o
+        where (o.deliveredAt is not null and o.deliveredAt >= :from)
+           or (o.deliveredAt is null and o.createdAt >= :from)
+        """)
+    List<CustomerOrder> findDashboardOrders(@Param("from") LocalDateTime from);
+
+
 	@EntityGraph(attributePaths = { "shop" })
 	@Query("""
 			select o from CustomerOrder o
@@ -150,6 +168,13 @@ public interface OrderRepository extends JpaRepository<CustomerOrder, Long> {
 	List<CustomerOrder> findReportOrdersByShopIds(@Param("shopIds") List<Long> shopIds,
 			@Param("from") LocalDateTime from, @Param("until") LocalDateTime until,
 			@Param("status") OrderStatus status);
+
+    @Query("select o.status, count(o) from CustomerOrder o where o.shop.id in :shopIds group by o.status")
+    List<Object[]> countByStatusForShopIds(@Param("shopIds") List<Long> shopIds);
+
+    @Query("select o.status, count(o) from CustomerOrder o group by o.status")
+    List<Object[]> countByStatusForAllShops();
+
 
 	@Query("select sum(o.totalAmount) from CustomerOrder o where o.shop.id = :shopId and o.paymentStatus = :paymentStatus and o.status = :orderStatus")
 	BigDecimal sumRevenue(@Param("shopId") Long shopId, @Param("paymentStatus") PaymentStatus paymentStatus,

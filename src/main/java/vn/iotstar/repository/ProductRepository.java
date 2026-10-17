@@ -141,4 +141,12 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 			""")
 	List<Product> findLowStockByShop(@Param("shopId") Long shopId, @Param("threshold") int threshold,
 			Pageable pageable);
+    @Query("select p from Product p where p.shop.id in :shopIds and p.stock <= :threshold order by p.stock, p.name")
+    List<Product> findLowStockByShopIds(@Param("shopIds") List<Long> shopIds,
+                                        @Param("threshold") int threshold, Pageable pageable);
+
+    @Query("select p from Product p where p.stock <= :threshold order by p.stock, p.name")
+    List<Product> findLowStock(@Param("threshold") int threshold, Pageable pageable);
+
+
 }

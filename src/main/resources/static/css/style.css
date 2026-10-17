@@ -2329,3 +2329,10 @@ main.container>form.row, main.container>form.my-3, main.container>form.mb-3
 		font-size: .8rem;
 	}
 }
+
+/* Step 30: management dashboard's scoped overview and filter indicators. */
+.dashboard-system-overview { display: grid; grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); gap: .6rem; }
+.dashboard-system-overview > div { display: grid; gap: .25rem; padding: .7rem .8rem; border: 1px solid var(--ute-border); border-radius: 12px; background: #f8fbfe; }
+.dashboard-system-overview small { color: var(--ute-muted); font-size: .72rem; }
+.dashboard-system-overview strong { color: var(--ute-navy); font-size: 1.05rem; overflow-wrap: anywhere; }
+.dashboard-live { display: inline-flex; align-items: center; gap: .45rem; padding: .5rem .8rem; border: 1px solid #cdebdc; border-radius: 999px; background: #effbf5; color: #08785d; font-size: .75rem; font-weight: 750; white-space: nowrap; }
