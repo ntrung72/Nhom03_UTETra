@@ -2,6 +2,11 @@ package vn.iotstar.controller;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
+import org.springframework.format.annotation.DateTimeFormat;
+import vn.iotstar.service.DashboardService;
+import vn.iotstar.service.RevenueReportService;
+import vn.iotstar.repository.OrderRepository;
 import jakarta.validation.Valid;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.multipart.MultipartFile;
@@ -51,6 +56,9 @@ public class ManagementController {
     private final ProductOptionService productOptionService;
     private final ProductGalleryService productGalleryService;
     private final AuditLogService auditLogService;
+    private final DashboardService dashboardService;
+    private final RevenueReportService revenueReportService;
+    private final OrderRepository orderRepository;
 
     @ModelAttribute("currentUser")
     User currentUser() { return currentUserService.optional().orElse(null); }
@@ -83,8 +91,35 @@ public class ManagementController {
     }
 
     @GetMapping({"", "/"})
-    String dashboard(Model model) {
-        model.addAttribute("summary", managementService.dashboard(currentUserService.require()));
+    String dashboard(@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+                     @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+                     @RequestParam(required = false) String range,
+                     @RequestParam(required = false) Long shopId,
+                     @RequestParam(required = false) String status,
+                     @RequestParam(required = false) String q,
+                     @RequestParam(defaultValue = "0") int page, Model model) {
+        User actor = currentUserService.require();
+        var dashboardRange = dashboardService.range(range, from, to);
+        var dashboard = dashboardService.forManagement(actor, shopId, dashboardRange);
+        var summary = managementService.dashboard(actor);
+        model.addAttribute("dashboardRange", dashboardRange);
+        model.addAttribute("dashboard", dashboard);
+        model.addAttribute("summary", summary);
+        model.addAttribute("userCount", summary.users());
+        model.addAttribute("shopCount", summary.shops());
+        model.addAttribute("productCount", summary.products());
+        model.addAttribute("orderCount", actor.getRole() == Role.ADMIN ? orderRepository.count() : dashboard.periodOrderCount());
+
+        var filter = revenueReportService.filter(dashboardRange.from(), dashboardRange.to(), shopId, status);
+        var report = revenueReportService.report(actor, filter);
+        model.addAttribute("report", report);
+        model.addAttribute("reportRows", revenueReportService.tableRows(report, q, page));
+        model.addAttribute("reportQuery", q);
+        model.addAttribute("reportOrderUrl", "/management/orders");
+        model.addAttribute("reportShops", revenueReportService.availableShops(actor));
+        model.addAttribute("reportDashboardUrl", "/management");
+        model.addAttribute("reportExportUrl", "/management/reports/revenue.csv");
+        model.addAttribute("reportStatuses", vn.iotstar.entity.DomainEnums.OrderStatus.values());
         return "management/dashboard";
     }
 

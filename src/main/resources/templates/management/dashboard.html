@@ -3,23 +3,64 @@
 <head th:replace="~{fragments/layout :: head('Quản trị')}"></head>
 <body>
 <header th:replace="~{fragments/layout :: header}"></header>
-<main class="container py-4 py-lg-5">
-  <div th:replace="~{fragments/management-nav :: nav}"></div>
-  <div th:replace="~{fragments/layout :: flash}"></div>
-  <div class="mb-4"><span class="page-kicker"><i class="bi bi-speedometer2"></i> Quản trị hệ thống</span>
-  <h1 class="h3" th:text="${currentUser.role == T(vn.iotstar.entity.DomainEnums.Role).ADMIN ? 'Tổng quan toàn hệ thống' : 'Tổng quan các shop được phân công'}">Quản trị</h1>
-  <p class="text-muted">Dashboard nền Bước 13; thống kê đơn hàng và doanh thu sẽ bổ sung ở các bước tương ứng.</p></div>
-  <div class="row g-3">
-    <div class="col-md-4"><div class="card p-4 h-100"><small>Người dùng trong phạm vi</small><strong class="fs-2" th:text="${summary.users}">0</strong></div></div>
-    <div class="col-md-4"><div class="card p-4 h-100"><small>Cửa hàng trong phạm vi</small><strong class="fs-2" th:text="${summary.shops}">0</strong></div></div>
-    <div class="col-md-4"><div class="card p-4 h-100"><small>Sản phẩm trong phạm vi</small><strong class="fs-2" th:text="${summary.products}">0</strong></div></div>
-  </div>
-  <div class="mt-4 d-flex gap-2 flex-wrap">
-    <a class="btn btn-primary" th:href="@{/management/users}">Quản lý người dùng</a>
-    <a class="btn btn-outline-primary" th:href="@{/management/shops}">Quản lý cửa hàng</a>
-    <a class="btn btn-outline-primary" th:if="${currentUser.role == T(vn.iotstar.entity.DomainEnums.Role).ADMIN}" th:href="@{/management/managers}">Phân công Manager</a>
+<main class="container py-4 py-lg-5 dashboard-page">
+  <div class="admin-dashboard-shell">
+    <div th:replace="~{fragments/management-nav :: nav}"></div>
+    <div class="admin-dashboard-content">
+    <div th:replace="~{fragments/layout :: flash}"></div>
+    <div class="dashboard-heading mb-4">
+        <div><span class="page-kicker"><i class="bi bi-speedometer2"></i> Trung tâm điều hành</span><h1 class="h3 mb-1" th:text="${currentUser.role == T(vn.iotstar.entity.DomainEnums.Role).ADMIN ? 'Dashboard toàn hệ thống' : 'Dashboard cửa hàng phụ trách'}">Dashboard</h1><p class="text-muted mb-0" th:text="${currentUser.role == T(vn.iotstar.entity.DomainEnums.Role).ADMIN ? 'Doanh thu, commission và vận hành của toàn chuỗi UTETra.' : 'Dữ liệu chỉ bao gồm các cửa hàng được Admin phân công.'}">Theo dõi nhanh dữ liệu.</p></div>
+        <span class="dashboard-live"><i class="bi bi-circle-fill"></i> Dữ liệu theo bộ lọc</span>
+    </div>
+    <div th:replace="~{fragments/dashboard-filter :: panel}"></div>
+    <div class="dashboard-kpi-grid mb-4">
+        <a class="card stat-card stat-card-featured text-decoration-none" th:href="@{/management/orders(status=NEW,shop=${report.filter.shopId})}"><small>Đơn mới đang chờ</small><strong th:text="${dashboard.newCount}">0</strong><span class="stat-note">Trong phạm vi shop đã chọn</span><i class="bi bi-receipt"></i></a>
+        <a class="card stat-card text-decoration-none" th:href="@{/management/orders(shop=${report.filter.shopId})}"><small>Đơn chờ xử lý</small><strong th:text="${dashboard.pendingCount}">0</strong><span class="stat-note">Đơn mở và yêu cầu cần theo dõi</span><i class="bi bi-hourglass-split"></i></a>
+        <div class="card stat-card"><small>Khách thanh toán trong kỳ</small><strong class="dashboard-kpi-money" th:text="${#numbers.formatDecimal(dashboard.periodGross,0,'COMMA',0,'POINT')} + ' ₫'">0 ₫</strong><span class="stat-note">Đã giao và đã thanh toán</span><i class="bi bi-cash-stack"></i></div>
+        <a class="card stat-card text-decoration-none" th:href="@{/management/orders(status=DELIVERED,shop=${report.filter.shopId})}"><small>Đã giao trong kỳ</small><strong th:text="${dashboard.deliveredPeriodCount}">0</strong><span class="stat-note">Theo ngày giao</span><i class="bi bi-check2-circle"></i></a>
+        <a class="card stat-card text-decoration-none" th:href="@{/management/orders(status=CANCELLED,shop=${report.filter.shopId})}"><small>Đã hủy trong kỳ</small><strong th:text="${dashboard.cancelledPeriodCount}">0</strong><span class="stat-note">Theo ngày tạo</span><i class="bi bi-x-circle"></i></a>
+    </div>
+    <section class="card dashboard-panel mb-4" th:if="${currentUser.role == T(vn.iotstar.entity.DomainEnums.Role).ADMIN}">
+        <div class="dashboard-panel-heading"><div><span class="section-kicker">TOÀN HỆ THỐNG</span><h2 class="h5 mb-0">Quy mô và chiết khấu nền tảng</h2></div><a class="btn btn-sm btn-outline-primary" th:href="@{/management/shops}">Quản lý cửa hàng</a></div>
+        <div class="dashboard-system-overview">
+            <div><small>Người dùng</small><strong th:text="${userCount}">0</strong></div>
+            <div><small>Cửa hàng</small><strong th:text="${shopCount}">0</strong></div>
+            <div><small>Sản phẩm</small><strong th:text="${productCount}">0</strong></div>
+            <div><small>Đơn hàng</small><strong th:text="${orderCount}">0</strong></div>
+            <div><small>Commission trong kỳ</small><strong th:text="${#numbers.formatDecimal(dashboard.periodCommission,0,'COMMA',0,'POINT')} + ' ₫'">0 ₫</strong></div>
+        </div>
+    </section>
+    <section class="card dashboard-panel mb-4" th:if="${currentUser.role == T(vn.iotstar.entity.DomainEnums.Role).MANAGER}">
+        <div class="dashboard-panel-heading"><div><span class="section-kicker">PHẠM VI PHÂN CÔNG</span><h2 class="h5 mb-0">Cửa hàng đang quản lý</h2></div></div>
+        <p class="text-muted small mb-0">Bạn chỉ xem số liệu, sản phẩm và đơn hàng thuộc cửa hàng được Admin phân công. Dùng bộ chọn shop phía trên để đi sâu vào từng cửa hàng.</p>
+    </section>
+    <div th:replace="~{fragments/revenue-report :: panel}"></div>
+    <div class="row g-4 mb-4">
+        <div class="col-xl-8"><section class="card dashboard-panel h-100"><div class="dashboard-panel-heading"><div><span class="section-kicker">TÀI CHÍNH TRONG KỲ</span><h2 class="h5 mb-0">Giá trị đơn hoàn tất và commission</h2></div><small class="text-muted">Theo ngày giao hàng</small></div><div class="chart-wrap chart-wrap-lg"><canvas id="managementRevenueChart"></canvas></div></section></div>
+        <div class="col-xl-4"><section class="card dashboard-panel h-100"><div class="dashboard-panel-heading"><div><span class="section-kicker">VẬN HÀNH TRONG KỲ</span><h2 class="h5 mb-0">Đơn theo trạng thái</h2></div></div><div class="chart-wrap"><canvas id="managementStatusChart"></canvas></div><div class="dashboard-mini-stats"><span><b th:text="${dashboard.cancelledPeriodCount}">0</b> Đã hủy</span><span><b th:text="${dashboard.failedPeriodCount}">0</b> Giao lỗi</span><span><b th:text="${dashboard.returnPeriodCount}">0</b> Trả/hoàn</span></div></section></div>
+    </div>
+    <div class="row g-4 mb-4">
+        <div class="col-xl-7"><section class="card dashboard-panel h-100"><div class="dashboard-panel-heading"><div><span class="section-kicker">SO SÁNH TRONG KỲ</span><h2 class="h5 mb-0">Doanh thu từng cửa hàng</h2></div></div><div class="chart-wrap chart-wrap-lg"><canvas id="shopRevenueChart"></canvas></div></section></div>
+        <div class="col-xl-5"><section class="card dashboard-panel h-100"><div class="dashboard-panel-heading"><div><span class="section-kicker">TOP TRONG KỲ</span><h2 class="h5 mb-0">Sản phẩm bán chạy</h2></div></div><div class="table-responsive"><table class="table dashboard-table"><thead><tr><th>#</th><th>Sản phẩm</th><th class="text-end">Đã bán</th></tr></thead><tbody><tr th:each="item,stat : ${dashboard.topProducts}"><td><span class="rank-badge" th:text="${stat.count}">1</span></td><td><b th:text="${item.name}">Sản phẩm</b><small class="d-block text-muted" th:text="${#numbers.formatDecimal(item.revenue,0,'COMMA',0,'POINT')} + ' ₫'">0 ₫</small></td><td class="text-end fw-bold" th:text="${item.quantity}">0</td></tr></tbody></table><div class="empty-dashboard" th:if="${#lists.isEmpty(dashboard.topProducts)}">Chưa có đơn giao thành công trong kỳ.</div></div></section></div>
+    </div>
+    <div class="row g-4">
+        <div class="col-xl-7"><section class="card dashboard-panel h-100"><div class="dashboard-panel-heading"><div><span class="section-kicker">PHÂN BỔ</span><h2 class="h5 mb-0">Đối soát hoàn tất theo shop</h2></div></div><div class="table-responsive"><table class="table dashboard-table"><thead><tr><th>Cửa hàng</th><th class="text-end">Khách trả</th><th class="text-end">Shop nhận</th><th class="text-end">App nhận</th></tr></thead><tbody><tr th:each="item : ${dashboard.shopRevenues}"><td class="fw-semibold" th:text="${item.name}">Shop</td><td class="text-end" th:text="${#numbers.formatDecimal(item.grossRevenue,0,'COMMA',0,'POINT')} + ' ₫'">0 ₫</td><td class="text-end text-success" th:text="${#numbers.formatDecimal(item.sellerRevenue,0,'COMMA',0,'POINT')} + ' ₫'">0 ₫</td><td class="text-end text-primary fw-bold" th:text="${#numbers.formatDecimal(item.platformRevenue,0,'COMMA',0,'POINT')} + ' ₫'">0 ₫</td></tr></tbody></table></div></section></div>
+        <div class="col-xl-5"><section class="card dashboard-panel h-100"><div class="dashboard-panel-heading"><div><span class="section-kicker text-danger">CẢNH BÁO TỒN KHO</span><h2 class="h5 mb-0">Sắp hết hàng</h2></div><span class="badge text-bg-warning">≤ 10</span></div><div class="inventory-list"><a class="inventory-item" th:each="item : ${dashboard.lowStockProducts}" th:href="@{/management/products(q=${item.name})}"><span><b th:text="${item.name}">Sản phẩm</b><small th:text="${item.shopName}">Shop</small></span><strong th:classappend="${item.stock == 0} ? 'text-danger' : 'text-warning'" th:text="|${item.stock} còn lại|">0</strong></a><div class="empty-dashboard" th:if="${#lists.isEmpty(dashboard.lowStockProducts)}"><i class="bi bi-check-circle text-success"></i> Tồn kho đang ổn định.</div></div></section></div>
+    </div>
+    </div>
   </div>
 </main>
-<footer th:replace="~{fragments/layout :: footer}"></footer>
-<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
-</body></html>
+<footer th:replace="~{fragments/layout :: footer}"></footer><th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script th:inline="javascript">
+document.addEventListener('DOMContentLoaded',()=>{
+  if(typeof Chart==='undefined')return;
+  const data={labels:/*[[${dashboard.dateLabels}]]*/[],gross:/*[[${dashboard.grossSeries}]]*/[],commission:/*[[${dashboard.commissionSeries}]]*/[],statusLabels:/*[[${dashboard.statusLabels}]]*/[],statusValues:/*[[${dashboard.statusValues}]]*/[],shopLabels:/*[[${dashboard.shopRevenues.![name]}]]*/[],shopGross:/*[[${dashboard.shopRevenues.![grossRevenue]}]]*/[],shopCommission:/*[[${dashboard.shopRevenues.![platformRevenue]}]]*/[]};
+  const compact=value=>new Intl.NumberFormat('vi-VN',{notation:'compact'}).format(value)+' ₫',money=value=>new Intl.NumberFormat('vi-VN').format(value)+' ₫';
+  new Chart(document.getElementById('managementRevenueChart'),{type:'line',data:{labels:data.labels,datasets:[{label:'Khách thanh toán (đã giao)',data:data.gross,borderColor:'#1769d2',backgroundColor:'rgba(23,105,210,.1)',fill:true,tension:.35,pointRadius:2},{label:'Commission app',data:data.commission,borderColor:'#ef476f',backgroundColor:'rgba(239,71,111,.08)',fill:true,tension:.35,pointRadius:2}]},options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'bottom',labels:{usePointStyle:true,boxWidth:10}},tooltip:{callbacks:{label:context=>' '+context.dataset.label+': '+money(context.parsed.y)}}},scales:{x:{grid:{display:false},ticks:{autoSkip:true,maxTicksLimit:9}},y:{beginAtZero:true,ticks:{callback:compact}}}}});
+  new Chart(document.getElementById('managementStatusChart'),{type:'doughnut',data:{labels:data.statusLabels,datasets:[{data:data.statusValues,backgroundColor:['#2563eb','#06b6d4','#f59e0b','#8b5cf6','#14b8a6','#3b82f6','#22c55e','#ef4444','#64748b','#f97316','#be123c'],borderWidth:0}]},options:{maintainAspectRatio:false,cutout:'68%',plugins:{legend:{position:'bottom',labels:{boxWidth:10,usePointStyle:true,padding:12}}}}});
+  new Chart(document.getElementById('shopRevenueChart'),{type:'bar',data:{labels:data.shopLabels,datasets:[{label:'Khách thanh toán',data:data.shopGross,backgroundColor:'#2d7ddd',borderRadius:7},{label:'Commission app',data:data.shopCommission,backgroundColor:'#ef7190',borderRadius:7}]},options:{maintainAspectRatio:false,indexAxis:'y',plugins:{tooltip:{callbacks:{label:context=>' '+context.dataset.label+': '+money(context.parsed.x)}}},scales:{x:{beginAtZero:true,ticks:{callback:compact}},y:{grid:{display:false}}}}});
+});
+</script>
+</body>
+</html>
