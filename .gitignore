@@ -34,3 +34,10 @@ build/
 
 ### Local uploads ###
 /uploads/
+# Không đưa bí mật và dữ liệu vận hành vào Git
+/private-uploads/
+.env
+.env.*
+/src/main/resources/application-local.properties
+.mvn/proxy-settings.xml
+*.log
