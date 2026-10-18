@@ -8,6 +8,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
+
+import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
@@ -20,19 +25,27 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import vn.iotstar.config.CommissionSnapshotBackfill;
+import vn.iotstar.dto.WebForms.ReturnRequestForm;
 import vn.iotstar.entity.CustomerOrder;
 import vn.iotstar.entity.DomainEnums.OrderStatus;
 import vn.iotstar.entity.DomainEnums.PaymentStatus;
 import vn.iotstar.entity.DomainEnums.Role;
+import vn.iotstar.entity.DomainEnums.ReturnReason;
+import vn.iotstar.entity.DomainEnums.ReturnStatus;
 import vn.iotstar.entity.OrderItem;
 import vn.iotstar.entity.Product;
 import vn.iotstar.entity.Shop;
 import vn.iotstar.service.DashboardService;
 import vn.iotstar.service.RevenueReportService;
+import vn.iotstar.service.MediaStorageService;
+import vn.iotstar.service.ReturnRequestService;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -45,6 +58,14 @@ class VendorRevenueTests extends CheckoutTestFixtures {
 	RevenueReportService reports;
 	@Autowired
 	CommissionSnapshotBackfill backfill;
+
+	@Autowired
+	ReturnRequestService returns;
+	@Autowired
+	EntityManager entityManager;
+
+	@MockitoBean
+	MediaStorageService mediaStorage;
 
 	private LocalDate today;
 
@@ -361,6 +382,126 @@ class VendorRevenueTests extends CheckoutTestFixtures {
 				.perform(get("/vendor/").param("q", "WEB-00").with(user(other.getUsername()).roles("VENDOR")))
 				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
 		assertThat(searched).contains("WEB-00", "orderId=" + first.getId()).doesNotContain("WEB-01");
+	}
+
+	@Test
+	void actualRefundRemovesRecognizedRevenueButPreservesCommissionSnapshot() {
+		when(mediaStorage.upload(any(MultipartFile.class), eq("returns")))
+				.thenReturn("/uploads/returns/revenue-refund-proof.png");
+
+		// Two real checkouts at 10% commission; only the first order will be refunded.
+		var refundedOrder = deliveredPurchase(2);
+		var retainedOrder = deliveredPurchase(1);
+		assertMoney("70000", refundedOrder.getCommissionBase());
+		assertMoney("7000", refundedOrder.getPlatformRevenue());
+		assertMoney("63000", refundedOrder.getSellerRevenue());
+		assertMoney("90000", refundedOrder.getTotalAmount());
+
+		// Changing the current shop rate must not change either existing order.
+		tea.getShop().setCommissionRate(money("25"));
+		shops.saveAndFlush(tea.getShop());
+
+		var before = dashboards.forVendor(tea.getShop());
+		assertMoney("94500", before.periodRevenue());
+		assertMoney("10500", before.periodCommission());
+		assertMoney("145000", before.periodGross());
+		var beforeReport = reports.report(other, reports.filter(null, null, null, "ALL"));
+		assertThat(beforeReport.totals().recognizedCount()).isEqualTo(2);
+		assertMoney("94500", beforeReport.totals().sellerRevenue());
+
+		var requestForm = new ReturnRequestForm();
+		requestForm.setReason(ReturnReason.DAMAGED);
+		requestForm.setDescription("Sản phẩm bị đổ và hư hỏng khi khách nhận hàng từ shipper.");
+		requestForm.setRefundAmount(refundedOrder.getTotalAmount());
+		MultipartFile[] evidence = {
+				new MockMultipartFile("evidence", "proof.png", "image/png", new byte[] { 1, 2, 3 }) };
+		var request = returns.create(customer, refundedOrder.getId(), requestForm, evidence);
+
+		assertThat(refundedOrder.getStatus()).isEqualTo(OrderStatus.RETURN_REQUESTED);
+		assertThat(tea.getStock()).isEqualTo(7);
+		assertThat(tea.getSoldCount()).isEqualTo(3);
+		assertMoney("31500", dashboards.forVendor(tea.getShop()).periodRevenue());
+
+		returns.decide(other, request.getId(), ReturnStatus.APPROVED, refundedOrder.getTotalAmount(),
+				"Chấp nhận nhận lại toàn bộ sản phẩm của đơn hàng");
+		returns.markReturning(customer, refundedOrder.getId());
+		returns.vendorTransition(other, request.getId(), ReturnStatus.RECEIVED,
+				"Đã nhận đủ sản phẩm trả về để kiểm tra");
+		returns.vendorTransition(other, request.getId(), ReturnStatus.REFUND_PENDING,
+				"Đang chuẩn bị chuyển khoản hoàn tiền cho khách");
+
+		assertThat(request.getStatus()).isEqualTo(ReturnStatus.REFUND_PENDING);
+		assertThat(refundedOrder.getPaymentStatus()).isEqualTo(PaymentStatus.PAID);
+		assertThat(tea.getStock()).isEqualTo(7);
+		assertMoney("31500", dashboards.forVendor(tea.getShop()).periodRevenue());
+
+		returns.confirmRefund(other, request.getId(), "BANK-REVENUE-REFUND-001",
+				"Đã chuyển khoản hoàn đủ tiền và đối soát thành công");
+		entityManager.flush();
+		entityManager.clear();
+
+		// Reload persisted values so the assertions also cover database state.
+		var savedRefund = orderRepository.findById(refundedOrder.getId()).orElseThrow();
+		assertThat(savedRefund.getStatus()).isEqualTo(OrderStatus.RETURNED_REFUNDED);
+		assertThat(savedRefund.getPaymentStatus()).isEqualTo(PaymentStatus.REFUNDED);
+		assertMoney("10", savedRefund.getCommissionRate());
+		assertMoney("70000", savedRefund.getCommissionBase());
+		assertMoney("7000", savedRefund.getCommissionAmount());
+		assertMoney("7000", savedRefund.getPlatformRevenue());
+		assertMoney("63000", savedRefund.getSellerRevenue());
+		assertMoney("90000", savedRefund.getTotalAmount());
+
+		var savedProduct = products.findById(tea.getId()).orElseThrow();
+		assertThat(savedProduct.getStock()).isEqualTo(9);
+		assertThat(savedProduct.getSoldCount()).isEqualTo(1);
+		var savedRetained = orderRepository.findById(retainedOrder.getId()).orElseThrow();
+		assertThat(savedRetained.getStatus()).isEqualTo(OrderStatus.DELIVERED);
+		assertThat(savedRetained.getPaymentStatus()).isEqualTo(PaymentStatus.PAID);
+		assertMoney("10", savedRetained.getCommissionRate());
+		assertMoney("31500", savedRetained.getSellerRevenue());
+
+		var after = dashboards.forVendor(tea.getShop());
+		assertMoney("31500", after.periodRevenue());
+		assertMoney("3500", after.periodCommission());
+		assertMoney("55000", after.periodGross());
+		assertMoney("31500", after.sellerSeries().stream().reduce(BigDecimal.ZERO, BigDecimal::add));
+		assertThat(after.periodOrderCount()).isEqualTo(2);
+		assertThat(after.returnPeriodCount()).isEqualTo(1);
+		assertThat(after.topProducts()).hasSize(1);
+		assertThat(after.topProducts().getFirst().quantity()).isEqualTo(1);
+		assertMoney("35000", after.topProducts().getFirst().revenue());
+		assertMoney("31500", orders.revenue(tea.getShop()));
+		assertMoney("3500", orders.revenueSummary(tea.getShop()).platformRevenue());
+
+		var deliveredReport = reports.report(other, reports.filter(null, null, null, null));
+		assertThat(deliveredReport.rows()).extracting(RevenueReportService.Row::orderId)
+				.containsExactly(retainedOrder.getId());
+		var allReport = reports.report(other, reports.filter(null, null, null, "ALL"));
+		assertThat(allReport.rows()).extracting(RevenueReportService.Row::orderId)
+				.containsExactlyInAnyOrder(refundedOrder.getId(), retainedOrder.getId());
+		assertThat(allReport.totals().orderCount()).isEqualTo(2);
+		assertThat(allReport.totals().recognizedCount()).isEqualTo(1);
+		assertMoney("31500", allReport.totals().sellerRevenue());
+		assertMoney("3500", allReport.totals().commission());
+		assertMoney("55000", allReport.totals().grossRevenue());
+		var refundedRow = allReport.rows().stream().filter(row -> row.orderId().equals(refundedOrder.getId()))
+				.findFirst().orElseThrow();
+		assertThat(refundedRow.recognized()).isFalse();
+		assertMoney("0", refundedRow.amounts().sellerRevenue());
+		assertMoney("0", refundedRow.amounts().commission());
+		assertMoney("0", refundedRow.amounts().grossRevenue());
+	}
+
+	private CustomerOrder deliveredPurchase(int quantity) {
+		var order = orders.checkout(customer, form(add(tea, medium, quantity).getId())).getFirst();
+		// Delivery is fixture setup; the return/refund transitions run through the real
+		// service.
+		order.setStatus(OrderStatus.DELIVERED);
+		order.setPaymentStatus(PaymentStatus.PAID);
+		order.setDeliveredAt(today.atTime(10, 0));
+		tea.setSoldCount(tea.getSoldCount() + quantity);
+		products.saveAndFlush(tea);
+		return orderRepository.saveAndFlush(order);
 	}
 
 	private CustomerOrder saveOrder(String code, Shop shop, OrderStatus status, PaymentStatus paymentStatus,
