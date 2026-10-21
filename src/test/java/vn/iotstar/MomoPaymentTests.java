@@ -31,6 +31,7 @@ class MomoPaymentTests extends CheckoutTestFixtures {
  @Autowired MomoProperties config;
  @Autowired PaymentTransactionRepository transactions;
  @MockitoBean MomoGatewayClient gateway;
+ @jakarta.persistence.PersistenceContext jakarta.persistence.EntityManager entityManager;
  @BeforeEach void gateway(){when(gateway.create(anyString(),anyMap())).thenAnswer(call->{Map<String,Object> body=call.getArgument(1);
     assertThat(body.get("autoCapture")).isEqualTo(true);assertThat(body.get("signature").toString()).hasSize(64);
     return Map.of("resultCode",0,"orderId",body.get("orderId"),"requestId",body.get("requestId"),"amount",body.get("amount"),"payUrl","https://test-payment.momo.vn/v2/gateway/pay?reference="+body.get("orderId"));});}
@@ -47,9 +48,14 @@ class MomoPaymentTests extends CheckoutTestFixtures {
  @Test void correctIpnSettlesOnceAndBrowserReturnNeverSettles() throws Exception {
   var order=checkout().getFirst();var cb=callback(order,"0");
   mvc.perform(get("/payments/momo/return").param("resultCode","0")).andExpect(status().is3xxRedirection());assertThat(order.getPaymentStatus()).isEqualTo(PaymentStatus.UNPAID);
-  assertThat(momo.processCallback(cb).success()).isTrue();var paid=transactions.findByTransactionCodeOrderByIdAsc(cb.get("orderId")).getFirst().getPaidAt().truncatedTo(java.time.temporal.ChronoUnit.MICROS);
-  assertThat(momo.processCallback(cb).success()).isTrue();assertThat(order.getPaymentStatus()).isEqualTo(PaymentStatus.PAID);
-  assertThat(transactions.findByTransactionCodeOrderByIdAsc(cb.get("orderId"))).singleElement().extracting(t->t.getPaidAt().truncatedTo(java.time.temporal.ChronoUnit.MICROS)).isEqualTo(paid);
+  assertThat(momo.processCallback(cb).success()).isTrue();
+  entityManager.flush();entityManager.clear();
+  var paid=transactions.findByTransactionCodeOrderByIdAsc(cb.get("orderId")).getFirst().getPaidAt();
+  assertThat(paid).isNotNull();
+  assertThat(momo.processCallback(cb).success()).isTrue();
+  entityManager.flush();entityManager.clear();
+  assertThat(orderRepository.findById(order.getId()).orElseThrow().getPaymentStatus()).isEqualTo(PaymentStatus.PAID);
+  assertThat(transactions.findByTransactionCodeOrderByIdAsc(cb.get("orderId"))).singleElement().extracting(PaymentTransaction::getPaidAt).isEqualTo(paid);
  }
  @Test void signedWrongAmountOrMerchantAndBadSignatureAreRejected() throws Exception {
   var order=checkout().getFirst();var bad=callback(order,"0");bad.put("amount","1");assertThat(momo.processCallback(sign(bad)).valid()).isFalse();
