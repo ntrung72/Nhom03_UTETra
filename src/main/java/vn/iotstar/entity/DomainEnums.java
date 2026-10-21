@@ -30,7 +30,7 @@ public final class DomainEnums {
     }
 
     public enum PaymentMethod {
-        COD("Thanh toán khi nhận hàng"), VNPAY("Thanh toán qua VNPay");
+        COD("Thanh toán khi nhận hàng"), VNPAY("Thanh toán qua VNPay"), MOMO("Thanh toán qua MoMo");
 
         private final String label;
 

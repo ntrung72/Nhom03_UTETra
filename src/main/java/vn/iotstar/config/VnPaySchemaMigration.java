@@ -28,9 +28,9 @@ public class VnPaySchemaMigration implements ApplicationRunner {
                 and d.referenced_id=c.parent_object_id and d.referenced_minor_id>0
                 and d.referenced_minor_id<>COLUMNPROPERTY(c.parent_object_id, 'payment_method', 'ColumnId'))
             """, (r, n) -> new Check(r.getString("name"), r.getString("definition")));
-        if (checks.isEmpty() || checks.stream().allMatch(c -> c.definition().toUpperCase(java.util.Locale.ROOT).contains("VNPAY"))) return;
+        if (checks.isEmpty() || checks.stream().allMatch(c -> c.definition().toUpperCase(java.util.Locale.ROOT).contains("MOMO"))) return;
         for (var check : checks) jdbc.execute("ALTER TABLE customer_orders DROP CONSTRAINT [" + check.name().replace("]", "]]") + "]");
-        jdbc.execute("ALTER TABLE customer_orders WITH CHECK ADD CONSTRAINT ck_customer_orders_payment_method_vnpay CHECK (payment_method IN ('COD','VNPAY'))");
+        jdbc.execute("ALTER TABLE customer_orders WITH CHECK ADD CONSTRAINT ck_customer_orders_payment_method_vnpay CHECK (payment_method IN ('COD','VNPAY','MOMO'))");
     }
     private record Check(String name, String definition) {}
 }

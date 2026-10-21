@@ -25,6 +25,7 @@ import vn.iotstar.repository.*;
 @Transactional(readOnly = true)
 public class OrderService {
 	private final vn.iotstar.config.VnPayProperties vnPayProperties;
+	private final vn.iotstar.config.MomoProperties momoProperties;
 
 	@jakarta.persistence.PersistenceContext
 	private jakarta.persistence.EntityManager entityManager;
@@ -111,9 +112,9 @@ public class OrderService {
 					"UTE" + UUID.randomUUID().toString().replace("-", "").substring(0, 29).toUpperCase(Locale.ROOT));
 
 			order.setPaymentMethod(form.getPaymentMethod());
-			if (form.getPaymentMethod() == PaymentMethod.VNPAY)
+			if (form.getPaymentMethod() == PaymentMethod.VNPAY || form.getPaymentMethod() == PaymentMethod.MOMO)
 				order.setPaymentExpiresAt(LocalDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh"))
-						.plusMinutes(vnPayProperties.getExpirationMinutes()));
+						.plusMinutes(form.getPaymentMethod() == PaymentMethod.MOMO ? momoProperties.getExpirationMinutes() : vnPayProperties.getExpirationMinutes()));
 			order.setCheckoutReference(reference);
 			order.setUser(owner);
 			order.setShop(shop);
@@ -168,7 +169,7 @@ public class OrderService {
 				inventoryService.sell(line.getProduct(), line.getQuantity(), owner, order);
 			}
 
-			recordStatus(order, null, OrderStatus.NEW, owner, "Khách hàng đặt đơn COD");
+			recordStatus(order, null, OrderStatus.NEW, owner, "Khách hàng đặt đơn " + form.getPaymentMethod().name());
 
 			created.add(order);
 		}
@@ -949,7 +950,7 @@ public class OrderService {
 	}
 
 	private void requireOnlinePayment(CustomerOrder order) {
-		if (order.getPaymentMethod() == PaymentMethod.VNPAY && order.getPaymentStatus() != PaymentStatus.PAID)
+		if (order.getPaymentMethod() != PaymentMethod.COD && order.getPaymentStatus() != PaymentStatus.PAID)
 			throw new IllegalArgumentException("Đơn VNPay cần thanh toán thành công trước khi xử lý giao hàng.");
 	}
 

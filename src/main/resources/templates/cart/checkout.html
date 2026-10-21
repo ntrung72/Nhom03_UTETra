@@ -17,6 +17,11 @@
                 <label class="form-check"><input class="form-check-input" type="radio" th:field="*{paymentMethod}" value="VNPAY" th:disabled="${!vnPayAvailable}"> Thanh toán online qua VNPay</label>
                 <small class="text-muted" th:if="${!vnPayAvailable}">Thanh toán online hiện chưa sẵn sàng. Bạn có thể chọn COD.</small>
                 <small class="text-muted d-block" th:if="${vnPayAvailable}">Với VNPay, các đơn cùng lần đặt hàng được thanh toán chung; khi hủy sẽ hủy toàn bộ các đơn chưa thanh toán của lần đặt hàng đó.</small>
+                <div class="form-check mt-2">
+                    <input class="form-check-input" type="radio" th:field="*{paymentMethod}" value="MOMO" th:disabled="${!momoAvailable}">
+                    <label class="form-check-label" for="paymentMethod3">Ví MoMo Sandbox</label>
+                    <small class="text-muted d-block" th:unless="${momoAvailable}">MoMo chưa được cấu hình. Bạn có thể chọn COD hoặc VNPay nếu sẵn sàng.</small>
+                </div>
             </fieldset>
         </div>
         <section class="col-lg-7">

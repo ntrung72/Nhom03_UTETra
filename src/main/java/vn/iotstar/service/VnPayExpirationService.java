@@ -11,12 +11,13 @@ import vn.iotstar.entity.DomainEnums.*;
 public class VnPayExpirationService {
     private final PaymentTransactionRepository transactions;
     private final VnPayService vnPay;
+    private final MomoService momo;
     public int expirePendingPayments() {
         var references = transactions.findExpiredCheckoutReferences(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")),
             OrderStatus.NEW, PaymentStatus.UNPAID, PageRequest.of(0, 100));
         int count = 0;
         for (String reference : references) {
-            try { count += vnPay.expireCheckout(reference); }
+            try { count += vnPay.expireCheckout(reference); count += momo.expireCheckout(reference); }
             catch (RuntimeException ex) { log.error("Không thể hết hạn checkout {}; sẽ thử lại", reference, ex); }
         }
         return count;
