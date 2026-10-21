@@ -17,6 +17,9 @@ import vn.iotstar.entity.DomainEnums.OrderStatus;
 import vn.iotstar.entity.DomainEnums.PaymentStatus;
 
 public interface OrderRepository extends JpaRepository<CustomerOrder, Long> {
+    @org.springframework.data.jpa.repository.Query("select o.id from CustomerOrder o where o.deliveryProofUrl is not null and o.deliveryProofUrl not like 'private:%'")
+    java.util.List<Long> findLegacyDeliveryProofOrderIds();
+
 
 	@EntityGraph(attributePaths = { "shop", "carrier" })
 	@Query("""

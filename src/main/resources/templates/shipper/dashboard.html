@@ -44,8 +44,8 @@
                 <div class="alert alert-danger py-2 mt-2 mb-0" th:if="${o.failureReason != null and !o.failureReason.isBlank()}">
                     <strong>Lý do giao thất bại:</strong> <span th:text="${o.failureReason}"></span>
                 </div>
-                <a class="delivery-proof-link mt-2" th:if="${o.deliveryProofUrl != null}" th:href="${o.deliveryProofUrl}" target="_blank" rel="noopener">
-                    <img th:src="${o.deliveryProofUrl}" alt="Bằng chứng giao hàng">
+                <a class="delivery-proof-link mt-2" th:if="${o.deliveryProofUrl != null}" th:href="@{/private-media/orders/{id}/delivery-proof(id=${o.id})}" target="_blank" rel="noopener">
+                    <img th:src="@{/private-media/orders/{id}/delivery-proof(id=${o.id})}" alt="Bằng chứng giao hàng">
                     <span><i class="bi bi-image"></i> Xem bằng chứng</span>
                 </a>
                 <strong class="d-block mt-2 text-primary" th:text="${#numbers.formatDecimal(o.totalAmount,0,'COMMA',0,'POINT')} + ' ₫'"></strong>

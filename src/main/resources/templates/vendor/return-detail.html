@@ -120,12 +120,12 @@
                              th:each="media : ${returnRequest.media}">
 
                             <a th:if="${media.type.name() == 'IMAGE'}"
-                               th:href="${media.url}"
+                               th:href="@{/private-media/returns/{id}(id=${media.id})}"
                                target="_blank"
                                rel="noopener noreferrer">
                                 <img class="img-fluid rounded border w-100"
                                      style="max-height: 300px; object-fit: contain;"
-                                     th:src="${media.url}"
+                                     th:src="@{/private-media/returns/{id}(id=${media.id})}"
                                      alt="Ảnh bằng chứng trả hàng"
                                      loading="lazy">
                             </a>
@@ -133,7 +133,7 @@
                             <div th:if="${media.type.name() == 'VIDEO'}">
                                 <video class="w-100 rounded border"
                                        style="max-height: 300px;"
-                                       th:src="${media.url}"
+                                       th:src="@{/private-media/returns/{id}(id=${media.id})}"
                                        controls
                                        playsinline
                                        preload="metadata">
@@ -141,7 +141,7 @@
                                 </video>
 
                                 <a class="small"
-                                   th:href="${media.url}"
+                                   th:href="@{/private-media/returns/{id}(id=${media.id})}"
                                    target="_blank"
                                    rel="noopener noreferrer">
                                     Mở video trong tab mới

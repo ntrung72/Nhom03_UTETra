@@ -87,6 +87,10 @@
                       th:action="@{/orders/{id}/payment/retry(id=${order.id})}" method="post">
                     <button class="btn btn-primary w-100">Tiếp tục thanh toán VNPay</button>
                 </form>
+                <a class="btn btn-outline-secondary w-100 mt-3"
+                   th:if="${order.deliveryProofUrl != null}"
+                   th:href="@{/private-media/orders/{id}/delivery-proof(id=${order.id})}"
+                   target="_blank" rel="noopener">Xem bằng chứng giao hàng</a>
                 <a class="btn btn-outline-warning w-100 mt-3" th:if="${order.status.name() == 'DELIVERED' and order.paymentStatus.name() == 'PAID' and returnRequest == null}"
                    th:href="@{/orders/{id}/return(id=${order.id})}">Yêu cầu trả hàng / hoàn tiền</a>
             </div>
@@ -97,9 +101,9 @@
                 <p class="text-break" th:text="${returnRequest.description}"></p>
                 <div class="d-flex flex-wrap justify-content-between gap-2"><span>Số tiền hoàn</span><strong th:text="${#numbers.formatDecimal(returnRequest.refundAmount,0,'COMMA',0,'POINT') + ' ₫'}"></strong></div>
                 <div class="row row-cols-2 g-2 mt-2">
-                    <a class="col" th:each="media : ${returnRequest.media}" th:href="${media.url}" target="_blank" rel="noopener">
-                        <img class="img-fluid rounded" th:if="${media.type.name() == 'IMAGE'}" th:src="${media.url}" alt="Bằng chứng trả hàng">
-                        <video class="w-100 rounded" th:if="${media.type.name() == 'VIDEO'}" th:src="${media.url}" controls preload="metadata"></video>
+                    <a class="col" th:each="media : ${returnRequest.media}" th:href="@{/private-media/returns/{id}(id=${media.id})}" target="_blank" rel="noopener">
+                        <img class="img-fluid rounded" th:if="${media.type.name() == 'IMAGE'}" th:src="@{/private-media/returns/{id}(id=${media.id})}" alt="Bằng chứng trả hàng">
+                        <video class="w-100 rounded" th:if="${media.type.name() == 'VIDEO'}" th:src="@{/private-media/returns/{id}(id=${media.id})}" controls preload="metadata"></video>
                     </a>
                 </div>
                 <p class="small mt-3" th:if="${returnRequest.resolutionNote != null}" th:text="${'Phản hồi shop: ' + returnRequest.resolutionNote}"></p>

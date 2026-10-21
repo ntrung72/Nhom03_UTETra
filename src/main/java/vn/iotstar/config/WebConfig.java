@@ -24,7 +24,9 @@ public class WebConfig implements WebMvcConfigurer {
             location += "/";
         }
 
-        registry.addResourceHandler("/uploads/**")
-            .addResourceLocations(location);
+        for (String folder : new String[]{"avatars", "products", "shops", "categories", "reviews"}) {
+            registry.addResourceHandler("/uploads/" + folder + "/**")
+                .addResourceLocations(location + folder + "/");
+        }
     }
 }

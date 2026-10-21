@@ -43,6 +43,14 @@
                     <li th:if="${currentUser.role.name() == 'USER' or currentUser.role.name() == 'VENDOR'}"><a class="dropdown-item" th:href="@{/cart}">Giỏ hàng</a></li>
                     <li th:if="${currentUser.role.name() == 'USER' or currentUser.role.name() == 'VENDOR'}"><a class="dropdown-item" th:href="@{/orders}">Đơn mua</a></li>
                     <li th:if="${currentUser.role.name() == 'USER' or currentUser.role.name() == 'VENDOR'}"><a class="dropdown-item" th:href="@{/user/notifications}"><i class="bi bi-bell me-2"></i>Thông báo</a></li>
+                    <li class="px-3 py-2" data-nav-notifications
+                        th:if="${currentUser.role.name() == 'USER' or currentUser.role.name() == 'VENDOR'}"
+                        th:attr="data-preview-url=@{/api/notifications/recent}">
+                        <span class="fw-semibold small">Thông báo gần đây</span>
+                        <ul class="list-unstyled small mb-0 mt-2" data-nav-notification-list>
+                            <li class="text-muted">Đang tải thông báo...</li>
+                        </ul>
+                    </li>
                     <li><hr class="dropdown-divider"></li>
                     <li><form th:action="@{/logout}" method="post"><button class="dropdown-item text-danger"><i class="bi bi-box-arrow-right me-2"></i>Đăng xuất</button></form></li>
                 </ul>
