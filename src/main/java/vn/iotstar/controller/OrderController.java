@@ -28,6 +28,8 @@ public class OrderController {
     private final vn.iotstar.service.EngagementService engagementService;
     private final vn.iotstar.service.CheckoutPaymentService checkoutPaymentService;
     private final vn.iotstar.service.VnPayService vnPayService;
+    private final vn.iotstar.service.MomoService momoService;
+    private final vn.iotstar.service.ReorderService reorderService;
 
     @GetMapping("/checkout")
     String checkout(@ModelAttribute("checkoutForm") CheckoutForm form, BindingResult result,
@@ -35,6 +37,7 @@ public class OrderController {
         if (result.hasErrors()) { redirect.addFlashAttribute("error", "Thông tin thanh toán không hợp lệ."); return "redirect:/cart"; }
         if (form.getPaymentMethod() == null) form.setPaymentMethod(vn.iotstar.entity.DomainEnums.PaymentMethod.COD);
         model.addAttribute("vnPayAvailable", vnPayService.isConfigured());
+        model.addAttribute("momoAvailable", momoService.isConfigured());
         var user = currentUserService.require();
         var addresses = profileService.addresses(user);
         if (addresses.isEmpty()) {
@@ -51,6 +54,8 @@ public class OrderController {
             model.addAttribute("carriers", carriers); model.addAttribute("vouchers", orderService.availableVouchers(user));
             model.addAttribute("pricesChanged", selection.pricesChanged());
             if (form.getCarrierId() != null) {
+                try { model.addAttribute("voucherRecommendations", orderService.recommendVouchers(user, form.getCarrierId(), form.getItemIds())); }
+                catch (IllegalArgumentException ex) { model.addAttribute("error", ex.getMessage()); }
                 try { model.addAttribute("preview", orderService.preview(user, form.getCarrierId(), form.getVoucherCode(), form.getItemIds())); }
                 catch (IllegalArgumentException ex) { model.addAttribute("error", ex.getMessage()); }
             }
@@ -100,7 +105,20 @@ public class OrderController {
         model.addAttribute("paymentTransaction", vnPayService.latestForOrder(user, id));
         model.addAttribute("paymentNeedsReconciliation", vnPayService.needsReconciliation(user, id));
         model.addAttribute("vnPayAvailable", vnPayService.isConfigured());
+        model.addAttribute("momoAvailable", momoService.isConfigured());
         return "orders/detail";
+    }
+
+    @PostMapping("/orders/{id}/reorder")
+    String reorder(@PathVariable Long id, RedirectAttributes redirect) {
+        try {
+            var result = reorderService.reorder(currentUserService.require(), id);
+            if (result.addedLines() > 0) redirect.addFlashAttribute("success", "Đã thêm " + result.addedLines() + " món vào giỏ với giá hiện tại.");
+            if (!result.skipped().isEmpty()) redirect.addFlashAttribute("error", String.join("; ", result.skipped()));
+            return "redirect:/cart";
+        } catch (IllegalArgumentException ex) {
+            redirect.addFlashAttribute("error", ex.getMessage()); return "redirect:/orders/" + id;
+        }
     }
 
     @PostMapping("/orders/{id}/cancel")
@@ -189,8 +207,30 @@ public class OrderController {
 
     @PostMapping("/orders/{id}/payment/retry")
     String retryPayment(@PathVariable Long id, jakarta.servlet.http.HttpServletRequest request, RedirectAttributes redirect) {
-        try { return "redirect:" + vnPayService.retryPaymentUrl(currentUserService.require(), id, request.getRemoteAddr()); }
+        try {
+            var buyer = currentUserService.require();
+            var owned = orderService.getForUser(buyer, id);
+            return "redirect:" + (owned.getPaymentMethod() == vn.iotstar.entity.DomainEnums.PaymentMethod.MOMO
+                ? momoService.retryPaymentUrl(buyer, id, request.getRemoteAddr())
+                : vnPayService.retryPaymentUrl(buyer, id, request.getRemoteAddr()));
+        }
         catch (IllegalArgumentException ex) { redirect.addFlashAttribute("error", ex.getMessage()); return "redirect:/orders/" + id; }
+    }
+
+    @GetMapping("/payments/momo/return")
+    String momoReturn(RedirectAttributes redirect) {
+        redirect.addFlashAttribute("success", "Đã trở về từ MoMo. Trạng thái đơn được cập nhật sau xác nhận từ cổng thanh toán.");
+        return "redirect:/orders";
+    }
+
+    @PostMapping("/payments/momo/ipn") @ResponseBody
+    org.springframework.http.ResponseEntity<Void> momoIpn(@RequestBody java.util.Map<String, Object> payload) {
+        var callback = new java.util.HashMap<String, String>();
+        payload.forEach((key, value) -> { if (value != null) callback.put(key, value.toString()); });
+        try {
+            var result = momoService.processCallback(callback);
+            return org.springframework.http.ResponseEntity.status(result.valid() ? 204 : 400).build();
+        } catch (RuntimeException ex) { return org.springframework.http.ResponseEntity.status(503).build(); }
     }
 
     @GetMapping("/payments/vnpay/return")

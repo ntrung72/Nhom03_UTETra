@@ -5,6 +5,11 @@
 <header th:replace="~{fragments/layout :: header}"></header>
 
 <main>
+    <form class="mb-3" method="post" th:if="${currentUser != null and (currentUser.role.name() == 'USER' or currentUser.role.name() == 'VENDOR')}"
+          th:action="${following} ? @{/user/followed-shops/{id}/unfollow(id=${shop.id})} : @{/user/followed-shops/{id}/follow(id=${shop.id})}">
+        <button class="btn btn-outline-primary" th:text="${following} ? 'Bỏ theo dõi' : 'Theo dõi cửa hàng'"></button>
+    </form>
+
     <section class="shop-public-hero">
         <img class="shop-public-cover" th:src="${#strings.isEmpty(shop.imageUrl) ? '/images/logo.svg' : shop.imageUrl}" th:alt="${shop.name}">
         <div class="shop-public-shade"></div>

@@ -1,5 +1,7 @@
 package vn.iotstar.controller;
 
+import java.util.List;
+
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
@@ -22,10 +24,64 @@ import vn.iotstar.service.*;
 @RequiredArgsConstructor
 public class UserController {
     private final CurrentUserService currentUserService;
+    private final SavedRecipeService recipes;
+    private final ShopFollowService follows;
+    private final LoyaltyPointService loyalty;
     private final ProfileService profileService;
     private final EngagementService engagementService;
     private final ProductPricingService productPricingService;
     private final NotificationService notificationService;
+
+    @GetMapping("/loyalty")
+    String loyalty(@RequestParam(defaultValue="0") int page, Model model) {
+        var user=currentUserService.require();
+        model.addAttribute("pointBalance",loyalty.balance(user));
+        model.addAttribute("pointHistory",loyalty.history(user,page));
+        model.addAttribute("vndPerPoint",loyalty.getVndPerPoint());
+        return "user/loyalty";
+    }
+
+    @GetMapping("/recipes")
+    String recipes(@RequestParam(defaultValue="0") int page, Model model) {
+        model.addAttribute("recipes", recipes.list(currentUserService.require(), page)); return "user/recipes";
+    }
+    @PostMapping("/recipes/from-product/{productId}")
+    String saveRecipe(@PathVariable Long productId, @RequestParam(required=false) String name,
+        @RequestParam(required=false) Long sizeId, @RequestParam(required=false) vn.iotstar.entity.DomainEnums.SugarLevel sugarLevel,
+        @RequestParam(required=false) vn.iotstar.entity.DomainEnums.IceLevel iceLevel,
+        @RequestParam(required=false) List<Long> toppingIds, RedirectAttributes redirect) {
+        try { recipes.save(currentUserService.require(), productId, name, sizeId, sugarLevel, iceLevel, toppingIds);
+            redirect.addFlashAttribute("success", "Đã lưu công thức của bạn."); return "redirect:/user/recipes";
+        } catch (IllegalArgumentException ex) { redirect.addFlashAttribute("error", ex.getMessage()); return "redirect:/products/"+productId; }
+    }
+    @PostMapping("/recipes/{id}/cart")
+    String recipeCart(@PathVariable Long id, @RequestParam(defaultValue="1") int quantity, RedirectAttributes redirect) {
+        try { recipes.addToCart(currentUserService.require(), id, quantity); redirect.addFlashAttribute("success", "Đã thêm công thức với giá hiện tại."); return "redirect:/cart"; }
+        catch (IllegalArgumentException ex) { redirect.addFlashAttribute("error", ex.getMessage()); return "redirect:/user/recipes"; }
+    }
+    @PostMapping("/recipes/{id}/rename")
+    String renameRecipe(@PathVariable Long id, @RequestParam String name, RedirectAttributes redirect) {
+        try { recipes.rename(currentUserService.require(), id, name); redirect.addFlashAttribute("success", "Đã đổi tên công thức."); }
+        catch (IllegalArgumentException ex) { redirect.addFlashAttribute("error", ex.getMessage()); } return "redirect:/user/recipes";
+    }
+    @PostMapping("/recipes/{id}/delete")
+    String deleteRecipe(@PathVariable Long id, RedirectAttributes redirect) {
+        try { recipes.delete(currentUserService.require(), id); redirect.addFlashAttribute("success", "Đã xóa công thức."); }
+        catch (IllegalArgumentException ex) { redirect.addFlashAttribute("error", ex.getMessage()); } return "redirect:/user/recipes";
+    }
+    @GetMapping("/followed-shops")
+    String followedShops(@RequestParam(defaultValue="0") int page, Model model) {
+        model.addAttribute("followedShops", follows.followedShops(currentUserService.require(),page));return "user/followed-shops";
+    }
+    @PostMapping("/followed-shops/{id}/follow")
+    String follow(@PathVariable Long id, RedirectAttributes redirect) {
+        try { follows.follow(currentUserService.require(),id);redirect.addFlashAttribute("success","Đã theo dõi cửa hàng."); }
+        catch(IllegalArgumentException ex){redirect.addFlashAttribute("error",ex.getMessage());}return "redirect:/user/followed-shops";
+    }
+    @PostMapping("/followed-shops/{id}/unfollow")
+    String unfollow(@PathVariable Long id, RedirectAttributes redirect) {
+        follows.unfollow(currentUserService.require(),id);redirect.addFlashAttribute("success","Đã bỏ theo dõi cửa hàng.");return "redirect:/user/followed-shops";
+    }
 
     @GetMapping
     String userHome() {

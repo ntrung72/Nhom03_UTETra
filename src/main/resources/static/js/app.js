@@ -247,3 +247,59 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+// Debounced discovery hints. Build labels with textContent; never interpolate HTML.
+document.querySelectorAll('input[name="q"]').forEach(input => {
+    if (input.closest('[data-no-suggestions]')) return;
+    const host = input.parentElement; host.classList.add('search-hint-host');
+    const box = document.createElement('div'); box.className = 'search-hints'; box.hidden = true;
+    box.id = 'search-hints-' + Math.random().toString(36).slice(2); box.setAttribute('role', 'region');
+    box.setAttribute('aria-label', 'Gợi ý tìm kiếm'); host.append(box);
+    input.setAttribute('autocomplete', 'off'); input.setAttribute('aria-controls', box.id);
+    input.setAttribute('aria-expanded', 'false');
+    let timer, controller, sequence = 0;
+    const hide = () => {box.hidden = true; input.setAttribute('aria-expanded', 'false');};
+    const link = (label, url) => {
+        const a = document.createElement('a'); a.textContent = label; a.href = url; box.append(a); return a;
+    };
+    const heading = text => {const e = document.createElement('div');e.className='hint-heading';e.textContent=text;box.append(e);};
+    const load = async () => {
+        const request = ++sequence;
+        controller?.abort(); controller = new AbortController();
+        try {
+            const response = await fetch('/api/search/suggestions?' + new URLSearchParams({q: input.value}), {signal:controller.signal, cache:'no-store'});
+            if (!response.ok) return hide();
+            const data = await response.json(); if(request !== sequence) return;
+            box.replaceChildren();
+            if(data.history.length) {
+                heading('Tìm kiếm gần đây');
+                data.history.forEach(term => {
+                    const row=document.createElement('div');row.className='history-row';box.append(row);
+                    const a=link(term, '/products?'+new URLSearchParams({q:term}));row.append(a);
+                    const button=document.createElement('button');button.type='button';button.textContent='×';button.setAttribute('aria-label','Xóa lịch sử '+term);row.append(button);
+                    button.addEventListener('click', async () => {
+                        const headers={};const token=document.querySelector('meta[name="_csrf"]')?.content;const name=document.querySelector('meta[name="_csrf_header"]')?.content;if(token&&name)headers[name]=token;
+                        const res=await fetch('/api/search/history?'+new URLSearchParams({keyword:term}),{method:'DELETE',headers});
+                        if(res.ok) row.remove();
+                    });
+                });
+            }
+            if(data.products.length) {heading(data.popular?'Món bán chạy':'Sản phẩm');data.products.forEach(p=>link(p.name+' · '+p.shopName,'/products/'+p.id));}
+            if(data.shops.length) {heading('Cửa hàng');data.shops.forEach(s=>link(s.name,'/shops/'+encodeURIComponent(s.slug)));}
+            if(data.keywords.length) {heading('Từ khóa liên quan');data.keywords.forEach(t=>link(t,'/products?'+new URLSearchParams({q:t})));}
+            box.hidden=!box.childElementCount;input.setAttribute('aria-expanded',String(!box.hidden));
+        } catch(error) {if(error.name!=='AbortError') hide();}
+    };
+    input.addEventListener('input',()=>{clearTimeout(timer);++sequence;controller?.abort();timer=setTimeout(load,220);});
+    input.addEventListener('focus',()=>{clearTimeout(timer);timer=setTimeout(load,100);});
+    host.addEventListener('keydown',e=>{
+        if(e.key==='Escape'){hide();input.focus();}
+        if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+            const options=[...box.querySelectorAll('a,button')];if(box.hidden||!options.length)return;
+            e.preventDefault();const index=options.indexOf(document.activeElement);
+            options[(index+(e.key==='ArrowDown'?1:-1)+options.length)%options.length].focus();
+        }
+    });
+    document.addEventListener('click',e=>{if(!host.contains(e.target))hide();});
+    host.addEventListener('focusout',()=>setTimeout(()=>{if(!host.contains(document.activeElement))hide();},0));
+});

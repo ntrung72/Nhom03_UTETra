@@ -55,9 +55,12 @@ public class SecurityConfig {
     @Order(1)
     SecurityFilterChain browserNotificationApiFilterChain(HttpSecurity http,
                                                            AuthenticationProvider authenticationProvider) throws Exception {
-        http.securityMatcher("/api/notifications/**")
+        http.securityMatcher("/api/notifications/**", "/api/search/**")
             .authenticationProvider(authenticationProvider)
-            .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/search/suggestions").permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/api/search/history").authenticated()
+                .anyRequest().authenticated())
             .exceptionHandling(exceptions -> exceptions
                 .authenticationEntryPoint((req, resp, ex) -> resp.sendError(HttpServletResponse.SC_UNAUTHORIZED))
                 .accessDeniedHandler((req, resp, ex) -> resp.sendError(HttpServletResponse.SC_FORBIDDEN)));
@@ -93,6 +96,7 @@ public class SecurityConfig {
                                             AuthenticationProvider authenticationProvider,
                                             @Value("${app.remember-me.key}") String rememberMeKey) throws Exception {
         http
+            .csrf(csrf -> csrf.ignoringRequestMatchers("/payments/momo/ipn"))
             .authenticationProvider(authenticationProvider)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/uploads/returns/**", "/uploads/delivery-proofs/**").denyAll()
@@ -100,7 +104,8 @@ public class SecurityConfig {
                     "/resend-otp", "/forgot-password", "/reset-password", "/css/**", "/js/**", "/images/**",
                     "/uploads/avatars/**", "/uploads/products/**", "/uploads/shops/**",
                     "/uploads/categories/**", "/uploads/reviews/**", "/error", "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs", "/v3/api-docs/**").permitAll()
-                .requestMatchers(HttpMethod.GET, "/payments/vnpay/return", "/payments/vnpay/ipn").permitAll()
+                .requestMatchers(HttpMethod.GET, "/payments/vnpay/return", "/payments/vnpay/ipn", "/payments/momo/return").permitAll()
+                .requestMatchers(HttpMethod.POST, "/payments/momo/ipn").permitAll()
                 .requestMatchers(HttpMethod.GET, "/private-media/**")
                     .hasAnyRole("USER", "VENDOR", "SHIPPER", "MANAGER", "ADMIN")
                 .requestMatchers("/vendor/register").hasAnyRole("USER", "VENDOR")

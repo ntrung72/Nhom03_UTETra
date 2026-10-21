@@ -49,6 +49,9 @@ public class OrderItem {
     @Column(name = "toppings", length = 1000)
     private String toppings;
 
+    @Column(name = "topping_ids", length = 500)
+    private String toppingIds;
+
     @Column(name = "base_price", precision = 14, scale = 2)
     private BigDecimal basePrice;
 

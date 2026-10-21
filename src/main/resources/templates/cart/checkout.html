@@ -17,6 +17,11 @@
                 <label class="form-check"><input class="form-check-input" type="radio" th:field="*{paymentMethod}" value="VNPAY" th:disabled="${!vnPayAvailable}"> Thanh toán online qua VNPay</label>
                 <small class="text-muted" th:if="${!vnPayAvailable}">Thanh toán online hiện chưa sẵn sàng. Bạn có thể chọn COD.</small>
                 <small class="text-muted d-block" th:if="${vnPayAvailable}">Với VNPay, các đơn cùng lần đặt hàng được thanh toán chung; khi hủy sẽ hủy toàn bộ các đơn chưa thanh toán của lần đặt hàng đó.</small>
+                <div class="form-check mt-2">
+                    <input class="form-check-input" type="radio" th:field="*{paymentMethod}" value="MOMO" th:disabled="${!momoAvailable}">
+                    <label class="form-check-label" for="paymentMethod3">Ví MoMo Sandbox</label>
+                    <small class="text-muted d-block" th:unless="${momoAvailable}">MoMo chưa được cấu hình. Bạn có thể chọn COD hoặc VNPay nếu sẵn sàng.</small>
+                </div>
             </fieldset>
         </div>
         <section class="col-lg-7">
@@ -35,6 +40,17 @@
                 <input class="form-control" th:field="*{voucherCode}" maxlength="40" list="checkout-vouchers" placeholder="Không bắt buộc">
                 <datalist id="checkout-vouchers"><option th:each="v : ${vouchers}" th:value="${v.code}" th:text="${v.name + ' · ' + v.type.label}"></option></datalist>
                 <p class="small text-muted mt-2">Điều kiện mã được kiểm tra trên tiền hàng sau khuyến mãi.</p>
+                <section class="my-3" th:if="${voucherRecommendations != null and !#lists.isEmpty(voucherRecommendations)}" aria-label="Gợi ý voucher">
+                    <h3 class="h6">Mã phù hợp cho giỏ hàng của bạn</h3>
+                    <div class="border rounded p-2 mb-2" th:each="v, iter : ${voucherRecommendations}">
+                        <span class="badge text-bg-success" th:if="${iter.first and v.eligible and v.saving.signum() > 0}">Tiết kiệm nhất</span>
+                        <strong th:text="${v.name}"></strong><small class="d-block" th:text="${v.code}"></small>
+                        <span th:if="${v.eligible}" th:text="|Giảm ${#numbers.formatDecimal(v.saving,0,'COMMA',0,'POINT')} ₫|"></span>
+                        <small class="text-muted" th:unless="${v.eligible}" th:text="${v.reason}"></small>
+                        <a class="btn btn-sm btn-outline-primary ms-2" th:if="${v.eligible}"
+                           th:href="@{/checkout(itemIds=${checkoutForm.itemIds},addressId=${checkoutForm.addressId},carrierId=${checkoutForm.carrierId},paymentMethod=${checkoutForm.paymentMethod},voucherCode=${v.code})}">Dùng mã</a>
+                    </div>
+                </section>
                 <label for="note" class="form-label">Ghi chú cho shop</label>
                 <textarea class="form-control" rows="3" th:field="*{note}" maxlength="500"></textarea>
                 <button class="btn btn-outline-primary mt-3" type="submit" formmethod="get" th:formaction="@{/checkout}">Cập nhật tổng tiền</button>

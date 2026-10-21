@@ -10,12 +10,14 @@ import vn.iotstar.entity.DomainEnums.PaymentMethod;
 public class CheckoutPaymentService {
     private final OrderService orders;
     private final VnPayService vnPay;
+    private final MomoService momo;
     private final vn.iotstar.repository.OrderRepository repository;
     @Transactional(noRollbackFor = OrderService.PriceChangedException.class)
     public CheckoutResult checkout(User user, CheckoutForm form, String clientIp) {
         if (form != null && form.getPaymentMethod() == PaymentMethod.VNPAY) vnPay.requireConfigured();
+        if (form != null && form.getPaymentMethod() == PaymentMethod.MOMO) momo.requireConfigured();
         var created = orders.checkout(user, form);
-        String url = form.getPaymentMethod() == PaymentMethod.VNPAY ? vnPay.createPaymentUrl(user, created, clientIp) : null;
+        String url = form.getPaymentMethod() == PaymentMethod.VNPAY ? vnPay.createPaymentUrl(user, created, clientIp) : form.getPaymentMethod() == PaymentMethod.MOMO ? momo.createPaymentUrl(user, created, clientIp) : null;
         return new CheckoutResult(List.copyOf(created), url);
     }
     @Transactional
@@ -23,6 +25,7 @@ public class CheckoutPaymentService {
         var order = repository.findOwnedPaymentSummary(orderId, user.getId()).orElseThrow(() ->
             new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND));
         if (order.getPaymentMethod() == PaymentMethod.VNPAY) vnPay.cancelCheckout(user, orderId);
+        else if (order.getPaymentMethod() == PaymentMethod.MOMO) momo.cancelCheckout(user, orderId);
         else orders.cancelByUser(user, orderId);
     }
     public record CheckoutResult(List<CustomerOrder> orders, String paymentUrl) {}

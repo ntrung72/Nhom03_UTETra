@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Điểm thưởng UTETra')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="container pt-3 pt-lg-4 pb-4 pb-lg-5">
+    <div th:replace="~{fragments/layout :: flash}"></div>
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+        <div><h1 class="h3 mb-1">Điểm thưởng UTETra</h1><p class="text-muted mb-0">Theo dõi điểm được cộng khi đơn hoàn tất và điểm thu hồi khi hoàn tiền.</p></div>
+        <a class="btn btn-outline-primary" th:href="@{/user/profile}"><i class="bi bi-arrow-left me-1"></i>Tài khoản của tôi</a>
+    </div>
+    <section class="panel p-4 mb-4" aria-label="Số dư điểm thưởng">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+            <div><span class="text-muted">Điểm hiện có</span><div class="display-5 fw-bold text-primary" th:text="${#numbers.formatInteger(pointBalance, 1, 'COMMA')}">0</div></div>
+            <div class="text-muted">Cứ <strong th:text="${#numbers.formatInteger(vndPerPoint, 1, 'COMMA') + ' ₫'}">10,000 ₫</strong> tiền hàng sau giảm giá = <strong>1 điểm</strong>.<br>Không tính phí vận chuyển; mỗi đơn được làm tròn xuống.</div>
+        </div>
+    </section>
+    <section class="panel p-4">
+        <h2 class="h5 mb-3">Lịch sử cộng/trừ điểm</h2>
+        <div class="account-empty" th:unless="${pointHistory.hasContent()}"><i class="bi bi-stars"></i><strong>Chưa có giao dịch điểm</strong><span>Điểm sẽ được cộng sau khi đơn được giao và thanh toán thành công.</span></div>
+        <div class="table-responsive" th:if="${pointHistory.hasContent()}">
+            <table class="table align-middle mb-0"><thead><tr><th>Thời gian</th><th>Hoạt động</th><th>Đơn hàng</th><th class="text-end">Thay đổi</th></tr></thead>
+                <tbody><tr th:each="entry : ${pointHistory.content}">
+                    <td class="text-nowrap" th:text="${#temporals.format(entry.createdAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</td>
+                    <td th:text="${entry.type.label}">Tích điểm từ đơn đã giao</td>
+                    <td><a th:href="@{/orders/{id}(id=${entry.order.id})}" th:text="${entry.order.code}">UTE0001</a></td>
+                    <td class="text-end fw-bold" th:classappend="${entry.pointsChange > 0} ? ' text-success' : ' text-danger'" th:text="${(entry.pointsChange > 0 ? '+' : '') + entry.pointsChange}">+1</td>
+                </tr></tbody>
+            </table>
+        </div>
+        <nav class="mt-4" th:if="${pointHistory.totalPages > 1}" aria-label="Trang lịch sử điểm"><ul class="pagination justify-content-center mb-0"><li class="page-item" th:classappend="${pointHistory.first} ? ' disabled'"><a class="page-link" th:href="@{/user/loyalty(page=${pointHistory.number - 1})}">Trước</a></li><li class="page-item active"><span class="page-link" th:text="${pointHistory.number + 1}">1</span></li><li class="page-item" th:classappend="${pointHistory.last} ? ' disabled'"><a class="page-link" th:href="@{/user/loyalty(page=${pointHistory.number + 1})}">Sau</a></li></ul></nav>
+    </section>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

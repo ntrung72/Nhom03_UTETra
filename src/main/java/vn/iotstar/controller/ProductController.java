@@ -24,6 +24,8 @@ public class ProductController {
     private final vn.iotstar.service.CurrentUserService currentUserService;
     private final vn.iotstar.service.EngagementService engagementService;
     private final CatalogService catalogService;
+    private final vn.iotstar.service.ShopFollowService shopFollowService;
+    private final vn.iotstar.service.SearchSuggestionService searchSuggestionService;
     private final ProductOptionService productOptionService;
     private final ProductPricingService productPricingService;
     private final ProductGalleryService productGalleryService;
@@ -55,6 +57,7 @@ public class ProductController {
             inStock
         );
 
+        searchSuggestionService.recordSearch(currentUserService.optional().orElse(null), q);
         model.addAttribute("products", products);
         model.addAttribute(
             "promotionPrices",
@@ -71,9 +74,36 @@ public class ProductController {
         model.addAttribute("discounted", discounted);
         model.addAttribute("inStock", inStock);
         model.addAttribute("sort", sort);
+        var filters = new java.util.LinkedHashMap<String, Object>();
+        if (q != null && !q.isBlank()) filters.put("q", q);
+        if (category != null) filters.put("category", category);
+        if (shop != null) filters.put("shop", shop);
+        if (minPrice != null) filters.put("minPrice", minPrice);
+        if (maxPrice != null) filters.put("maxPrice", maxPrice);
+        if (minRating != null) filters.put("minRating", minRating);
+        if (discounted) filters.put("discounted", true);
+        if (inStock) filters.put("inStock", true);
+        var labels = java.util.Map.of("q", "Từ khóa", "category", "Danh mục", "shop", "Cửa hàng",
+            "minPrice", "Giá từ", "maxPrice", "Giá đến", "minRating", "Số sao", "discounted", "Giảm giá", "inStock", "Còn hàng");
+        var chips = new java.util.ArrayList<FilterChip>();
+        filters.forEach((key, value) -> {
+            var link = org.springframework.web.util.UriComponentsBuilder.fromPath("/products");
+            filters.forEach((k, v) -> { if (!k.equals(key)) link.queryParam(k, v); });
+            if (sort != null) link.queryParam("sort", sort);
+            String display = value.toString();
+            if (key.equals("category")) display = catalogService.categories().stream()
+                .filter(c -> c.getId().equals(category)).map(c -> c.getName()).findFirst().orElse(display);
+            if (key.equals("shop")) display = catalogService.shops().stream()
+                .filter(c -> c.getId().equals(shop)).map(c -> c.getName()).findFirst().orElse(display);
+            chips.add(new FilterChip(labels.get(key) + (value instanceof Boolean ? "" : ": " + display),
+                link.build().encode().toUriString()));
+        });
+        model.addAttribute("activeFilters", chips);
 
         return "products/list";
     }
+
+    public record FilterChip(String label, String url) {}
 
     @GetMapping("/products/{id}")
     String detail(@PathVariable Long id, @RequestParam(defaultValue = "0") int reviewPage, Model model) {
@@ -124,6 +154,7 @@ public class ProductController {
         );
 
         model.addAttribute("shop", shop);
+        model.addAttribute("following", shopFollowService.isFollowing(currentUserService.optional().orElse(null), shop.getId()));
         model.addAttribute("products", products);
         model.addAttribute(
             "promotionPrices",

@@ -25,6 +25,7 @@ import vn.iotstar.repository.*;
 @Transactional(readOnly = true)
 public class OrderService {
 	private final vn.iotstar.config.VnPayProperties vnPayProperties;
+	private final vn.iotstar.config.MomoProperties momoProperties;
 
 	@jakarta.persistence.PersistenceContext
 	private jakarta.persistence.EntityManager entityManager;
@@ -46,6 +47,7 @@ public class OrderService {
 	private final MediaValidationService mediaValidationService;
 	private final NotificationService notificationService;
 	private final AuditLogService auditLogService;
+	private final LoyaltyPointService loyaltyPointService;
 
 	public List<Carrier> activeCarriers() {
 		return carrierRepository.findByActiveTrueOrderByShippingFeeAsc();
@@ -69,6 +71,31 @@ public class OrderService {
 
 		return calculate(selection.items(), carrier, voucher).preview();
 	}
+
+    @Transactional
+    public List<VoucherRecommendation> recommendVouchers(User user, Long carrierId, List<Long> itemIds) {
+        var selection = cartService.prepareCheckoutSelection(user, itemIds);
+        var carrier = carrier(carrierId);
+        var baseline = calculate(selection.items(), carrier, null).preview().totalAmount();
+        var result = new ArrayList<VoucherRecommendation>();
+        for (var candidate : availableVouchers(user)) {
+            try {
+                var eligible = voucher(user, candidate.getCode(), selection.subtotal(), false);
+                var amount = calculate(selection.items(), carrier, eligible).preview().totalAmount();
+                result.add(new VoucherRecommendation(candidate.getCode(), candidate.getName(),
+                    baseline.subtract(amount).max(BigDecimal.ZERO), amount, true, null));
+            } catch (IllegalArgumentException ex) {
+                result.add(new VoucherRecommendation(candidate.getCode(), candidate.getName(), BigDecimal.ZERO,
+                    baseline, false, ex.getMessage()));
+            }
+        }
+        result.sort(Comparator.comparing(VoucherRecommendation::eligible).reversed()
+            .thenComparing(VoucherRecommendation::saving, Comparator.reverseOrder())
+            .thenComparing(VoucherRecommendation::code));
+        return List.copyOf(result);
+    }
+    public record VoucherRecommendation(String code, String name, BigDecimal saving,
+                                        BigDecimal totalAmount, boolean eligible, String reason) {}
 
 	@Transactional(noRollbackFor = PriceChangedException.class)
 	public List<CustomerOrder> checkout(User user, CheckoutForm form) {
@@ -111,9 +138,9 @@ public class OrderService {
 					"UTE" + UUID.randomUUID().toString().replace("-", "").substring(0, 29).toUpperCase(Locale.ROOT));
 
 			order.setPaymentMethod(form.getPaymentMethod());
-			if (form.getPaymentMethod() == PaymentMethod.VNPAY)
+			if (form.getPaymentMethod() == PaymentMethod.VNPAY || form.getPaymentMethod() == PaymentMethod.MOMO)
 				order.setPaymentExpiresAt(LocalDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh"))
-						.plusMinutes(vnPayProperties.getExpirationMinutes()));
+						.plusMinutes(form.getPaymentMethod() == PaymentMethod.MOMO ? momoProperties.getExpirationMinutes() : vnPayProperties.getExpirationMinutes()));
 			order.setCheckoutReference(reference);
 			order.setUser(owner);
 			order.setShop(shop);
@@ -151,6 +178,7 @@ public class OrderService {
 				item.setSugarLevel(line.getSugarLevel());
 				item.setIceLevel(line.getIceLevel());
 				item.setToppings(line.getToppings());
+				item.setToppingIds(line.getToppingIds());
 				item.setBasePrice(product.getPrice());
 				item.setOptionPrice(line.getOptionPrice());
 				item.setUnitPrice(line.getUnitPrice());
@@ -167,7 +195,7 @@ public class OrderService {
 				inventoryService.sell(line.getProduct(), line.getQuantity(), owner, order);
 			}
 
-			recordStatus(order, null, OrderStatus.NEW, owner, "Khách hàng đặt đơn COD");
+			recordStatus(order, null, OrderStatus.NEW, owner, "Khách hàng đặt đơn " + form.getPaymentMethod().name());
 
 			created.add(order);
 		}
@@ -474,6 +502,7 @@ public class OrderService {
 		}
 
 		order.setStatus(target);
+		if (refunding) loyaltyPointService.reverseForRefundedOrder(order);
 		recordStatus(order, oldStatus, target, account, historyNote);
 		entityManager.flush();
 	}
@@ -930,6 +959,7 @@ public class OrderService {
 		}
 
 		order.setStatus(target);
+		if (target == OrderStatus.DELIVERED) loyaltyPointService.awardForDeliveredOrder(order);
 		recordStatus(order, old, target, actor, note);
 
 		entityManager.flush();
@@ -948,7 +978,7 @@ public class OrderService {
 	}
 
 	private void requireOnlinePayment(CustomerOrder order) {
-		if (order.getPaymentMethod() == PaymentMethod.VNPAY && order.getPaymentStatus() != PaymentStatus.PAID)
+		if (order.getPaymentMethod() != PaymentMethod.COD && order.getPaymentStatus() != PaymentStatus.PAID)
 			throw new IllegalArgumentException("Đơn VNPay cần thanh toán thành công trước khi xử lý giao hàng.");
 	}
 

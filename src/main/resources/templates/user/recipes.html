@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Công thức yêu thích')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="container pt-3 pt-lg-4 pb-4 pb-lg-5">
+    <div th:replace="~{fragments/layout :: flash}"></div>
+    <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
+        <div>
+            <h1 class="h3 mb-1">Công thức yêu thích</h1>
+            <p class="text-muted mb-0">Lưu lựa chọn của riêng bạn và đặt lại chỉ bằng một lần chạm.</p>
+        </div>
+        <a class="btn btn-outline-primary" th:href="@{/products}"><i class="bi bi-cup-straw me-1"></i>Khám phá sản phẩm</a>
+    </div>
+
+    <div class="row g-3 g-lg-4" th:if="${recipes.hasContent()}">
+        <div class="col-md-6 col-xl-4" th:each="item : ${recipes.content}" th:with="recipe=${item.recipe}">
+            <article class="panel recipe-card h-100">
+                <div class="recipe-card-head">
+                    <img class="recipe-card-image" th:src="${recipe.product.imageUrl != null ? recipe.product.imageUrl : '/images/product-placeholder.svg'}"
+                         th:alt="${recipe.product.name}" loading="lazy">
+                    <div>
+                        <small class="text-muted" th:text="${recipe.product.shop.name}">UTETra</small>
+                        <h2 class="h5 mb-1" th:text="${recipe.name}">Công thức của tôi</h2>
+                        <span class="text-muted small" th:text="${recipe.product.name}">Trà sữa</span>
+                    </div>
+                </div>
+                <div class="recipe-choice-list">
+                    <span class="badge rounded-pill text-bg-light" th:text="|Size ${recipe.sizeCode}|">Size M</span>
+                    <span class="badge rounded-pill text-bg-light" th:text="${recipe.sugarLevel.label}">50% đường</span>
+                    <span class="badge rounded-pill text-bg-light" th:text="${recipe.iceLevel.label}">Ít đá</span>
+                </div>
+                <p class="small text-muted mb-2" th:if="${item.toppingNames != null and !item.toppingNames.isBlank()}"
+                   th:text="|Topping: ${item.toppingNames}|">Topping</p>
+                <p class="small text-muted mb-2" th:unless="${item.toppingNames != null and !item.toppingNames.isBlank()}">Không thêm topping</p>
+                <div class="recipe-current-price" th:if="${item.available}">
+                    <span>Giá cấu hình hiện tại <small>(trước ưu đãi)</small></span>
+                    <strong th:text="${#numbers.formatDecimal(item.currentUnitPrice,0,'COMMA',0,'POINT')} + ' ₫'">45.000 ₫</strong>
+                </div>
+                <div class="alert alert-warning small py-2 mb-3" role="status" th:unless="${item.available}" th:text="${item.issue}">Cấu hình không còn hợp lệ.</div>
+                <form class="d-flex gap-2 align-items-center mt-3" th:if="${item.available}"
+                      th:action="@{/user/recipes/{id}/cart(id=${recipe.id})}" method="post">
+                    <label class="visually-hidden" th:for="|recipeQuantity${recipe.id}|">Số lượng</label>
+                    <input class="form-control recipe-quantity" type="number" name="quantity" min="1" th:max="${recipe.product.stock}"
+                           value="1" th:id="|recipeQuantity${recipe.id}|" required>
+                    <button class="btn btn-primary flex-grow-1" type="submit"><i class="bi bi-bag-plus me-1"></i>Thêm vào giỏ</button>
+                </form>
+                <div class="recipe-actions">
+                    <form class="d-flex gap-2 flex-grow-1" th:action="@{/user/recipes/{id}/rename(id=${recipe.id})}" method="post">
+                        <label class="visually-hidden" th:for="|recipeName${recipe.id}|">Đổi tên công thức</label>
+                        <input class="form-control form-control-sm" type="text" name="name" minlength="2" maxlength="80"
+                               th:value="${recipe.name}" th:id="|recipeName${recipe.id}|" required>
+                        <button class="btn btn-sm btn-outline-primary" type="submit" title="Lưu tên mới" aria-label="Lưu tên mới"><i class="bi bi-check-lg"></i></button>
+                    </form>
+                    <form class="confirm-form" data-confirm="Xóa công thức này?" th:action="@{/user/recipes/{id}/delete(id=${recipe.id})}" method="post">
+                        <button class="btn btn-sm btn-outline-danger" type="submit" title="Xóa công thức" aria-label="Xóa công thức"><i class="bi bi-trash"></i></button>
+                    </form>
+                </div>
+            </article>
+        </div>
+    </div>
+    <div class="panel empty-state" th:if="${recipes.empty}">
+        <i class="bi bi-bookmark-heart fs-1"></i>
+        <h2 class="h5">Bạn chưa lưu công thức nào</h2>
+        <p>Chọn một ly trà sữa, tùy chỉnh size, đường, đá và topping rồi bấm “Lưu công thức”.</p>
+        <a class="btn btn-primary" th:href="@{/products}">Chọn món đầu tiên</a>
+    </div>
+    <nav class="d-flex justify-content-center gap-2 mt-4" th:if="${recipes.totalPages > 1}" aria-label="Phân trang công thức">
+        <a class="btn btn-outline-primary" th:classappend="${recipes.first} ? 'disabled'"
+           th:href="@{/user/recipes(page=${recipes.number - 1})}">Trước</a>
+        <span class="btn btn-light" th:text="|Trang ${recipes.number + 1}/${recipes.totalPages}|">Trang 1/1</span>
+        <a class="btn btn-outline-primary" th:classappend="${recipes.last} ? 'disabled'"
+           th:href="@{/user/recipes(page=${recipes.number + 1})}">Sau</a>
+    </nav>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>
