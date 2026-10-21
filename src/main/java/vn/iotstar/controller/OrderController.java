@@ -28,6 +28,7 @@ public class OrderController {
     private final vn.iotstar.service.EngagementService engagementService;
     private final vn.iotstar.service.CheckoutPaymentService checkoutPaymentService;
     private final vn.iotstar.service.VnPayService vnPayService;
+    private final vn.iotstar.service.ReorderService reorderService;
 
     @GetMapping("/checkout")
     String checkout(@ModelAttribute("checkoutForm") CheckoutForm form, BindingResult result,
@@ -101,6 +102,18 @@ public class OrderController {
         model.addAttribute("paymentNeedsReconciliation", vnPayService.needsReconciliation(user, id));
         model.addAttribute("vnPayAvailable", vnPayService.isConfigured());
         return "orders/detail";
+    }
+
+    @PostMapping("/orders/{id}/reorder")
+    String reorder(@PathVariable Long id, RedirectAttributes redirect) {
+        try {
+            var result = reorderService.reorder(currentUserService.require(), id);
+            if (result.addedLines() > 0) redirect.addFlashAttribute("success", "Đã thêm " + result.addedLines() + " món vào giỏ với giá hiện tại.");
+            if (!result.skipped().isEmpty()) redirect.addFlashAttribute("error", String.join("; ", result.skipped()));
+            return "redirect:/cart";
+        } catch (IllegalArgumentException ex) {
+            redirect.addFlashAttribute("error", ex.getMessage()); return "redirect:/orders/" + id;
+        }
     }
 
     @PostMapping("/orders/{id}/cancel")

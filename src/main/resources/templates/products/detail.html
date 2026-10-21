@@ -191,6 +191,9 @@
 						th:if="${currentUser != null and (currentUser.role.name() == 'USER' or currentUser.role.name() == 'VENDOR')}"
 						th:disabled="${!product.available or (!toppingProduct and #lists.isEmpty(sizes))}">
 						Thêm vào giỏ hàng</button>
+                    <button class="btn btn-outline-primary mt-3" type="submit" formnovalidate
+                        th:if="${currentUser != null and (currentUser.role.name() == 'USER' or currentUser.role.name() == 'VENDOR')}"
+                        th:formaction="@{/user/recipes/from-product/{id}(id=${product.id})}">Lưu công thức</button>
 
 					<a class="btn btn-outline-primary mt-3"
 						th:if="${currentUser == null}" th:href="@{/login}"> Đăng nhập

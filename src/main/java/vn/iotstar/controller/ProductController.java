@@ -24,6 +24,7 @@ public class ProductController {
     private final vn.iotstar.service.CurrentUserService currentUserService;
     private final vn.iotstar.service.EngagementService engagementService;
     private final CatalogService catalogService;
+    private final vn.iotstar.service.ShopFollowService shopFollowService;
     private final vn.iotstar.service.SearchSuggestionService searchSuggestionService;
     private final ProductOptionService productOptionService;
     private final ProductPricingService productPricingService;
@@ -153,6 +154,7 @@ public class ProductController {
         );
 
         model.addAttribute("shop", shop);
+        model.addAttribute("following", shopFollowService.isFollowing(currentUserService.optional().orElse(null), shop.getId()));
         model.addAttribute("products", products);
         model.addAttribute(
             "promotionPrices",

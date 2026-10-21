@@ -2356,3 +2356,5 @@ main.container>form.row, main.container>form.my-3, main.container>form.mb-3
 .search-hints .history-row button {width:auto;flex:0 0 auto;}
 @media(max-width:991px){.catalog-layout{grid-template-columns:220px minmax(0,1fr);gap:1rem;}}
 @media(max-width:767px){.catalog-layout{grid-template-columns:minmax(0,1fr);}.catalog-filter{position:static;}.discovery-hero{padding:1.5rem 0;}}
+
+.recipe-card-head{display:flex;gap:1rem;align-items:center;margin-bottom:1rem;}.recipe-card-image{width:72px;height:72px;object-fit:cover;border-radius:.75rem;}.recipe-choice-list,.recipe-actions{display:flex;gap:.5rem;flex-wrap:wrap;margin:1rem 0;}.followed-shop-card{border:1px solid #ddd;border-radius:1rem;overflow:hidden;background:white;}.followed-shop-cover{height:150px;background:#edf4ed;display:grid;place-items:center;font-size:3rem;}.followed-shop-cover img{width:100%;height:100%;object-fit:cover;}.followed-shop-body{padding:1.25rem;}

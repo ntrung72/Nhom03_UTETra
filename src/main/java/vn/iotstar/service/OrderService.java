@@ -151,6 +151,7 @@ public class OrderService {
 				item.setSugarLevel(line.getSugarLevel());
 				item.setIceLevel(line.getIceLevel());
 				item.setToppings(line.getToppings());
+				item.setToppingIds(line.getToppingIds());
 				item.setBasePrice(product.getPrice());
 				item.setOptionPrice(line.getOptionPrice());
 				item.setUnitPrice(line.getUnitPrice());

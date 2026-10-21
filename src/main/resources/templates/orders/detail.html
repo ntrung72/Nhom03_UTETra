@@ -4,6 +4,10 @@
 <body>
 <header th:replace="~{fragments/layout :: header}"></header>
 <main class="container py-4 py-lg-5">
+    <form class="mb-3" th:action="@{/orders/{id}/reorder(id=${order.id})}" method="post">
+        <button class="btn btn-outline-primary">Mua lại với giá hiện tại</button>
+    </form>
+
     <div th:replace="~{fragments/layout :: flash}"></div>
     <a class="btn btn-light mb-3" th:href="@{/orders}"><i class="bi bi-arrow-left me-1"></i>Đơn mua</a>
     <div class="d-flex flex-wrap justify-content-between gap-2 mb-4">
