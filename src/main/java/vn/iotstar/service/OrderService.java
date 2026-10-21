@@ -194,6 +194,23 @@ public class OrderService {
 		return orderRepository.findForUser(user.getId(), status, orderPage(page));
 	}
 
+	/** Scope-limited evidence read (customer, owner, assigned shipper, scoped manager, admin). */
+	@Transactional(readOnly = true)
+	public CustomerOrder getForEvidence(User actor, Long id) {
+		CustomerOrder order = orderRepository.findById(id)
+			.orElseThrow(() -> new IllegalArgumentException("Không tìm thấy bằng chứng."));
+		boolean allowed = switch (actor.getRole()) {
+			case USER -> order.getUser().getId().equals(actor.getId());
+			case VENDOR -> order.getUser().getId().equals(actor.getId())
+				|| order.getShop().getOwner().getId().equals(actor.getId());
+			case SHIPPER -> order.getShipper() != null && order.getShipper().getId().equals(actor.getId());
+			case ADMIN -> true;
+			case MANAGER -> managerShopRepository.existsByManagerIdAndShopId(actor.getId(), order.getShop().getId());
+		};
+		if (!allowed) throw new IllegalArgumentException("Không tìm thấy bằng chứng.");
+		return order;
+	}
+
 	public CustomerOrder getForUser(User user, Long id) {
 		return orderRepository.findByIdAndUserId(id, user.getId()).orElseThrow(
 				() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy đơn hàng của bạn."));

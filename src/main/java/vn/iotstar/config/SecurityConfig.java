@@ -50,8 +50,22 @@ public class SecurityConfig {
         return configuration.getAuthenticationManager();
     }
 
+    /** Browser session is used for realtime preview; JWT API remains stateless. */
     @Bean
     @Order(1)
+    SecurityFilterChain browserNotificationApiFilterChain(HttpSecurity http,
+                                                           AuthenticationProvider authenticationProvider) throws Exception {
+        http.securityMatcher("/api/notifications/**")
+            .authenticationProvider(authenticationProvider)
+            .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+            .exceptionHandling(exceptions -> exceptions
+                .authenticationEntryPoint((req, resp, ex) -> resp.sendError(HttpServletResponse.SC_UNAUTHORIZED))
+                .accessDeniedHandler((req, resp, ex) -> resp.sendError(HttpServletResponse.SC_FORBIDDEN)));
+        return http.build();
+    }
+
+    @Bean
+    @Order(2)
     SecurityFilterChain apiSecurityFilterChain(HttpSecurity http,
                                                AuthenticationProvider authenticationProvider) throws Exception {
         http.securityMatcher("/api/**")
@@ -74,17 +88,21 @@ public class SecurityConfig {
     }
 
     @Bean
-    @Order(2)
+    @Order(3)
     SecurityFilterChain securityFilterChain(HttpSecurity http,
                                             AuthenticationProvider authenticationProvider,
                                             @Value("${app.remember-me.key}") String rememberMeKey) throws Exception {
         http
             .authenticationProvider(authenticationProvider)
             .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/uploads/returns/**", "/uploads/delivery-proofs/**").denyAll()
                 .requestMatchers("/", "/products/**", "/shops/**", "/login", "/register", "/verify-account",
                     "/resend-otp", "/forgot-password", "/reset-password", "/css/**", "/js/**", "/images/**",
-                    "/uploads/**", "/error", "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs", "/v3/api-docs/**").permitAll()
+                    "/uploads/avatars/**", "/uploads/products/**", "/uploads/shops/**",
+                    "/uploads/categories/**", "/uploads/reviews/**", "/error", "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs", "/v3/api-docs/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/payments/vnpay/return", "/payments/vnpay/ipn").permitAll()
+                .requestMatchers(HttpMethod.GET, "/private-media/**")
+                    .hasAnyRole("USER", "VENDOR", "SHIPPER", "MANAGER", "ADMIN")
                 .requestMatchers("/vendor/register").hasAnyRole("USER", "VENDOR")
                 .requestMatchers("/vendor/**").hasRole("VENDOR")
                 .requestMatchers("/management/managers", "/management/managers/**", "/management/vouchers", "/management/vouchers/**").hasRole("ADMIN")
@@ -123,7 +141,7 @@ public class SecurityConfig {
     	    response.sendError(HttpServletResponse.SC_FORBIDDEN);
     	    return;
     	}
-    	if (isApiRequest(request)) {
+    	if (isApiRequest(request) || isProtectedMediaRequest(request)) {
             response.sendError(HttpServletResponse.SC_FORBIDDEN);
             return;
         }
@@ -137,7 +155,7 @@ public class SecurityConfig {
 
     private void redirectUnauthenticated(HttpServletRequest request, HttpServletResponse response,
                                          org.springframework.security.core.AuthenticationException exception) throws IOException {
-        if (isApiRequest(request)) {
+        if (isApiRequest(request) || isProtectedMediaRequest(request)) {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
             return;
         }
@@ -206,6 +224,13 @@ public class SecurityConfig {
                 .anyMatch(authority -> authority.getAuthority().equals("ROLE_" + role))) return true;
         }
         return false;
+    }
+
+    private boolean isProtectedMediaRequest(HttpServletRequest request) {
+        String path = withoutContextPath(request, request.getRequestURI());
+        return matchesArea(path, "/private-media")
+            || matchesArea(path, "/uploads/returns")
+            || matchesArea(path, "/uploads/delivery-proofs");
     }
 
     private boolean isApiRequest(HttpServletRequest request) {

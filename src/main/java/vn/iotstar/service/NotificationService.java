@@ -1,6 +1,8 @@
 package vn.iotstar.service;
 
 import java.util.Map;
+import java.util.List;
+import java.time.format.DateTimeFormatter;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,6 +23,7 @@ import vn.iotstar.repository.NotificationRepository;
 @RequiredArgsConstructor
 public class NotificationService {
     private static final Logger LOG = LoggerFactory.getLogger(NotificationService.class);
+    private static final DateTimeFormatter PREVIEW_TIME = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
     private final NotificationRepository notificationRepository;
     private final SimpMessagingTemplate messagingTemplate;
 
@@ -32,8 +35,11 @@ public class NotificationService {
         notification.setMessage(message);
         notification.setLink(link);
         notificationRepository.save(notification);
-        publishAfterCommit(user.getUsername(), "/queue/notifications", Map.of(
-            "title", title, "message", message, "link", link == null ? "" : link));
+        Long id = notification.getId();
+        publishAfterCommit(user.getUsername(), "/queue/notifications", () -> Map.of(
+            "id", id, "title", title, "message", message,
+            "link", safeLink(link),
+            "unreadCount", notificationRepository.countByUserIdAndReadFalse(user.getId())));
     }
 
     public void sendOrderStatus(User user, OrderStatusHistory history) {
@@ -46,13 +52,14 @@ public class NotificationService {
             "changedBy", history.getChangedBy().getFullName(),
             "note", history.getNote() == null ? "" : history.getNote()
         );
-        publishAfterCommit(user.getUsername(), "/queue/order-status", payload);
+        publishAfterCommit(user.getUsername(), "/queue/order-status", () -> payload);
     }
 
-    private void publishAfterCommit(String username, String destination, Object payload) {
+    private void publishAfterCommit(String username, String destination,
+                                    java.util.function.Supplier<Object> payload) {
         Runnable publish = () -> {
             try {
-                messagingTemplate.convertAndSendToUser(username, destination, payload);
+                messagingTemplate.convertAndSendToUser(username, destination, payload.get());
             } catch (RuntimeException ex) {
                 // A realtime transport failure must not roll back an already committed order.
                 LOG.warn("WebSocket delivery failed for {}", username, ex);
@@ -74,6 +81,24 @@ public class NotificationService {
             user.getId(), PageRequest.of(Math.max(0, page), 20,
                 org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "id")));
     }
+
+    @Transactional(readOnly = true)
+    public List<NotificationPreview> recent(User user) {
+        return notificationRepository.findByUserIdOrderByCreatedAtDesc(user.getId(), PageRequest.of(0, 5))
+            .getContent().stream()
+            .map(n -> new NotificationPreview(n.getId(), n.getTitle(), n.getMessage(),
+                safeLink(n.getLink()), n.getCreatedAt().format(PREVIEW_TIME), n.isRead()))
+            .toList();
+    }
+
+    private String safeLink(String link) {
+        return link != null && link.startsWith("/") && !link.startsWith("//")
+            && !link.contains("\\") && !link.contains("\r") && !link.contains("\n")
+            ? link : "/user/notifications";
+    }
+
+    public record NotificationPreview(Long id, String title, String message,
+                                      String link, String createdAt, boolean read) {}
 
     @Transactional(readOnly = true)
     public long unreadCount(User user) {

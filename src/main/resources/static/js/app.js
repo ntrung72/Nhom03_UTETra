@@ -87,58 +87,147 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
-// Step 22: UTETra STOMP notifications. A user subscribes only to their own queues.
+// Step 37: synchronized browser notification preview, realtime reconnection and server-side unread count.
 document.addEventListener('DOMContentLoaded', () => {
     const toastEl = document.getElementById('live-notification');
     if (!toastEl || !window.SockJS || !window.Stomp) return;
-    try {
-        const client = Stomp.over(new SockJS('/ws'));
-        client.debug = () => {};
-        client.connect({}, () => {
-            client.subscribe('/user/queue/notifications', frame => {
-                const data = JSON.parse(frame.body);
-                const title = toastEl.querySelector('.toast-header strong');
-                const message = toastEl.querySelector('.toast-body');
-                if (title) title.textContent = data.title || 'UTETra';
-                if (message) message.textContent = data.message || 'Bạn có thông báo mới.';
-                window.bootstrap?.Toast.getOrCreateInstance(toastEl).show();
-                let badge = document.querySelector('[data-unread-notifications]');
-                if (!badge) {
-                    const button = document.querySelector('.navbar-user-button');
-                    if (button) {
-                        badge = document.createElement('span');
-                        badge.className = 'badge bg-danger ms-1';
-                        badge.dataset.unreadNotifications = '';
-                        button.appendChild(badge);
-                        badge.textContent = '0';
-                    }
-                }
-                if (badge) badge.textContent = String((Number(badge.textContent) || 0) + 1);
-            });
-            client.subscribe('/user/queue/order-status', frame => {
-                const data = JSON.parse(frame.body);
-                // Bước 22 chỉ dùng DOM hiện có của TV1, không thay template orders/detail.html.
-                const match = window.location.pathname.match(/^\/orders\/(\d+)\/?$/);
-                if (!match || String(data.orderId) !== match[1]) return;
-                const historyHeading = Array.from(document.querySelectorAll('h2')).find(el => el.textContent.includes('Lịch sử trạng thái'));
-                const timeline = historyHeading?.parentElement?.querySelector('ol');
-                if (!timeline) return;
-                const item = document.createElement('li');
-                item.className = 'border-start border-primary ps-3 py-2';
-                const label = document.createElement('strong'); label.textContent = data.label || data.status;
-                const time = document.createElement('time');
-                time.className = 'd-block small text-muted';
-                time.textContent = data.changedAt || '';
-                const meta = document.createElement('span'); meta.className = 'small d-block';
-                meta.textContent = (data.changedBy || '') + (data.note ? ' · ' + data.note : '');
-                item.append(label, time, meta); timeline.appendChild(item);
-            });
-        }, () => { /* Trang vẫn hoạt động bình thường khi mất kết nối realtime. */ });
-    } catch (error) {
-        console.debug('WebSocket chưa sẵn sàng', error);
-    }
-});
+    const preview = document.querySelector('[data-nav-notifications]');
+    const notificationList = document.querySelector('[data-nav-notification-list]');
+    let retryDelay = 1000;
+    let retryTimer = null;
+    let activeClient = null;
+    let stopped = false;
 
+    function showCount(count) {
+        let badge = document.querySelector('[data-unread-notifications]');
+        const number = Math.max(0, Number(count) || 0);
+        if (!badge && number > 0) {
+            const button = document.querySelector('.navbar-user-button');
+            if (button) {
+                badge = document.createElement('span');
+                badge.className = 'badge bg-danger ms-1';
+                badge.dataset.unreadNotifications = '';
+                button.appendChild(badge);
+            }
+        }
+        if (badge) {
+            badge.textContent = String(number);
+            badge.hidden = number === 0;
+        }
+    }
+    function refreshUnread() {
+        fetch('/api/notifications/unread-count', {credentials: 'same-origin', cache: 'no-store'})
+            .then(resp => resp.ok ? resp.json() : Promise.reject(resp.status))
+            .then(data => showCount(data.count))
+            .catch(() => {});
+    }
+    function safeLink(url) {
+        return typeof url === 'string' && url.startsWith('/') && !url.startsWith('//')
+            && !/[\\\r\n]/.test(url) ? url : '/user/notifications';
+    }
+    function refreshPreview() {
+        if (!preview || !notificationList) return;
+        const url = preview.dataset.previewUrl;
+        fetch(url, {credentials: 'same-origin', cache: 'no-store'})
+            .then(resp => resp.ok ? resp.json() : Promise.reject(resp.status))
+            .then(items => {
+                notificationList.replaceChildren();
+                if (!items.length) {
+                    const li = document.createElement('li');
+                    li.className = 'text-muted';
+                    li.textContent = 'Chưa có thông báo';
+                    notificationList.appendChild(li);
+                    return;
+                }
+                items.forEach(item => {
+                    const li = document.createElement('li');
+                    li.className = 'border-bottom py-1';
+                    const link = document.createElement('a');
+                    link.className = 'd-block text-decoration-none text-body';
+                    link.href = safeLink(item.link);
+                    const strong = document.createElement('strong');
+                    strong.textContent = item.title || 'Thông báo';
+                    link.append(strong, document.createTextNode(' · ' + (item.message || '')));
+                    li.appendChild(link);
+                    notificationList.appendChild(li);
+                });
+            }).catch(() => {});
+    }
+    function showToast(data) {
+        const title = toastEl.querySelector('.toast-header strong');
+        const message = toastEl.querySelector('.toast-body');
+        if (title) title.textContent = data.title || 'UTETra';
+        if (message) message.textContent = data.message || 'Bạn có thông báo mới.';
+        window.bootstrap?.Toast.getOrCreateInstance(toastEl).show();
+    }
+    function appendOrderStatus(data) {
+        const match = window.location.pathname.match(/^\/orders\/(\d+)\/?$/);
+        if (!match || String(data.orderId) !== match[1]) return;
+        const historyHeading = Array.from(document.querySelectorAll('h2'))
+            .find(el => el.textContent.includes('Lịch sử trạng thái'));
+        const timeline = historyHeading?.parentElement?.querySelector('ol');
+        if (!timeline) return;
+        const item = document.createElement('li');
+        item.className = 'border-start border-primary ps-3 py-2';
+        const label = document.createElement('strong');
+        label.textContent = data.label || data.status;
+        const time = document.createElement('time');
+        time.className = 'd-block small text-muted';
+        time.textContent = data.changedAt || '';
+        const meta = document.createElement('span');
+        meta.className = 'small d-block';
+        meta.textContent = (data.changedBy || '') + (data.note ? ' · ' + data.note : '');
+        item.append(label, time, meta);
+        timeline.appendChild(item);
+    }
+    function reconnect() {
+        if (stopped || retryTimer) return;
+        retryTimer = setTimeout(() => {
+            retryTimer = null;
+            connect();
+        }, retryDelay);
+        retryDelay = Math.min(retryDelay * 2, 30000);
+    }
+    function connect() {
+        if (stopped || document.visibilityState === 'hidden') return;
+        try {
+            const client = window.Stomp.over(new window.SockJS('/ws'));
+            activeClient = client;
+            client.debug = () => {};
+            client.connect({}, () => {
+                if (activeClient !== client) return;
+                retryDelay = 1000;
+                refreshUnread();
+                refreshPreview();
+                client.subscribe('/user/queue/notifications', frame => {
+                    if (activeClient !== client) return;
+                    try {
+                        const data = JSON.parse(frame.body);
+                        showToast(data);
+                        refreshUnread();
+                        refreshPreview();
+                    } catch (_) {}
+                });
+                client.subscribe('/user/queue/order-status', frame => {
+                    try { appendOrderStatus(JSON.parse(frame.body)); } catch (_) {}
+                });
+            }, () => {
+                if (activeClient === client) { activeClient = null; reconnect(); }
+            });
+        } catch (_) { reconnect(); }
+    }
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            refreshUnread();
+            refreshPreview();
+            if (!activeClient || !activeClient.connected) reconnect();
+        }
+    });
+    window.addEventListener('beforeunload', () => { stopped = true; if (retryTimer) clearTimeout(retryTimer); });
+    refreshUnread();
+    refreshPreview();
+    connect();
+});
 
 
 document.addEventListener('DOMContentLoaded', () => {

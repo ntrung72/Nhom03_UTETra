@@ -40,7 +40,7 @@
                     <span th:text="${o.status.label}"></span>
                     <div class="text-danger small mt-1" th:if="${o.status.name() == 'DELIVERY_FAILED'}" th:text="${o.failureReason}"></div>
                     <a class="small" target="_blank" rel="noopener" th:if="${o.status.name() == 'DELIVERY_FAILED' and o.deliveryProofUrl != null}"
-                       th:href="${o.deliveryProofUrl}"><i class="bi bi-image"></i> Bằng chứng</a>
+                       th:href="@{/private-media/orders/{id}/delivery-proof(id=${o.id})}"><i class="bi bi-image"></i> Bằng chứng</a>
                 </td>
                 <td>
                     <form class="d-flex" th:if="${assignableOrders[o.id]}" th:action="@{/management/orders/{id}/assign(id=${o.id})}" method="post">
