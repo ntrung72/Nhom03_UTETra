@@ -2,15 +2,14 @@ package vn.iotstar;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.when;
 
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
@@ -25,27 +24,27 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
-import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.web.multipart.MultipartFile;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 import vn.iotstar.config.CommissionSnapshotBackfill;
 import vn.iotstar.dto.WebForms.ReturnRequestForm;
 import vn.iotstar.entity.CustomerOrder;
 import vn.iotstar.entity.DomainEnums.OrderStatus;
 import vn.iotstar.entity.DomainEnums.PaymentStatus;
-import vn.iotstar.entity.DomainEnums.Role;
 import vn.iotstar.entity.DomainEnums.ReturnReason;
 import vn.iotstar.entity.DomainEnums.ReturnStatus;
+import vn.iotstar.entity.DomainEnums.Role;
 import vn.iotstar.entity.OrderItem;
 import vn.iotstar.entity.Product;
 import vn.iotstar.entity.Shop;
 import vn.iotstar.service.DashboardService;
-import vn.iotstar.service.RevenueReportService;
 import vn.iotstar.service.MediaStorageService;
 import vn.iotstar.service.ReturnRequestService;
+import vn.iotstar.service.RevenueReportService;
+import vn.iotstar.support.MediaTestFiles;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -54,13 +53,16 @@ class VendorRevenueTests extends CheckoutTestFixtures {
 
 	@Autowired
 	DashboardService dashboards;
+
 	@Autowired
 	RevenueReportService reports;
+
 	@Autowired
 	CommissionSnapshotBackfill backfill;
 
 	@Autowired
 	ReturnRequestService returns;
+
 	@Autowired
 	EntityManager entityManager;
 
@@ -75,8 +77,10 @@ class VendorRevenueTests extends CheckoutTestFixtures {
 		other.setEnabled(true);
 		other.setLocked(false);
 		users.saveAndFlush(other);
+
 		tea.getShop().setCommissionRate(money("10"));
 		shops.saveAndFlush(tea.getShop());
+
 		today = LocalDate.now();
 	}
 
@@ -101,12 +105,14 @@ class VendorRevenueTests extends CheckoutTestFixtures {
 		order.setProductDiscount(BigDecimal.ZERO);
 		order.setVoucherDiscount(BigDecimal.ZERO);
 		order.snapshotCommission(money("7.5"));
+
 		assertMoney("7.50", order.getCommissionAmount());
 		assertMoney("92.55", order.getSellerRevenue());
 
 		order.snapshotCommission(money("150"));
 		assertMoney("100", order.getCommissionRate());
 		assertMoney("0", order.getSellerRevenue());
+
 		order.snapshotCommission(money("-1"));
 		assertMoney("0", order.getCommissionAmount());
 
@@ -119,12 +125,14 @@ class VendorRevenueTests extends CheckoutTestFixtures {
 	@Test
 	void checkoutCapturesRateAndLaterShopChangeDoesNotRewriteOrderRevenue() {
 		var order = orders.checkout(customer, form(add(tea, medium, 2).getId())).getFirst();
+
 		assertMoney("70000", order.getCommissionBase());
 		assertMoney("7000", order.getPlatformRevenue());
 		assertMoney("63000", order.getSellerRevenue());
 
 		tea.getShop().setCommissionRate(money("25"));
 		shops.saveAndFlush(tea.getShop());
+
 		order.setStatus(OrderStatus.DELIVERED);
 		order.setPaymentStatus(PaymentStatus.PAID);
 		order.setDeliveredAt(today.atTime(10, 0));
@@ -140,20 +148,25 @@ class VendorRevenueTests extends CheckoutTestFixtures {
 	void backfillPreservesSavedRateAndDoesNotRecalculateCompletedSnapshot() {
 		var order = saveOrder("LEGACY-RATE", tea.getShop(), OrderStatus.DELIVERED, PaymentStatus.PAID,
 				today.atTime(10, 0));
+
 		order.setCommissionRate(money("5"));
 		clearSnapshotAmounts(order);
+
 		tea.getShop().setCommissionRate(money("25"));
 		shops.saveAndFlush(tea.getShop());
 		orderRepository.saveAndFlush(order);
 
 		backfill.run(null);
+
 		assertMoney("5", order.getCommissionRate());
 		assertMoney("4250", order.getPlatformRevenue());
 		assertMoney("80750", order.getSellerRevenue());
 
 		tea.getShop().setCommissionRate(money("30"));
 		shops.saveAndFlush(tea.getShop());
+
 		backfill.run(null);
+
 		assertMoney("4250", order.getPlatformRevenue());
 		assertMoney("80750", order.getSellerRevenue());
 	}
@@ -162,11 +175,13 @@ class VendorRevenueTests extends CheckoutTestFixtures {
 	void backfillUsesShopRateWhenLegacyOrderHasNoSavedRate() {
 		var order = saveOrder("LEGACY-NO-RATE", tea.getShop(), OrderStatus.DELIVERED, PaymentStatus.PAID,
 				today.atTime(10, 0));
+
 		order.setCommissionRate(null);
 		clearSnapshotAmounts(order);
 		orderRepository.saveAndFlush(order);
 
 		backfill.run(null);
+
 		assertMoney("10", order.getCommissionRate());
 		assertMoney("8500", order.getPlatformRevenue());
 		assertMoney("76500", order.getSellerRevenue());
@@ -177,26 +192,35 @@ class VendorRevenueTests extends CheckoutTestFixtures {
 		var paid = saveOrder("DASH-PAID", tea.getShop(), OrderStatus.DELIVERED, PaymentStatus.PAID,
 				today.atTime(10, 0));
 		addLine(paid, tea, 2, "90000");
+
 		var unpaid = saveOrder("DASH-UNPAID", tea.getShop(), OrderStatus.DELIVERED, PaymentStatus.UNPAID,
 				today.atTime(11, 0));
 		addLine(unpaid, tea, 50, "999999");
+
 		saveOrder("DASH-NEW", tea.getShop(), OrderStatus.NEW, PaymentStatus.PAID, today.atTime(12, 0));
+
 		saveOrder("DASH-CANCEL", tea.getShop(), OrderStatus.CANCELLED, PaymentStatus.PAID, today.atTime(13, 0));
+
 		saveOrder("DASH-REFUND", tea.getShop(), OrderStatus.RETURNED_REFUNDED, PaymentStatus.REFUNDED,
 				today.atTime(14, 0));
+
 		saveOrder("DASH-FOREIGN", secondShopProduct().getShop(), OrderStatus.DELIVERED, PaymentStatus.PAID,
 				today.atTime(15, 0));
 
 		var data = dashboards.forVendor(tea.getShop());
+
 		assertMoney("76500", data.periodRevenue());
 		assertMoney("102000", data.periodGross());
 		assertMoney("8500", data.periodCommission());
 		assertMoney("76500", data.sellerSeries().stream().reduce(BigDecimal.ZERO, BigDecimal::add));
+
 		assertThat(data.periodOrderCount()).isEqualTo(5);
 		assertThat(data.deliveredPeriodCount()).isEqualTo(2);
 		assertThat(data.newCount()).isEqualTo(1);
 		assertThat(data.returnPeriodCount()).isEqualTo(1);
+
 		assertThat(data.statusValues().stream().mapToLong(Long::longValue).sum()).isEqualTo(5);
+
 		assertThat(data.topProducts()).hasSize(1);
 		assertThat(data.topProducts().getFirst().quantity()).isEqualTo(2);
 		assertMoney("90000", data.topProducts().getFirst().revenue());
@@ -206,22 +230,31 @@ class VendorRevenueTests extends CheckoutTestFixtures {
 	@Test
 	void dateSelectionUsesDeliveryDateAndIncludesBothSelectedDays() {
 		var range = dashboards.range("7", null, null);
+
 		var atStart = saveOrder("DATE-START", tea.getShop(), OrderStatus.DELIVERED, PaymentStatus.PAID,
 				range.from().atStartOfDay());
+
 		atStart.setCreatedAt(today.minusDays(60).atTime(9, 0));
 		orderRepository.saveAndFlush(atStart);
+
 		saveOrder("DATE-END", tea.getShop(), OrderStatus.DELIVERED, PaymentStatus.PAID, today.atTime(23, 59, 59));
+
 		saveOrder("DATE-BEFORE", tea.getShop(), OrderStatus.DELIVERED, PaymentStatus.PAID,
 				range.from().atStartOfDay().minusNanos(1_000_000_000));
+
 		saveOrder("DATE-AFTER", tea.getShop(), OrderStatus.DELIVERED, PaymentStatus.PAID,
 				today.plusDays(1).atStartOfDay());
 
 		var data = dashboards.forVendor(tea.getShop(), range);
+
 		assertThat(data.dateLabels()).hasSize(7);
 		assertMoney("153000", data.periodRevenue());
+
 		var report = reports.report(other, reports.filter(range.from(), today, null, null));
+
 		assertThat(report.rows()).extracting(RevenueReportService.Row::code).containsExactlyInAnyOrder("DATE-START",
 				"DATE-END");
+
 		assertMoney("153000", report.totals().sellerRevenue());
 	}
 
@@ -229,12 +262,18 @@ class VendorRevenueTests extends CheckoutTestFixtures {
 	void dashboardPresetsAndCustomRangeHaveInclusiveDates() {
 		for (int days : List.of(7, 30, 90)) {
 			var range = dashboards.range(Integer.toString(days), null, null);
+
 			assertThat(range.from()).isEqualTo(today.minusDays(days - 1));
+
 			assertThat(range.to()).isEqualTo(today);
+
 			assertThat(dashboards.forVendor(tea.getShop(), range).dateLabels()).hasSize(days);
 		}
+
 		var custom = dashboards.range("custom", today.minusDays(9), today.minusDays(5));
+
 		assertThat(dashboards.forVendor(tea.getShop(), custom).dateLabels()).hasSize(5);
+
 		assertThat(dashboards.range(null, null, null).preset()).isEqualTo("30");
 	}
 
@@ -253,6 +292,7 @@ class VendorRevenueTests extends CheckoutTestFixtures {
 	void lowStockIsSortedLimitedAndDoesNotIncludeAnotherShop() {
 		tea.setStock(50);
 		products.saveAndFlush(tea);
+
 		for (int stock = 10; stock >= 1; stock--) {
 			var product = new Product();
 			product.setShop(tea.getShop());
@@ -263,32 +303,44 @@ class VendorRevenueTests extends CheckoutTestFixtures {
 			product.setSku(UUID.randomUUID().toString());
 			product.setPrice(money("10000"));
 			product.setStock(stock);
+
 			products.saveAndFlush(product);
 		}
+
 		var foreign = secondShopProduct();
 		foreign.setStock(0);
 		products.saveAndFlush(foreign);
 
 		var lowStock = dashboards.forVendor(tea.getShop()).lowStockProducts();
+
 		assertThat(lowStock).hasSize(8);
+
 		assertThat(lowStock).extracting(DashboardService.LowStockProduct::stock).containsExactly(1, 2, 3, 4, 5, 6, 7,
 				8);
+
 		assertThat(lowStock).extracting(DashboardService.LowStockProduct::id).doesNotContain(foreign.getId());
+
 		assertThat(products.countByShopId(tea.getShop().getId())).isEqualTo(11);
 	}
 
 	@Test
 	void reportTotalsExcludeUnrecognizedRevenueAndExposeDiscountBreakdown() {
 		saveOrder("REPORT-PAID", tea.getShop(), OrderStatus.DELIVERED, PaymentStatus.PAID, today.atTime(10, 0));
+
 		saveOrder("REPORT-UNPAID", tea.getShop(), OrderStatus.DELIVERED, PaymentStatus.UNPAID, today.atTime(11, 0));
+
 		saveOrder("REPORT-NEW", tea.getShop(), OrderStatus.NEW, PaymentStatus.PAID, today.atTime(12, 0));
+
 		saveOrder("REPORT-FOREIGN", secondShopProduct().getShop(), OrderStatus.DELIVERED, PaymentStatus.PAID,
 				today.atTime(13, 0));
 
 		var delivered = reports.report(other, reports.filter(null, null, null, null));
+
 		assertThat(delivered.rows()).hasSize(2);
 		assertThat(delivered.totals().recognizedCount()).isEqualTo(1);
+
 		var all = reports.report(other, reports.filter(null, null, null, "ALL"));
+
 		assertThat(all.totals().orderCount()).isEqualTo(3);
 		assertMoney("100000", all.totals().subtotal());
 		assertMoney("10000", all.totals().productDiscount());
@@ -299,7 +351,9 @@ class VendorRevenueTests extends CheckoutTestFixtures {
 		assertMoney("102000", all.totals().grossRevenue());
 		assertMoney("8500", all.totals().commission());
 		assertMoney("76500", all.totals().sellerRevenue());
+
 		var newOnly = reports.report(other, reports.filter(null, null, null, "NEW"));
+
 		assertMoney("0", newOnly.totals().grossRevenue());
 		assertThat(newOnly.totals().recognizedCount()).isZero();
 	}
@@ -307,15 +361,20 @@ class VendorRevenueTests extends CheckoutTestFixtures {
 	@Test
 	void reportDeniesOtherShopAndCustomerRole() throws Exception {
 		var foreign = secondShopProduct().getShop();
+
 		var forbidden = assertThrows(ResponseStatusException.class,
 				() -> reports.report(other, reports.filter(null, null, foreign.getId(), null)));
+
 		assertThat(forbidden.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
 		var customerDenied = assertThrows(ResponseStatusException.class,
 				() -> reports.report(customer, reports.filter(null, null, null, null)));
+
 		assertThat(customerDenied.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
 
 		mvc.perform(get("/vendor").param("shopId", foreign.getId().toString())
 				.with(user(other.getUsername()).roles("VENDOR"))).andExpect(status().isForbidden());
+
 		mvc.perform(get("/vendor/reports/revenue.csv").param("shopId", foreign.getId().toString())
 				.with(user(other.getUsername()).roles("VENDOR"))).andExpect(status().isForbidden());
 	}
@@ -326,16 +385,23 @@ class VendorRevenueTests extends CheckoutTestFixtures {
 			saveOrder(String.format("PAGE-%02d", i), tea.getShop(), OrderStatus.DELIVERED, PaymentStatus.PAID,
 					today.atTime(9, i));
 		}
+
 		saveOrder("PAGE-FOREIGN", secondShopProduct().getShop(), OrderStatus.DELIVERED, PaymentStatus.PAID,
 				today.atTime(10, 0));
 
 		var report = reports.report(other, reports.filter(null, null, null, null));
+
 		assertThat(reports.tableRows(report, null, 0).getContent()).hasSize(10);
+
 		assertThat(reports.tableRows(report, null, 1).getContent()).hasSize(2);
+
 		assertThat(reports.tableRows(report, null, 999).getNumber()).isEqualTo(1);
+
 		assertThat(reports.tableRows(report, null, -1).getNumber()).isZero();
+
 		assertThat(reports.tableRows(report, "page-11", 0).getContent()).extracting(RevenueReportService.Row::code)
 				.containsExactly("PAGE-11");
+
 		assertThat(reports.tableRows(report, "PAGE-FOREIGN", 0).getTotalElements()).isZero();
 	}
 
@@ -343,69 +409,89 @@ class VendorRevenueTests extends CheckoutTestFixtures {
 	void csvUsesUtf8EscapingAndOnlyAuthorizedOrders() throws Exception {
 		tea.getShop().setName("=HYPERLINK(\"url\",\"shop\")");
 		shops.saveAndFlush(tea.getShop());
+
 		saveOrder("CSV-OWN", tea.getShop(), OrderStatus.DELIVERED, PaymentStatus.PAID, today.atTime(10, 0));
+
 		saveOrder("CSV-FOREIGN", secondShopProduct().getShop(), OrderStatus.DELIVERED, PaymentStatus.PAID,
 				today.atTime(11, 0));
 
 		var response = mvc.perform(get("/vendor/reports/revenue.csv").with(user(other.getUsername()).roles("VENDOR")))
 				.andExpect(status().isOk()).andExpect(content().contentTypeCompatibleWith("text/csv"))
 				.andExpect(header().string("Cache-Control", "no-store")).andReturn().getResponse();
+
 		assertThat(response.getHeader("Content-Disposition")).startsWith("attachment; filename=\"utetra-doanh-thu-");
+
 		String csv = response.getContentAsString(StandardCharsets.UTF_8);
+
 		assertThat(csv).startsWith("\uFEFF").contains("Mã đơn", "TỔNG", "CSV-OWN").doesNotContain("CSV-FOREIGN");
+
 		assertThat(csv).contains("\"'=HYPERLINK(\"\"url\"\",\"\"shop\"\")\"");
 	}
 
 	@Test
 	void dashboardRendersFragmentsChartsPaginationAndOrderDetailLinks() throws Exception {
+
 		CustomerOrder first = null;
+
 		for (int i = 0; i < 12; i++) {
 			var order = saveOrder(String.format("WEB-%02d", i), tea.getShop(), OrderStatus.DELIVERED,
 					PaymentStatus.PAID, today.atTime(9, i));
-			if (i == 0)
+
+			if (i == 0) {
 				first = order;
+			}
 		}
+
 		saveOrder("WEB-FOREIGN", secondShopProduct().getShop(), OrderStatus.DELIVERED, PaymentStatus.PAID,
 				today.atTime(10, 0));
 
 		String firstPage = mvc
 				.perform(get("/vendor").param("range", "7").with(user(other.getUsername()).roles("VENDOR")))
 				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+
 		assertThat(firstPage).contains("vendorRevenueChart", "vendorStatusChart", "Xuất CSV", "Trang 1/2")
 				.doesNotContain("WEB-FOREIGN");
+
 		String secondPage = mvc
 				.perform(get("/vendor").param("range", "7").param("page", "1")
 						.with(user(other.getUsername()).roles("VENDOR")))
 				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+
 		assertThat(secondPage).contains("Trang 2/2");
+
 		String searched = mvc
 				.perform(get("/vendor/").param("q", "WEB-00").with(user(other.getUsername()).roles("VENDOR")))
 				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+
 		assertThat(searched).contains("WEB-00", "orderId=" + first.getId()).doesNotContain("WEB-01");
 	}
 
 	@Test
 	void actualRefundRemovesRecognizedRevenueButPreservesCommissionSnapshot() {
 		when(mediaStorage.upload(any(MultipartFile.class), eq("returns")))
-				.thenReturn("/uploads/returns/revenue-refund-proof.png");
+				.thenReturn("private:returns/revenue-refund-proof.png");
 
-		// Two real checkouts at 10% commission; only the first order will be refunded.
+		// Hai đơn checkout thật với hoa hồng 10%; hoàn tiền đơn đầu tiên.
 		var refundedOrder = deliveredPurchase(2);
 		var retainedOrder = deliveredPurchase(1);
+
 		assertMoney("70000", refundedOrder.getCommissionBase());
 		assertMoney("7000", refundedOrder.getPlatformRevenue());
 		assertMoney("63000", refundedOrder.getSellerRevenue());
 		assertMoney("90000", refundedOrder.getTotalAmount());
 
-		// Changing the current shop rate must not change either existing order.
+		// Đổi tỷ lệ hiện tại không làm đổi snapshot của các đơn đã tạo.
 		tea.getShop().setCommissionRate(money("25"));
 		shops.saveAndFlush(tea.getShop());
 
 		var before = dashboards.forVendor(tea.getShop());
+
 		assertMoney("94500", before.periodRevenue());
 		assertMoney("10500", before.periodCommission());
 		assertMoney("145000", before.periodGross());
+
 		var beforeReport = reports.report(other, reports.filter(null, null, null, "ALL"));
+
 		assertThat(beforeReport.totals().recognizedCount()).isEqualTo(2);
 		assertMoney("94500", beforeReport.totals().sellerRevenue());
 
@@ -413,8 +499,9 @@ class VendorRevenueTests extends CheckoutTestFixtures {
 		requestForm.setReason(ReturnReason.DAMAGED);
 		requestForm.setDescription("Sản phẩm bị đổ và hư hỏng khi khách nhận hàng từ shipper.");
 		requestForm.setRefundAmount(refundedOrder.getTotalAmount());
-		MultipartFile[] evidence = {
-				new MockMultipartFile("evidence", "proof.png", "image/png", new byte[] { 1, 2, 3 }) };
+
+		MultipartFile[] evidence = { MediaTestFiles.image("evidence", "proof.png") };
+
 		var request = returns.create(customer, refundedOrder.getId(), requestForm, evidence);
 
 		assertThat(refundedOrder.getStatus()).isEqualTo(OrderStatus.RETURN_REQUESTED);
@@ -424,9 +511,12 @@ class VendorRevenueTests extends CheckoutTestFixtures {
 
 		returns.decide(other, request.getId(), ReturnStatus.APPROVED, refundedOrder.getTotalAmount(),
 				"Chấp nhận nhận lại toàn bộ sản phẩm của đơn hàng");
+
 		returns.markReturning(customer, refundedOrder.getId());
+
 		returns.vendorTransition(other, request.getId(), ReturnStatus.RECEIVED,
 				"Đã nhận đủ sản phẩm trả về để kiểm tra");
+
 		returns.vendorTransition(other, request.getId(), ReturnStatus.REFUND_PENDING,
 				"Đang chuẩn bị chuyển khoản hoàn tiền cho khách");
 
@@ -437,13 +527,16 @@ class VendorRevenueTests extends CheckoutTestFixtures {
 
 		returns.confirmRefund(other, request.getId(), "BANK-REVENUE-REFUND-001",
 				"Đã chuyển khoản hoàn đủ tiền và đối soát thành công");
+
 		entityManager.flush();
 		entityManager.clear();
 
-		// Reload persisted values so the assertions also cover database state.
+		// Đọc lại dữ liệu đã lưu để kiểm tra cả trạng thái database.
 		var savedRefund = orderRepository.findById(refundedOrder.getId()).orElseThrow();
+
 		assertThat(savedRefund.getStatus()).isEqualTo(OrderStatus.RETURNED_REFUNDED);
 		assertThat(savedRefund.getPaymentStatus()).isEqualTo(PaymentStatus.REFUNDED);
+
 		assertMoney("10", savedRefund.getCommissionRate());
 		assertMoney("70000", savedRefund.getCommissionBase());
 		assertMoney("7000", savedRefund.getCommissionAmount());
@@ -452,40 +545,54 @@ class VendorRevenueTests extends CheckoutTestFixtures {
 		assertMoney("90000", savedRefund.getTotalAmount());
 
 		var savedProduct = products.findById(tea.getId()).orElseThrow();
+
 		assertThat(savedProduct.getStock()).isEqualTo(9);
 		assertThat(savedProduct.getSoldCount()).isEqualTo(1);
+
 		var savedRetained = orderRepository.findById(retainedOrder.getId()).orElseThrow();
+
 		assertThat(savedRetained.getStatus()).isEqualTo(OrderStatus.DELIVERED);
 		assertThat(savedRetained.getPaymentStatus()).isEqualTo(PaymentStatus.PAID);
+
 		assertMoney("10", savedRetained.getCommissionRate());
 		assertMoney("31500", savedRetained.getSellerRevenue());
 
 		var after = dashboards.forVendor(tea.getShop());
+
 		assertMoney("31500", after.periodRevenue());
 		assertMoney("3500", after.periodCommission());
 		assertMoney("55000", after.periodGross());
 		assertMoney("31500", after.sellerSeries().stream().reduce(BigDecimal.ZERO, BigDecimal::add));
+
 		assertThat(after.periodOrderCount()).isEqualTo(2);
 		assertThat(after.returnPeriodCount()).isEqualTo(1);
 		assertThat(after.topProducts()).hasSize(1);
 		assertThat(after.topProducts().getFirst().quantity()).isEqualTo(1);
+
 		assertMoney("35000", after.topProducts().getFirst().revenue());
 		assertMoney("31500", orders.revenue(tea.getShop()));
 		assertMoney("3500", orders.revenueSummary(tea.getShop()).platformRevenue());
 
 		var deliveredReport = reports.report(other, reports.filter(null, null, null, null));
+
 		assertThat(deliveredReport.rows()).extracting(RevenueReportService.Row::orderId)
 				.containsExactly(retainedOrder.getId());
+
 		var allReport = reports.report(other, reports.filter(null, null, null, "ALL"));
+
 		assertThat(allReport.rows()).extracting(RevenueReportService.Row::orderId)
 				.containsExactlyInAnyOrder(refundedOrder.getId(), retainedOrder.getId());
+
 		assertThat(allReport.totals().orderCount()).isEqualTo(2);
 		assertThat(allReport.totals().recognizedCount()).isEqualTo(1);
+
 		assertMoney("31500", allReport.totals().sellerRevenue());
 		assertMoney("3500", allReport.totals().commission());
 		assertMoney("55000", allReport.totals().grossRevenue());
+
 		var refundedRow = allReport.rows().stream().filter(row -> row.orderId().equals(refundedOrder.getId()))
 				.findFirst().orElseThrow();
+
 		assertThat(refundedRow.recognized()).isFalse();
 		assertMoney("0", refundedRow.amounts().sellerRevenue());
 		assertMoney("0", refundedRow.amounts().commission());
@@ -494,18 +601,20 @@ class VendorRevenueTests extends CheckoutTestFixtures {
 
 	private CustomerOrder deliveredPurchase(int quantity) {
 		var order = orders.checkout(customer, form(add(tea, medium, quantity).getId())).getFirst();
-		// Delivery is fixture setup; the return/refund transitions run through the real
-		// service.
+
+		// Mô phỏng đơn đã giao; luồng trả hàng/hoàn tiền dùng service thật.
 		order.setStatus(OrderStatus.DELIVERED);
 		order.setPaymentStatus(PaymentStatus.PAID);
 		order.setDeliveredAt(today.atTime(10, 0));
 		tea.setSoldCount(tea.getSoldCount() + quantity);
 		products.saveAndFlush(tea);
+
 		return orderRepository.saveAndFlush(order);
 	}
 
 	private CustomerOrder saveOrder(String code, Shop shop, OrderStatus status, PaymentStatus paymentStatus,
 			LocalDateTime date) {
+
 		var order = new CustomerOrder();
 		order.setCode(code);
 		order.setUser(customer);
@@ -517,8 +626,11 @@ class VendorRevenueTests extends CheckoutTestFixtures {
 		order.setStatus(status);
 		order.setPaymentStatus(paymentStatus);
 		order.setCreatedAt(date);
-		if (status == OrderStatus.DELIVERED)
+
+		if (status == OrderStatus.DELIVERED) {
 			order.setDeliveredAt(date);
+		}
+
 		order.setSubtotal(money("100000"));
 		order.setProductDiscount(money("10000"));
 		order.setVoucherDiscount(money("5000"));
@@ -528,10 +640,12 @@ class VendorRevenueTests extends CheckoutTestFixtures {
 		order.setFinalShippingFee(money("17000"));
 		order.setTotalAmount(money("102000"));
 		order.snapshotCommission(money("10"));
+
 		return orderRepository.saveAndFlush(order);
 	}
 
 	private void addLine(CustomerOrder order, Product product, int quantity, String total) {
+
 		var item = new OrderItem();
 		item.setOrder(order);
 		item.setProduct(product);
@@ -539,6 +653,7 @@ class VendorRevenueTests extends CheckoutTestFixtures {
 		item.setQuantity(quantity);
 		item.setUnitPrice(money(total).divide(BigDecimal.valueOf(quantity), 2, RoundingMode.HALF_UP));
 		item.setLineTotal(money(total));
+
 		order.getItems().add(item);
 		orderRepository.saveAndFlush(order);
 	}
@@ -552,6 +667,7 @@ class VendorRevenueTests extends CheckoutTestFixtures {
 
 	private void assertBadRequest(Runnable action) {
 		var exception = assertThrows(ResponseStatusException.class, action::run);
+
 		assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
 	}
 
