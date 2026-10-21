@@ -54,6 +54,8 @@ public class OrderController {
             model.addAttribute("carriers", carriers); model.addAttribute("vouchers", orderService.availableVouchers(user));
             model.addAttribute("pricesChanged", selection.pricesChanged());
             if (form.getCarrierId() != null) {
+                try { model.addAttribute("voucherRecommendations", orderService.recommendVouchers(user, form.getCarrierId(), form.getItemIds())); }
+                catch (IllegalArgumentException ex) { model.addAttribute("error", ex.getMessage()); }
                 try { model.addAttribute("preview", orderService.preview(user, form.getCarrierId(), form.getVoucherCode(), form.getItemIds())); }
                 catch (IllegalArgumentException ex) { model.addAttribute("error", ex.getMessage()); }
             }

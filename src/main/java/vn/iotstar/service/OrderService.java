@@ -71,6 +71,31 @@ public class OrderService {
 		return calculate(selection.items(), carrier, voucher).preview();
 	}
 
+    @Transactional
+    public List<VoucherRecommendation> recommendVouchers(User user, Long carrierId, List<Long> itemIds) {
+        var selection = cartService.prepareCheckoutSelection(user, itemIds);
+        var carrier = carrier(carrierId);
+        var baseline = calculate(selection.items(), carrier, null).preview().totalAmount();
+        var result = new ArrayList<VoucherRecommendation>();
+        for (var candidate : availableVouchers(user)) {
+            try {
+                var eligible = voucher(user, candidate.getCode(), selection.subtotal(), false);
+                var amount = calculate(selection.items(), carrier, eligible).preview().totalAmount();
+                result.add(new VoucherRecommendation(candidate.getCode(), candidate.getName(),
+                    baseline.subtract(amount).max(BigDecimal.ZERO), amount, true, null));
+            } catch (IllegalArgumentException ex) {
+                result.add(new VoucherRecommendation(candidate.getCode(), candidate.getName(), BigDecimal.ZERO,
+                    baseline, false, ex.getMessage()));
+            }
+        }
+        result.sort(Comparator.comparing(VoucherRecommendation::eligible).reversed()
+            .thenComparing(VoucherRecommendation::saving, Comparator.reverseOrder())
+            .thenComparing(VoucherRecommendation::code));
+        return List.copyOf(result);
+    }
+    public record VoucherRecommendation(String code, String name, BigDecimal saving,
+                                        BigDecimal totalAmount, boolean eligible, String reason) {}
+
 	@Transactional(noRollbackFor = PriceChangedException.class)
 	public List<CustomerOrder> checkout(User user, CheckoutForm form) {
 
