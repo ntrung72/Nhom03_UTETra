@@ -26,10 +26,20 @@ public class UserController {
     private final CurrentUserService currentUserService;
     private final SavedRecipeService recipes;
     private final ShopFollowService follows;
+    private final LoyaltyPointService loyalty;
     private final ProfileService profileService;
     private final EngagementService engagementService;
     private final ProductPricingService productPricingService;
     private final NotificationService notificationService;
+
+    @GetMapping("/loyalty")
+    String loyalty(@RequestParam(defaultValue="0") int page, Model model) {
+        var user=currentUserService.require();
+        model.addAttribute("pointBalance",loyalty.balance(user));
+        model.addAttribute("pointHistory",loyalty.history(user,page));
+        model.addAttribute("vndPerPoint",loyalty.getVndPerPoint());
+        return "user/loyalty";
+    }
 
     @GetMapping("/recipes")
     String recipes(@RequestParam(defaultValue="0") int page, Model model) {

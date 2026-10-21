@@ -29,6 +29,13 @@ public final class DomainEnums {
         }
     }
 
+    public enum LoyaltyPointType {
+        EARN("Tích điểm từ đơn đã giao"), REFUND_REVERSAL("Thu hồi điểm do hoàn tiền");
+        private final String label;
+        LoyaltyPointType(String label) { this.label = label; }
+        public String getLabel() { return label; }
+    }
+
     public enum PaymentMethod {
         COD("Thanh toán khi nhận hàng"), VNPAY("Thanh toán qua VNPay"), MOMO("Thanh toán qua MoMo");
 

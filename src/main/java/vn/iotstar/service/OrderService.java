@@ -47,6 +47,7 @@ public class OrderService {
 	private final MediaValidationService mediaValidationService;
 	private final NotificationService notificationService;
 	private final AuditLogService auditLogService;
+	private final LoyaltyPointService loyaltyPointService;
 
 	public List<Carrier> activeCarriers() {
 		return carrierRepository.findByActiveTrueOrderByShippingFeeAsc();
@@ -501,6 +502,7 @@ public class OrderService {
 		}
 
 		order.setStatus(target);
+		if (refunding) loyaltyPointService.reverseForRefundedOrder(order);
 		recordStatus(order, oldStatus, target, account, historyNote);
 		entityManager.flush();
 	}
@@ -957,6 +959,7 @@ public class OrderService {
 		}
 
 		order.setStatus(target);
+		if (target == OrderStatus.DELIVERED) loyaltyPointService.awardForDeliveredOrder(order);
 		recordStatus(order, old, target, actor, note);
 
 		entityManager.flush();
