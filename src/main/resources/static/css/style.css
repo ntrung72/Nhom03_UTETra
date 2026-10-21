@@ -2336,3 +2336,23 @@ main.container>form.row, main.container>form.my-3, main.container>form.mb-3
 .dashboard-system-overview small { color: var(--ute-muted); font-size: .72rem; }
 .dashboard-system-overview strong { color: var(--ute-navy); font-size: 1.05rem; overflow-wrap: anywhere; }
 .dashboard-live { display: inline-flex; align-items: center; gap: .45rem; padding: .5rem .8rem; border: 1px solid #cdebdc; border-radius: 999px; background: #effbf5; color: #08785d; font-size: .75rem; font-weight: 750; white-space: nowrap; }
+
+/* Customer discovery: desktop filters, compact hero and accessible search hints. */
+.discovery-hero {padding: 2.5rem 0;}
+.discovery-hero h1 {font-size: clamp(2rem, 3.6vw, 3.6rem);}
+.discovery-hero .lead {max-width: 48rem;}
+.catalog-layout {display:grid;grid-template-columns:270px minmax(0,1fr);gap:1.5rem;align-items:start;}
+.catalog-filter {position:sticky;top:1rem;padding:1.25rem;}
+.catalog-filter .row > div {width:100%;}
+.catalog-results {min-width:0;}
+.filter-chips {display:flex;flex-wrap:wrap;gap:.5rem;}
+.filter-chip {display:inline-flex;gap:.4rem;padding:.4rem .75rem;border:1px solid #ddd;border-radius:2rem;color:#333;background:#fff;text-decoration:none;max-width:100%;overflow-wrap:anywhere;}
+.search-hint-host {position:relative;}
+.search-hints {position:absolute;top:100%;left:0;right:0;z-index:1050;max-height:22rem;overflow-y:auto;background:white;color:#222;border:1px solid #ddd;border-radius:.75rem;box-shadow:0 .5rem 1.5rem #0002;padding:.5rem;min-width:220px;}
+.search-hints a,.search-hints button {display:block;text-align:left;width:100%;padding:.5rem .65rem;border:0;border-radius:.4rem;background:white;color:#222;text-decoration:none;overflow-wrap:anywhere;}
+.search-hints a:hover,.search-hints a:focus,.search-hints button:hover,.search-hints button:focus {background:#f0f5ef;}
+.search-hints .hint-heading {font-size:.75rem;color:#65715e;padding:.45rem .65rem .15rem;font-weight:700;}
+.search-hints .history-row {display:flex;align-items:center;}
+.search-hints .history-row button {width:auto;flex:0 0 auto;}
+@media(max-width:991px){.catalog-layout{grid-template-columns:220px minmax(0,1fr);gap:1rem;}}
+@media(max-width:767px){.catalog-layout{grid-template-columns:minmax(0,1fr);}.catalog-filter{position:static;}.discovery-hero{padding:1.5rem 0;}}

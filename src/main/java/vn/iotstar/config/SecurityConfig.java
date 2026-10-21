@@ -55,9 +55,12 @@ public class SecurityConfig {
     @Order(1)
     SecurityFilterChain browserNotificationApiFilterChain(HttpSecurity http,
                                                            AuthenticationProvider authenticationProvider) throws Exception {
-        http.securityMatcher("/api/notifications/**")
+        http.securityMatcher("/api/notifications/**", "/api/search/**")
             .authenticationProvider(authenticationProvider)
-            .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/search/suggestions").permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/api/search/history").authenticated()
+                .anyRequest().authenticated())
             .exceptionHandling(exceptions -> exceptions
                 .authenticationEntryPoint((req, resp, ex) -> resp.sendError(HttpServletResponse.SC_UNAUTHORIZED))
                 .accessDeniedHandler((req, resp, ex) -> resp.sendError(HttpServletResponse.SC_FORBIDDEN)));
