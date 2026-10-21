@@ -5,211 +5,231 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import lombok.RequiredArgsConstructor;
+import java.util.stream.Collectors;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+
 import vn.iotstar.entity.Product;
 import vn.iotstar.entity.ProductImage;
 import vn.iotstar.repository.ProductImageRepository;
 
 @Service
-@RequiredArgsConstructor
 public class ProductGalleryService {
 
-    private static final int MAX_IMAGES = 8;
+	private static final int MAX_IMAGES = 8;
 
-    private static final String PLACEHOLDER =
-        "/images/product-placeholder.svg";
+	private static final String PLACEHOLDER = "/images/product-placeholder.svg";
 
-    private final ProductImageRepository imageRepository;
-    private final MediaStorageService mediaStorageService;
-    private final MediaValidationService validationService;
+	private final ProductImageRepository imageRepository;
+	private final MediaStorageService mediaStorageService;
+	private final MediaValidationService validationService;
 
-    @Transactional(readOnly = true)
-    public List<ProductImage> images(Product product) {
-        return imageRepository
-            .findByProductIdOrderBySortOrderAscIdAsc(product.getId());
-    }
+	public ProductGalleryService(ProductImageRepository imageRepository, MediaStorageService mediaStorageService,
+			MediaValidationService validationService) {
 
-    @Transactional(readOnly = true)
-    public List<ProductImage> displayImages(Product product) {
-        return images(product).stream()
-            .sorted(
-                Comparator.comparing(ProductImage::isPrimary)
-                    .reversed()
-                    .thenComparingInt(ProductImage::getSortOrder)
-                    .thenComparing(ProductImage::getId)
-            )
-            .toList();
-    }
+		this.imageRepository = imageRepository;
+		this.mediaStorageService = mediaStorageService;
+		this.validationService = validationService;
+	}
 
-    @Transactional(propagation = Propagation.MANDATORY)
-    public void update(
-            Product product,
-            MultipartFile cover,
-            MultipartFile[] galleryUploads,
-            List<Long> removeIds,
-            List<Long> orderedIds,
-            Long selectedPrimaryId) {
+	@Transactional(readOnly = true)
+	public List<ProductImage> images(Product product) {
+		requirePersistedProduct(product);
 
-        if (cover != null && !cover.isEmpty()) {
-            validationService.validate(cover, "products");
-        }
+		return imageRepository.findByProductIdOrderBySortOrderAscIdAsc(product.getId());
+	}
 
-        List<MultipartFile> uploads =
-            validationService.validateFiles(
-                galleryUploads,
-                "products"
-            );
+	@Transactional(readOnly = true)
+	public List<ProductImage> displayImages(Product product) {
+		return images(product).stream().sorted(Comparator.comparing(ProductImage::isPrimary).reversed()
+				.thenComparingInt(ProductImage::getSortOrder).thenComparing(ProductImage::getId)).toList();
+	}
 
-        List<ProductImage> existing =
-            new ArrayList<>(images(product));
+	@Transactional(propagation = Propagation.MANDATORY)
+	public void update(Product product, MultipartFile cover, MultipartFile[] galleryUploads, List<Long> removeIds,
+			List<Long> orderedIds, Long selectedPrimaryId) {
 
-        if (existing.isEmpty()
-                && product.getImageUrl() != null
-                && !PLACEHOLDER.equals(product.getImageUrl())) {
+		requirePersistedProduct(product);
 
-            ProductImage legacy = image(
-                product,
-                product.getImageUrl()
-            );
+		boolean hasCover = cover != null && !cover.isEmpty();
 
-            legacy.setPrimary(true);
-            legacy.setSortOrder(0);
+		if (hasCover) {
+			validationService.validate(cover, "products");
+		}
 
-            existing.add(imageRepository.save(legacy));
-        }
+		List<MultipartFile> uploads = validationService.validateFiles(galleryUploads, "products");
 
-        Map<Long, ProductImage> byId = new HashMap<>();
+		List<ProductImage> existing = new ArrayList<>(images(product));
 
-        existing.forEach(
-            image -> byId.put(image.getId(), image)
-        );
+		Map<Long, ProductImage> byId = new HashMap<>();
 
-        Set<Long> removals = new HashSet<>(
-            removeIds == null ? List.of() : removeIds
-        );
+		existing.forEach(image -> byId.put(image.getId(), image));
 
-        if (!byId.keySet().containsAll(removals)
-                || (selectedPrimaryId != null
-                    && !byId.containsKey(selectedPrimaryId))
-                || (orderedIds != null
-                    && !byId.keySet().containsAll(orderedIds))) {
+		Set<Long> removals = checkedIds(removeIds, byId);
+		Set<Long> ordering = checkedIds(orderedIds, byId);
 
-            throw new IllegalArgumentException(
-                "Danh sách ảnh sản phẩm không hợp lệ."
-            );
-        }
+		if (selectedPrimaryId != null && !byId.containsKey(selectedPrimaryId)) {
 
-        List<ProductImage> remaining = new ArrayList<>();
+			throw new IllegalArgumentException("Ảnh bìa được chọn không thuộc sản phẩm này.");
+		}
 
-        if (orderedIds != null) {
-            for (Long id : orderedIds) {
-                ProductImage image = byId.get(id);
+		List<ProductImage> remaining = new ArrayList<>();
+		Set<Long> addedIds = new HashSet<>();
 
-                if (!removals.contains(id)
-                        && !remaining.contains(image)) {
-                    remaining.add(image);
-                }
-            }
-        }
+		// Giữ thứ tự được gửi lên; ID lặp chỉ được thêm một lần.
+		for (Long id : ordering) {
+			if (!removals.contains(id)) {
+				remaining.add(byId.get(id));
+				addedIds.add(id);
+			}
+		}
 
-        existing.stream()
-            .filter(
-                image -> !removals.contains(image.getId())
-                    && !remaining.contains(image)
-            )
-            .forEach(remaining::add);
+		// Các ảnh không có trong danh sách sắp xếp vẫn được giữ lại.
+		for (ProductImage image : existing) {
+			if (!removals.contains(image.getId()) && addedIds.add(image.getId())) {
 
-        int incomingCount = uploads.size()
-            + (cover != null && !cover.isEmpty() ? 1 : 0);
+				remaining.add(image);
+			}
+		}
 
-        if (remaining.size() + incomingCount > MAX_IMAGES) {
-            throw new IllegalArgumentException(
-                "Mỗi sản phẩm có tối đa 8 ảnh. "
-                    + "Hãy xóa ảnh cũ trước khi thêm ảnh mới."
-            );
-        }
+		String previousCover = product.getImageUrl();
 
-        imageRepository.deleteAll(
-            existing.stream()
-                .filter(
-                    image -> removals.contains(image.getId())
-                )
-                .toList()
-        );
+		/*
+		 * Chuyển ảnh bìa cũ thành gallery. Chưa ghi DB trong giai đoạn kiểm tra.
+		 */
+		if (existing.isEmpty() && hasImage(previousCover)) {
+			ProductImage legacy = image(product, previousCover);
+			legacy.setPrimary(true);
+			remaining.add(legacy);
+		}
 
-        ProductImage newCover = null;
+		int incomingCount = uploads.size() + (hasCover ? 1 : 0);
 
-        if (cover != null && !cover.isEmpty()) {
-            newCover = image(
-                product,
-                mediaStorageService.upload(cover, "products")
-            );
+		if (remaining.size() + incomingCount > MAX_IMAGES) {
+			throw new IllegalArgumentException(
+					"Mỗi sản phẩm có tối đa 8 ảnh, bao gồm ảnh bìa. " + "Hãy xóa ảnh cũ trước khi thêm ảnh mới.");
+		}
 
-            remaining.add(newCover);
-        }
+		/*
+		 * Upload trước khi xóa/sửa các dòng ảnh cũ. Nếu upload thất bại, giao dịch
+		 * rollback. MediaStorageService sẽ dọn file mới đã upload thành công trong giao
+		 * dịch đó.
+		 */
+		ProductImage newCover = null;
 
-        for (MultipartFile upload : uploads) {
-            remaining.add(
-                image(
-                    product,
-                    mediaStorageService.upload(
-                        upload,
-                        "products"
-                    )
-                )
-            );
-        }
+		if (hasCover) {
+			newCover = uploadImage(product, cover);
+			remaining.add(newCover);
+		}
 
-        ProductImage primary = newCover;
+		for (MultipartFile upload : uploads) {
+			remaining.add(uploadImage(product, upload));
+		}
 
-        if (primary == null
-                && selectedPrimaryId != null
-                && !removals.contains(selectedPrimaryId)) {
-            primary = byId.get(selectedPrimaryId);
-        }
+		// Ảnh bìa mới được ưu tiên.
+		ProductImage primary = newCover;
 
-        if (primary == null) {
-            primary = remaining.stream()
-                .filter(ProductImage::isPrimary)
-                .findFirst()
-                .orElse(null);
-        }
+		if (primary == null && selectedPrimaryId != null && !removals.contains(selectedPrimaryId)) {
 
-        if (primary == null && !remaining.isEmpty()) {
-            primary = remaining.getFirst();
-        }
+			primary = byId.get(selectedPrimaryId);
+		}
 
-        for (int index = 0; index < remaining.size(); index++) {
-            ProductImage image = remaining.get(index);
+		if (primary == null) {
+			primary = remaining.stream().filter(ProductImage::isPrimary).findFirst().orElse(null);
+		}
 
-            image.setSortOrder(index);
-            image.setPrimary(image == primary);
-        }
+		if (primary == null && !remaining.isEmpty()) {
+			primary = remaining.get(0);
+		}
 
-        imageRepository.saveAll(remaining);
+		// Chuẩn hóa thứ tự và bảo đảm chỉ có một ảnh bìa.
+		for (int index = 0; index < remaining.size(); index++) {
+			ProductImage image = remaining.get(index);
 
-        product.setImageUrl(
-            primary == null
-                ? PLACEHOLDER
-                : primary.getImageUrl()
-        );
+			image.setSortOrder(index);
+			image.setPrimary(image == primary);
+		}
 
-        product.setUpdatedAt(LocalDateTime.now());
-    }
+		List<ProductImage> removed = existing.stream().filter(image -> removals.contains(image.getId())).toList();
 
-    private ProductImage image(Product product, String url) {
-        ProductImage image = new ProductImage();
+		imageRepository.deleteAll(removed);
+		imageRepository.saveAll(remaining);
 
-        image.setProduct(product);
-        image.setImageUrl(url);
+		product.setImageUrl(primary == null ? PLACEHOLDER : primary.getImageUrl());
 
-        return image;
-    }
+		product.setUpdatedAt(LocalDateTime.now());
+
+		Set<String> retainedUrls = remaining.stream().map(ProductImage::getImageUrl).collect(Collectors.toSet());
+
+		Set<String> cleanupCandidates = new LinkedHashSet<>();
+
+		removed.stream().map(ProductImage::getImageUrl).filter(this::hasImage).forEach(cleanupCandidates::add);
+
+		if (hasImage(previousCover)) {
+			cleanupCandidates.add(previousCover);
+		}
+
+		/*
+		 * Không yêu cầu xóa URL vẫn còn trong gallery. MediaStorageService tiếp tục
+		 * kiểm tra tham chiếu trong DB trước khi xóa file sau commit.
+		 */
+		cleanupCandidates.stream().filter(url -> !retainedUrls.contains(url))
+				.forEach(mediaStorageService::deleteAfterCommit);
+	}
+
+	private Set<Long> checkedIds(List<Long> ids, Map<Long, ProductImage> existing) {
+
+		Set<Long> result = new LinkedHashSet<>();
+
+		if (ids == null) {
+			return result;
+		}
+
+		for (Long id : ids) {
+			if (id == null || !existing.containsKey(id)) {
+				throw new IllegalArgumentException("Danh sách ảnh chứa ảnh không thuộc sản phẩm này.");
+			}
+
+			result.add(id);
+		}
+
+		return result;
+	}
+
+	private ProductImage uploadImage(Product product, MultipartFile file) {
+
+		String url = mediaStorageService.upload(file, "products");
+
+		if (url == null || url.isBlank()) {
+			throw new IllegalStateException("Không nhận được đường dẫn ảnh sau khi tải lên.");
+		}
+
+		return image(product, url);
+	}
+
+	private ProductImage image(Product product, String url) {
+		ProductImage image = new ProductImage();
+
+		image.setProduct(product);
+		image.setImageUrl(url);
+
+		return image;
+	}
+
+	private boolean hasImage(String url) {
+		return url != null && !url.isBlank() && !PLACEHOLDER.equals(url);
+	}
+
+	private void requirePersistedProduct(Product product) {
+		if (product == null || product.getId() == null) {
+			throw new IllegalArgumentException("Sản phẩm phải được lưu trước khi cập nhật gallery.");
+		}
+	}
 }
