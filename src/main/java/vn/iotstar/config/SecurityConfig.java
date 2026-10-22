@@ -19,6 +19,7 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -94,16 +95,21 @@ public class SecurityConfig {
     @Order(3)
     SecurityFilterChain securityFilterChain(HttpSecurity http,
                                             AuthenticationProvider authenticationProvider,
-                                            @Value("${app.remember-me.key}") String rememberMeKey) throws Exception {
+                                            @Value("${app.remember-me.key}") String rememberMeKey,
+                                            @Value("${app.openapi.public:false}") boolean publicOpenApi) throws Exception {
         http
             .csrf(csrf -> csrf.ignoringRequestMatchers("/payments/momo/ipn"))
             .authenticationProvider(authenticationProvider)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/uploads/returns/**", "/uploads/delivery-proofs/**").denyAll()
+                // API documentation is available to ADMIN by default; explicitly opt in for local dev.
+                .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs", "/v3/api-docs/**")
+                    .access((authentication, context) -> new AuthorizationDecision(
+                        publicOpenApi || hasAnyRole(authentication.get(), "ADMIN")))
                 .requestMatchers("/", "/products/**", "/shops/**", "/login", "/register", "/verify-account",
                     "/resend-otp", "/forgot-password", "/reset-password", "/css/**", "/js/**", "/images/**",
                     "/uploads/avatars/**", "/uploads/products/**", "/uploads/shops/**",
-                    "/uploads/categories/**", "/uploads/reviews/**", "/error", "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs", "/v3/api-docs/**").permitAll()
+                    "/uploads/categories/**", "/uploads/reviews/**", "/error").permitAll()
                 .requestMatchers(HttpMethod.GET, "/payments/vnpay/return", "/payments/vnpay/ipn", "/payments/momo/return").permitAll()
                 .requestMatchers(HttpMethod.POST, "/payments/momo/ipn").permitAll()
                 .requestMatchers(HttpMethod.GET, "/private-media/**")
@@ -146,7 +152,7 @@ public class SecurityConfig {
     	    response.sendError(HttpServletResponse.SC_FORBIDDEN);
     	    return;
     	}
-    	if (isApiRequest(request) || isProtectedMediaRequest(request)) {
+    	if (isApiRequest(request) || isProtectedMediaRequest(request) || isApiDocumentationRequest(request)) {
             response.sendError(HttpServletResponse.SC_FORBIDDEN);
             return;
         }
@@ -160,7 +166,7 @@ public class SecurityConfig {
 
     private void redirectUnauthenticated(HttpServletRequest request, HttpServletResponse response,
                                          org.springframework.security.core.AuthenticationException exception) throws IOException {
-        if (isApiRequest(request) || isProtectedMediaRequest(request)) {
+        if (isApiRequest(request) || isProtectedMediaRequest(request) || isApiDocumentationRequest(request)) {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
             return;
         }
@@ -236,6 +242,12 @@ public class SecurityConfig {
         return matchesArea(path, "/private-media")
             || matchesArea(path, "/uploads/returns")
             || matchesArea(path, "/uploads/delivery-proofs");
+    }
+
+    private boolean isApiDocumentationRequest(HttpServletRequest request) {
+        String path = withoutContextPath(request, request.getRequestURI());
+        return matchesArea(path, "/swagger-ui") || matchesArea(path, "/swagger-ui.html")
+            || matchesArea(path, "/v3/api-docs");
     }
 
     private boolean isApiRequest(HttpServletRequest request) {
