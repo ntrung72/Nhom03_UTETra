@@ -26,15 +26,20 @@ public class ShipperController {
 
     @GetMapping
     String dashboard(@RequestParam(required = false) OrderStatus status,
+                     @RequestParam(required = false) String q,
+                     @RequestParam(defaultValue = "recent") String sort,
                      @RequestParam(defaultValue = "0") int page, Model model) {
         User shipper = currentUserService.require();
-        var orders = orderService.forShipper(shipper, status, page);
+        String selectedSort = "oldest".equals(sort) ? "oldest" : "recent";
+        var orders = orderService.forShipper(shipper, status, q, page, selectedSort);
         Map<Long, List<OrderStatus>> allowedTransitions = new HashMap<>();
         orders.forEach(order -> allowedTransitions.put(order.getId(), orderService.shipperTransitions(order.getStatus())));
         model.addAttribute("orders", orders);
         model.addAttribute("statuses", List.of(OrderStatus.READY_FOR_PICKUP, OrderStatus.PICKED_UP,
             OrderStatus.SHIPPING, OrderStatus.DELIVERED, OrderStatus.DELIVERY_FAILED));
         model.addAttribute("selectedStatus", status);
+        model.addAttribute("q", q == null ? "" : q.strip());
+        model.addAttribute("selectedSort", selectedSort);
         model.addAttribute("allowedTransitions", allowedTransitions);
         model.addAttribute("totalCount", orderService.shipperTotal(shipper));
         model.addAttribute("readyCount", orderService.shipperCount(shipper, OrderStatus.READY_FOR_PICKUP));

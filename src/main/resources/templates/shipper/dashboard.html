@@ -5,60 +5,68 @@
 <header th:replace="~{fragments/layout :: header}"></header>
 <main class="container py-4">
     <div th:replace="~{fragments/layout :: flash}"></div>
-    <span class="page-kicker"><i class="bi bi-truck"></i> Kênh giao hàng</span>
-    <h1 class="h3">Đơn hàng được phân công giao</h1>
-
-    <div class="row row-cols-2 row-cols-md-3 row-cols-xl-6 g-3 my-2">
-        <div class="col"><div class="card h-100 stat-card"><small>Tổng được phân công</small><strong class="fs-3" th:text="${totalCount}"></strong><i class="bi bi-box-seam"></i></div></div>
-        <div class="col"><div class="card h-100 stat-card"><small>Sẵn sàng lấy</small><strong class="fs-3" th:text="${readyCount}"></strong><i class="bi bi-hourglass-split"></i></div></div>
-        <div class="col"><div class="card h-100 stat-card"><small>Đã lấy hàng</small><strong class="fs-3" th:text="${pickedCount}"></strong><i class="bi bi-box-arrow-up"></i></div></div>
-        <div class="col"><div class="card h-100 stat-card"><small>Đang giao</small><strong class="fs-3" th:text="${shippingCount}"></strong><i class="bi bi-truck"></i></div></div>
-        <div class="col"><div class="card h-100 stat-card"><small>Đã giao</small><strong class="fs-3" th:text="${deliveredCount}"></strong><i class="bi bi-check2-circle"></i></div></div>
-        <div class="col"><div class="card h-100 stat-card stat-card-danger"><small>Giao thất bại</small><strong class="fs-3" th:text="${failedCount}"></strong><i class="bi bi-exclamation-circle"></i></div></div>
+    <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
+        <div><h1 class="h3 mb-1">Đơn hàng được phân công</h1><p class="text-muted mb-0">Theo dõi và hoàn tất từng chuyến giao hàng.</p></div>
+        <span class="badge rounded-pill text-bg-light border" th:text="${totalCount + ' đơn được phân công'}"></span>
     </div>
 
-    <div class="d-flex flex-wrap gap-2 my-4">
-        <a class="btn btn-sm" th:classappend="${selectedStatus == null} ? 'btn-primary' : 'btn-outline-primary'"
-           th:href="@{/shipper}">Tất cả</a>
-        <a class="btn btn-sm" th:each="s : ${statuses}"
-           th:classappend="${selectedStatus == s} ? 'btn-primary' : 'btn-outline-primary'"
-           th:href="@{/shipper(status=${s})}" th:text="${s.label}"></a>
+    <div class="row row-cols-2 row-cols-lg-4 g-3 my-2 shipper-overview">
+        <div class="col"><a class="card h-100 stat-card shipper-overview-card" th:classappend="${selectedStatus == T(vn.iotstar.entity.DomainEnums.OrderStatus).READY_FOR_PICKUP} ? 'is-active' : ''" th:href="@{/shipper(status='READY_FOR_PICKUP',q=${q},sort=${selectedSort})}"><small>Chờ lấy</small><strong class="fs-3" th:text="${readyCount}"></strong><i class="bi bi-box-seam"></i><span class="small text-muted">Cần đến cửa hàng lấy hàng</span></a></div>
+        <div class="col"><a class="card h-100 stat-card shipper-overview-card" th:classappend="${selectedStatus == T(vn.iotstar.entity.DomainEnums.OrderStatus).SHIPPING} ? 'is-active' : ''" th:href="@{/shipper(status='SHIPPING',q=${q},sort=${selectedSort})}"><small>Đang giao</small><strong class="fs-3" th:text="${shippingCount}"></strong><i class="bi bi-truck"></i><span class="small text-muted" th:text="${pickedCount + ' đơn đã lấy, chờ bắt đầu giao'}"></span></a></div>
+        <div class="col"><a class="card h-100 stat-card shipper-overview-card" th:classappend="${selectedStatus == T(vn.iotstar.entity.DomainEnums.OrderStatus).DELIVERED} ? 'is-active' : ''" th:href="@{/shipper(status='DELIVERED',q=${q},sort=${selectedSort})}"><small>Hoàn tất</small><strong class="fs-3" th:text="${deliveredCount}"></strong><i class="bi bi-check2-circle"></i><span class="small text-muted">Đã giao thành công</span></a></div>
+        <div class="col"><a class="card h-100 stat-card stat-card-danger shipper-overview-card" th:classappend="${selectedStatus == T(vn.iotstar.entity.DomainEnums.OrderStatus).DELIVERY_FAILED} ? 'is-active' : ''" th:href="@{/shipper(status='DELIVERY_FAILED',q=${q},sort=${selectedSort})}"><small>Giao thất bại</small><strong class="fs-3" th:text="${failedCount}"></strong><i class="bi bi-exclamation-circle"></i><span class="small text-muted">Xem lý do và bằng chứng</span></a></div>
     </div>
 
-    <div class="card order-card p-3 mb-3" th:each="o : ${orders.content}">
+    <div class="card p-3 my-4 shipper-filter-card">
+        <form class="row g-2 align-items-end" method="get" th:action="@{/shipper}">
+            <div class="col-md-4"><label class="form-label small fw-semibold" for="shipper-q">Tìm theo mã đơn</label><input class="form-control" id="shipper-q" name="q" th:value="${q}" maxlength="80" placeholder="Nhập mã đơn, ví dụ UTE..."></div>
+            <div class="col-md-3"><label class="form-label small fw-semibold" for="shipper-status">Trạng thái</label><select class="form-select" id="shipper-status" name="status"><option value="">Tất cả trạng thái</option><option th:each="s : ${statuses}" th:value="${s}" th:text="${s.label}" th:selected="${selectedStatus == s}"></option></select></div>
+            <div class="col-md-3"><label class="form-label small fw-semibold" for="shipper-sort">Sắp xếp theo thời gian</label><select class="form-select" id="shipper-sort" name="sort"><option value="recent" th:selected="${selectedSort == 'recent'}">Mốc giao/lấy mới nhất</option><option value="oldest" th:selected="${selectedSort == 'oldest'}">Mốc giao/lấy cũ nhất</option></select></div>
+            <div class="col-md-2"><button class="btn btn-primary w-100"><i class="bi bi-search"></i> Tìm đơn</button></div>
+        </form>
+        <p class="small text-muted mb-0 mt-2">Đơn hoàn tất theo lúc giao, đơn thất bại theo lúc báo lỗi; đơn đang xử lý theo lúc lấy hoặc tạo đơn.</p>
+        <div class="d-flex flex-wrap gap-2 mt-3" aria-label="Lọc nhanh theo trạng thái">
+            <a class="btn btn-sm" th:classappend="${selectedStatus == null} ? 'btn-primary' : 'btn-outline-primary'" th:href="@{/shipper(q=${q},sort=${selectedSort})}">Tất cả</a>
+            <a class="btn btn-sm" th:each="s : ${statuses}" th:classappend="${selectedStatus == s} ? 'btn-primary' : 'btn-outline-primary'" th:href="@{/shipper(status=${s},q=${q},sort=${selectedSort})}" th:text="${s.label}"></a>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-3"><h2 class="h5 mb-0">Danh sách đơn giao</h2><span class="text-muted small" th:text="${orders.totalElements + ' kết quả'}"></span></div>
+
+    <div class="card order-card shipper-order-card p-3 mb-3" th:each="o : ${orders.content}">
         <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
-            <div>
-                <div class="d-flex align-items-center gap-2">
+            <div class="shipper-order-info">
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
                     <strong th:text="${o.code}"></strong>
-                    <span class="badge text-bg-primary" th:text="${o.status.label}"></span>
+                    <span class="badge" th:classappend="${o.status.name() == 'DELIVERED' ? 'text-bg-success' : o.status.name() == 'DELIVERY_FAILED' ? 'text-bg-danger' : o.status.name() == 'READY_FOR_PICKUP' ? 'text-bg-warning' : 'text-bg-primary'}" th:text="${o.status.label}"></span>
                 </div>
-                <div class="text-muted" th:text="${'Shop: ' + o.shop.name}"></div>
-                <div><strong th:text="${o.receiverName}"></strong><span th:text="${' · ' + o.receiverPhone}"></span></div>
-                <div th:text="${o.shippingAddress}"></div>
-                <div th:if="${o.carrier != null}" th:text="${'Nhà vận chuyển: ' + o.carrier.name}"></div>
-                <div th:if="${o.note != null and !o.note.isBlank()}" th:text="${'Ghi chú: ' + o.note}"></div>
-                <div class="delivery-meta mt-2" th:if="${o.pickedUpAt != null}">
-                    <i class="bi bi-box-arrow-up"></i>
-                    <span th:text="${'Lấy hàng lúc ' + #temporals.format(o.pickedUpAt,'HH:mm · dd/MM/yyyy')}"></span>
+                <div class="shipper-order-line"><i class="bi bi-shop"></i><span th:text="${o.shop.name}"></span></div>
+                <div class="shipper-order-line"><i class="bi bi-person"></i><strong th:text="${o.receiverName}"></strong><a th:href="${'tel:' + o.receiverPhone}" th:text="${o.receiverPhone}"></a></div>
+                <div class="shipper-order-line"><i class="bi bi-geo-alt"></i><span th:text="${o.shippingAddress}"></span></div>
+                <div class="shipper-address-actions">
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-copy-address th:attr="data-address=${o.shippingAddress}" aria-label="Sao chép địa chỉ giao hàng"><i class="bi bi-copy"></i> <span data-copy-label>Sao chép địa chỉ</span></button>
+                    <a class="btn btn-sm btn-outline-secondary" th:href="@{https://www.google.com/maps/search/(api=1,query=${o.shippingAddress})}" target="_blank" rel="noopener noreferrer"><i class="bi bi-map"></i> Google Maps <i class="bi bi-box-arrow-up-right"></i></a>
+                    <span class="visually-hidden" data-copy-feedback role="status" aria-live="polite"></span>
                 </div>
-                <div class="alert alert-danger py-2 mt-2 mb-0" th:if="${o.failureReason != null and !o.failureReason.isBlank()}">
-                    <strong>Lý do giao thất bại:</strong> <span th:text="${o.failureReason}"></span>
+                <div class="shipper-order-line mt-2" th:if="${o.carrier != null}"><i class="bi bi-truck"></i><span th:text="${o.carrier.name}"></span></div>
+                <div class="shipper-order-line" th:if="${o.note != null and !o.note.isBlank()}"><i class="bi bi-chat-left-text"></i><span th:text="${o.note}"></span></div>
+                <div class="shipper-delivery-facts mt-3">
+                    <div class="delivery-meta"><i class="bi bi-clock"></i><span th:text="${'Tạo đơn lúc ' + #temporals.format(o.createdAt,'HH:mm · dd/MM/yyyy')}"></span></div>
+                    <div class="delivery-meta" th:if="${o.pickedUpAt != null}"><i class="bi bi-box-arrow-up"></i><span th:text="${'Lấy hàng lúc ' + #temporals.format(o.pickedUpAt,'HH:mm · dd/MM/yyyy')}"></span></div>
+                    <div class="delivery-meta" th:if="${o.deliveredAt != null}"><i class="bi bi-check2-circle"></i><strong th:text="${'Giao thành công lúc ' + #temporals.format(o.deliveredAt,'HH:mm · dd/MM/yyyy')}"></strong></div>
+                    <div class="delivery-meta" th:if="${o.status.name() == 'DELIVERY_FAILED'}"><i class="bi bi-exclamation-circle"></i><strong th:text="${'Báo giao thất bại lúc ' + #temporals.format(o.updatedAt,'HH:mm · dd/MM/yyyy')}"></strong></div>
                 </div>
-                <a class="delivery-proof-link mt-2" th:if="${o.deliveryProofUrl != null}" th:href="@{/private-media/orders/{id}/delivery-proof(id=${o.id})}" target="_blank" rel="noopener">
+                <div class="shipper-failure-reason mt-2" th:if="${o.failureReason != null and !o.failureReason.isBlank()}"><i class="bi bi-exclamation-triangle-fill"></i><div><strong>Lý do giao thất bại</strong><span th:text="${o.failureReason}"></span></div></div>
+                <a class="delivery-proof-link shipper-proof mt-2" th:if="${o.deliveryProofUrl != null}" th:href="@{/private-media/orders/{id}/delivery-proof(id=${o.id})}" target="_blank" rel="noopener">
                     <img th:src="@{/private-media/orders/{id}/delivery-proof(id=${o.id})}" alt="Bằng chứng giao hàng">
-                    <span><i class="bi bi-image"></i> Xem bằng chứng</span>
+                    <span><i class="bi bi-image"></i> <span th:text="${o.status.name() == 'DELIVERED' ? 'Ảnh giao thành công' : 'Ảnh bằng chứng'}"></span></span>
                 </a>
                 <strong class="d-block mt-2 text-primary" th:text="${#numbers.formatDecimal(o.totalAmount,0,'COMMA',0,'POINT')} + ' ₫'"></strong>
             </div>
             <div class="shipper-actions">
-                <form class="d-flex gap-2" th:if="${o.status.name() != 'SHIPPING' and !#lists.isEmpty(allowedTransitions[o.id])}"
-                      th:action="@{/shipper/orders/{id}/status(id=${o.id})}" method="post">
-                    <select class="form-select form-select-sm" name="status" required>
-                        <option value="">Chọn trạng thái tiếp theo</option>
-                        <option th:each="s : ${allowedTransitions[o.id]}" th:value="${s}" th:text="${s.label}"></option>
-                    </select>
-                    <button class="btn btn-sm btn-primary">Cập nhật</button>
-                </form>
+                <div class="shipper-action-heading" th:if="${!#lists.isEmpty(allowedTransitions[o.id])}">Cập nhật trạng thái</div>
+                <form th:if="${o.status.name() == 'READY_FOR_PICKUP'}" th:action="@{/shipper/orders/{id}/status(id=${o.id})}" method="post"><input type="hidden" name="status" value="PICKED_UP"><button class="btn btn-primary w-100"><i class="bi bi-box-arrow-up"></i> Xác nhận đã lấy hàng</button></form>
+                <form th:if="${o.status.name() == 'PICKED_UP'}" th:action="@{/shipper/orders/{id}/status(id=${o.id})}" method="post"><input type="hidden" name="status" value="SHIPPING"><button class="btn btn-primary w-100"><i class="bi bi-truck"></i> Bắt đầu giao hàng</button></form>
                 <div class="delivery-decision" th:if="${o.status.name() == 'SHIPPING'}">
                     <form class="delivery-action-form" th:action="@{/shipper/orders/{id}/status(id=${o.id})}"
                           method="post" enctype="multipart/form-data">
@@ -68,35 +76,38 @@
                         <small class="text-muted">Ảnh kiện hàng tại nơi nhận, tối đa 10 MB.</small>
                         <button class="btn btn-success btn-sm w-100 mt-2"><i class="bi bi-check2-circle"></i> Xác nhận đã giao</button>
                     </form>
-                    <form class="delivery-action-form delivery-failed-form" th:action="@{/shipper/orders/{id}/status(id=${o.id})}"
-                          method="post" enctype="multipart/form-data">
-                        <input type="hidden" name="status" value="DELIVERY_FAILED">
-                        <label class="form-label"><i class="bi bi-exclamation-triangle"></i> Lý do giao thất bại <span class="required-mark">*</span></label>
-                        <textarea class="form-control form-control-sm" name="failureReason" minlength="5" maxlength="500"
-                                  rows="2" required placeholder="Ví dụ: Khách không nghe máy"></textarea>
-                        <label class="form-label mt-2">Ảnh bằng chứng <span class="optional-mark">Không bắt buộc</span></label>
-                        <input class="form-control form-control-sm" type="file" name="deliveryProof" accept="image/*">
-                        <button class="btn btn-outline-danger btn-sm w-100 mt-2"><i class="bi bi-x-circle"></i> Báo giao thất bại</button>
-                    </form>
+                    <details class="delivery-failure-details"><summary class="btn btn-outline-danger btn-sm w-100"><i class="bi bi-exclamation-triangle"></i> Không giao được?</summary><form class="delivery-action-form delivery-failed-form mt-2" th:action="@{/shipper/orders/{id}/status(id=${o.id})}" method="post" enctype="multipart/form-data">
+                            <input type="hidden" name="status" value="DELIVERY_FAILED">
+                            <label class="form-label">Lý do giao thất bại <span class="required-mark">*</span></label>
+                            <textarea class="form-control form-control-sm" name="failureReason" minlength="5" maxlength="500" rows="2" required placeholder="Ví dụ: Khách không nghe máy"></textarea>
+                            <label class="form-label mt-2">Ảnh bằng chứng <span class="optional-mark">Không bắt buộc</span></label>
+                            <input class="form-control form-control-sm" type="file" name="deliveryProof" accept="image/*">
+                            <button class="btn btn-outline-danger btn-sm w-100 mt-2"><i class="bi bi-x-circle"></i> Xác nhận giao thất bại</button>
+                        </form></details>
                 </div>
-                <span class="text-muted" th:if="${#lists.isEmpty(allowedTransitions[o.id])}">Không có thao tác tiếp theo</span>
+                <span class="text-muted small" th:if="${#lists.isEmpty(allowedTransitions[o.id])}">Không có thao tác giao hàng tiếp theo.</span>
             </div>
         </div>
     </div>
 
     <div class="card p-5 text-center text-muted" th:if="${orders.empty}">
-        Không có đơn hàng được phân công ở trạng thái này.
+        <i class="bi bi-inbox fs-1 mb-2"></i>
+        <h3 class="h5">Chưa tìm thấy đơn giao phù hợp</h3>
+        <p class="mb-2">Thử đổi trạng thái hoặc nhập mã đơn khác.</p>
+        <a th:href="@{/shipper}" class="btn btn-outline-primary btn-sm mx-auto">Xem tất cả đơn</a>
     </div>
 
     <nav class="mt-3" th:if="${orders.totalPages > 1}" aria-label="Phân trang đơn giao">
         <ul class="pagination justify-content-center">
-            <li class="page-item" th:classappend="${orders.first} ? 'disabled'"><a class="page-link" th:href="@{/shipper(page=${orders.number - 1},status=${selectedStatus})}">Trước</a></li>
-            <li class="page-item" th:each="i : ${#numbers.sequence(0, orders.totalPages - 1)}" th:classappend="${i == orders.number} ? 'active'"><a class="page-link" th:href="@{/shipper(page=${i},status=${selectedStatus})}" th:text="${i + 1}"></a></li>
-            <li class="page-item" th:classappend="${orders.last} ? 'disabled'"><a class="page-link" th:href="@{/shipper(page=${orders.number + 1},status=${selectedStatus})}">Sau</a></li>
+            <li class="page-item" th:classappend="${orders.first} ? 'disabled'"><a class="page-link" th:href="@{/shipper(page=${orders.number - 1},status=${selectedStatus},q=${q},sort=${selectedSort})}">Trước</a></li>
+            <li class="page-item" th:each="i : ${#numbers.sequence(0, orders.totalPages - 1)}" th:classappend="${i == orders.number} ? 'active'"><a class="page-link" th:href="@{/shipper(page=${i},status=${selectedStatus},q=${q},sort=${selectedSort})}" th:text="${i + 1}"></a></li>
+            <li class="page-item" th:classappend="${orders.last} ? 'disabled'"><a class="page-link" th:href="@{/shipper(page=${orders.number + 1},status=${selectedStatus},q=${q},sort=${selectedSort})}">Sau</a></li>
         </ul>
     </nav>
 </main>
 <footer th:replace="~{fragments/layout :: footer}"></footer>
 <th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+<link rel="stylesheet" th:href="@{/css/step43-management-shipper.css}">
+<script th:src="@{/js/step43-shipper.js}"></script>
 </body>
 </html>

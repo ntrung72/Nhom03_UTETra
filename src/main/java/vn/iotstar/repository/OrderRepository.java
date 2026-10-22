@@ -73,9 +73,22 @@ public interface OrderRepository extends JpaRepository<CustomerOrder, Long> {
 
 	// ==================== Step 21: Order Management / Shipper ====================
 	@EntityGraph(attributePaths = { "shop", "user", "shipper", "carrier" })
-	@Query("select o from CustomerOrder o where o.shipper.id = :shipperId and (:status is null or o.status = :status)")
-	Page<CustomerOrder> findForShipper(@Param("shipperId") Long shipperId, @Param("status") OrderStatus status,
-			Pageable pageable);
+    @Query("""
+        select o from CustomerOrder o where o.shipper.id = :shipperId
+          and (:status is null or o.status = :status)
+          and (:q is null or lower(o.code) like lower(concat('%', :q, '%')) escape '!')
+        order by case when :oldest = true then
+                   case when o.status = :failedStatus then o.updatedAt
+                        else coalesce(o.deliveredAt, o.pickedUpAt, o.createdAt) end end asc,
+                 case when :oldest = false then
+                   case when o.status = :failedStatus then o.updatedAt
+                        else coalesce(o.deliveredAt, o.pickedUpAt, o.createdAt) end end desc,
+                 o.id desc
+        """)
+    Page<CustomerOrder> findForShipper(@Param("shipperId") Long shipperId,
+            @Param("status") OrderStatus status, @Param("q") String q,
+            @Param("failedStatus") OrderStatus failedStatus,
+            @Param("oldest") boolean oldest, Pageable pageable);
 
 	@EntityGraph(attributePaths = { "shop", "user", "shipper" })
 	@Query("""
@@ -117,6 +130,48 @@ public interface OrderRepository extends JpaRepository<CustomerOrder, Long> {
 	long countByShipperId(Long shipperId);
 
 	long countByShipperIdAndStatus(Long shipperId, OrderStatus status);
+
+    // TV3 Step 43: previous-period totals must respect the Manager's assigned shops.
+    @Query("""
+        select sum(o.totalAmount) from CustomerOrder o
+        where o.shop.id in :shopIds
+          and o.status = :delivered and o.paymentStatus = :paid
+          and ((o.deliveredAt >= :from and o.deliveredAt < :until)
+               or (o.deliveredAt is null and o.createdAt >= :from and o.createdAt < :until))
+        """)
+    BigDecimal sumCompletedGrossRevenueForShopsBetween(
+        @Param("shopIds") List<Long> shopIds,
+        @Param("delivered") OrderStatus delivered,
+        @Param("paid") PaymentStatus paid,
+        @Param("from") LocalDateTime from,
+        @Param("until") LocalDateTime until);
+
+    @EntityGraph(attributePaths = { "shop", "user", "shipper" })
+    @Query("""
+        select o from CustomerOrder o where
+          (:q is null or lower(o.code) like lower(concat('%', :q, '%'))
+              or lower(o.user.username) like lower(concat('%', :q, '%')))
+          and (:shopId is null or o.shop.id = :shopId)
+          and (:status is null or o.status = :status)
+          and o.status in :pendingStatuses
+        """)
+    Page<CustomerOrder> searchManagementPending(@Param("q") String q, @Param("shopId") Long shopId,
+        @Param("status") OrderStatus status, @Param("pendingStatuses") List<OrderStatus> pendingStatuses,
+        Pageable pageable);
+
+    @EntityGraph(attributePaths = { "shop", "user", "shipper" })
+    @Query("""
+        select o from CustomerOrder o where o.shop.id in :shopIds
+          and (:q is null or lower(o.code) like lower(concat('%', :q, '%'))
+              or lower(o.user.username) like lower(concat('%', :q, '%')))
+          and (:shopId is null or o.shop.id = :shopId)
+          and (:status is null or o.status = :status)
+          and o.status in :pendingStatuses
+        """)
+    Page<CustomerOrder> searchManagementAssignedPending(@Param("shopIds") List<Long> shopIds,
+        @Param("q") String q, @Param("shopId") Long shopId,
+        @Param("status") OrderStatus status, @Param("pendingStatuses") List<OrderStatus> pendingStatuses,
+        Pageable pageable);
 
 	// ==================== Step 29: Revenue / Vendor Dashboard ====================
 

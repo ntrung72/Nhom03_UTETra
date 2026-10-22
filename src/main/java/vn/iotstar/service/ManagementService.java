@@ -631,10 +631,29 @@ public class ManagementService {
 
     public Page<vn.iotstar.entity.CustomerOrder> orders(User actor, String q, Long shopId,
             vn.iotstar.entity.DomainEnums.OrderStatus status, int page) {
+        return orders(actor, q, shopId, status, false, page);
+    }
+
+    public Page<vn.iotstar.entity.CustomerOrder> orders(User actor, String q, Long shopId,
+            vn.iotstar.entity.DomainEnums.OrderStatus status, boolean pending, int page) {
         requireManagementRole(actor);
         if (shopId != null) requireShopAccess(actor, shopId);
         var pageable = PageRequest.of(Math.max(page, 0), 20,
             Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
+        if (pending) {
+            List<vn.iotstar.entity.DomainEnums.OrderStatus> pendingStatuses = List.of(
+                vn.iotstar.entity.DomainEnums.OrderStatus.NEW,
+                vn.iotstar.entity.DomainEnums.OrderStatus.CONFIRMED,
+                vn.iotstar.entity.DomainEnums.OrderStatus.PREPARING,
+                vn.iotstar.entity.DomainEnums.OrderStatus.READY_FOR_PICKUP,
+                vn.iotstar.entity.DomainEnums.OrderStatus.DELIVERY_FAILED,
+                vn.iotstar.entity.DomainEnums.OrderStatus.RETURN_REQUESTED);
+            if (isAdmin(actor)) return orderRepository.searchManagementPending(
+                cleanQuery(q), shopId, status, pendingStatuses, pageable);
+            List<Long> ids = accessibleShopIds(actor);
+            return ids.isEmpty() ? Page.empty(pageable) : orderRepository.searchManagementAssignedPending(
+                ids, cleanQuery(q), shopId, status, pendingStatuses, pageable);
+        }
         if (isAdmin(actor)) return orderRepository.searchManagement(cleanQuery(q), shopId, status, pageable);
         List<Long> ids = accessibleShopIds(actor);
         return ids.isEmpty() ? Page.empty(pageable)

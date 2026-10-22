@@ -104,6 +104,9 @@ public class ManagementController {
         var summary = managementService.dashboard(actor);
         model.addAttribute("dashboardRange", dashboardRange);
         model.addAttribute("dashboard", dashboard);
+        // Management-only total from correctly scoped daily seller snapshots.
+        model.addAttribute("managementSellerRevenue", dashboard.sellerSeries().stream()
+            .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add));
         model.addAttribute("summary", summary);
         model.addAttribute("userCount", summary.users());
         model.addAttribute("shopCount", summary.shops());
@@ -129,9 +132,10 @@ public class ManagementController {
     String orders(@RequestParam(required = false) String q,
                   @RequestParam(required = false) Long shop,
                   @RequestParam(required = false) vn.iotstar.entity.DomainEnums.OrderStatus status,
+                  @RequestParam(defaultValue = "false") boolean pending,
                   @RequestParam(defaultValue = "0") int page, Model model) {
         User actor = currentUserService.require();
-        var orders = managementService.orders(actor, q, shop, status, page);
+        var orders = managementService.orders(actor, q, shop, status, pending, page);
         var allowed = new java.util.HashMap<Long, java.util.List<vn.iotstar.entity.DomainEnums.OrderStatus>>();
         var assignable = new java.util.HashMap<Long, Boolean>();
         orders.forEach(o -> {
@@ -147,6 +151,7 @@ public class ManagementController {
         model.addAttribute("q", q);
         model.addAttribute("selectedShop", shop);
         model.addAttribute("selectedStatus", status);
+        model.addAttribute("pending", pending);
         return "management/orders";
     }
 

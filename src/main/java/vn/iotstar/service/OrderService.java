@@ -778,11 +778,20 @@ public class OrderService {
 	// =========================
 
 	public Page<CustomerOrder> forShipper(User actor, OrderStatus status, int page) {
+        return forShipper(actor, status, null, page, "recent");
+    }
 
-		requireActiveShipper(actor);
-
-		return orderRepository.findForShipper(actor.getId(), status, orderPage(page));
-	}
+    public Page<CustomerOrder> forShipper(User actor, OrderStatus status, String query, int page, String sort) {
+        requireActiveShipper(actor);
+        String q = query == null || query.isBlank() ? null : query.strip();
+        if (q != null) {
+            q = q.substring(0, Math.min(q.length(), 80))
+                .replace("!", "!!").replace("%", "!%").replace("_", "!_");
+        }
+        return orderRepository.findForShipper(actor.getId(), status, q,
+            OrderStatus.DELIVERY_FAILED, "oldest".equals(sort),
+            PageRequest.of(Math.max(page, 0), 15));
+    }
 
 	public long shipperTotal(User actor) {
 		requireActiveShipper(actor);
