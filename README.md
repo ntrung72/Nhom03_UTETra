@@ -70,3 +70,11 @@ Xem [`docs/BUOC35_SMOKE_TEST.md`](docs/BUOC35_SMOKE_TEST.md) để nghiệm thu 
 ## Quy tắc tích hợp
 
 Không chép đè `.git` từ ZIP vào project đang làm việc. Chỉ đưa những file thay đổi thật sự của Bước 35 qua Git; giữ logic Checkout/OTP của TV1, Vendor/Inventory/Return của TV2 và các bước TV3 đã làm.
+
+## Bước 44 — release hardening / nghiệm thu tích hợp
+
+- Tài liệu bàn giao và checklist: [`docs/BUOC44_SMOKE_TEST.md`](docs/BUOC44_SMOKE_TEST.md).
+- Danh sách biến môi trường mẫu: [`config/env.example`](config/env.example) (không chứa secret).
+- Mặc định Swagger chỉ dành cho **ADMIN**; trên môi trường `dev` có thể bật `OPENAPI_PUBLIC=true`.
+- Profile `prod` khóa seed và Swagger, yêu cầu kết nối DB qua ENV, bật cookie Secure (chỉ dùng HTTPS) và cấu hình Hibernate `validate` (cần schema SQL Server đã triển khai từ trước).
+- Trước khi release: kiểm thử `mvnw.cmd test` trên **Java 26**, khởi động SQL Server mới **và DB cũ đã sao lưu**; chỉ TV1/TV2 được sửa lỗi nghiệp vụ nằm trong phạm vi riêng của họ.
