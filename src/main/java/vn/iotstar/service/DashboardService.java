@@ -189,7 +189,7 @@ public class DashboardService {
                 PageRequest.of(0, 8)
             );
 
-        return build(
+        DashboardData data = build(
             orders,
             statuses,
             shops,
@@ -197,6 +197,17 @@ public class DashboardService {
             today,
             range,
             false
+        );
+
+        DashboardRange previous = range.previous();
+        BigDecimal previousGross = zero(orderRepository.sumCompletedGrossRevenueForShopsBetween(
+            shopIds, OrderStatus.DELIVERED, PaymentStatus.PAID,
+            previous.from().atStartOfDay(), range.from().atStartOfDay()
+        ));
+        long totalLowStock = productRepository.countLowStockForManagement(shopIds, LOW_STOCK_THRESHOLD);
+        long pendingReturns = statuses.getOrDefault(OrderStatus.RETURN_REQUESTED, 0L);
+        return data.withManagementInsights(
+            pendingReturns, totalLowStock, compareRevenue(data.periodGross(), previousGross)
         );
     }
 
@@ -720,6 +731,13 @@ public class DashboardService {
             long pendingReturnCount,
             long lowStockCount,
             RevenueComparison revenueComparison) {
+
+        private DashboardData withManagementInsights(
+                long pendingReturns,
+                long totalLowStock,
+                RevenueComparison comparison) {
+            return withVendorInsights(pendingReturns, totalLowStock, comparison);
+        }
 
         private DashboardData withVendorInsights(
                 long pendingReturns,

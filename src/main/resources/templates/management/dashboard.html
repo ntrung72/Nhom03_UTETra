@@ -3,36 +3,61 @@
 <head th:replace="~{fragments/layout :: head('Quản trị')}"></head>
 <body>
 <header th:replace="~{fragments/layout :: header}"></header>
-<main class="container py-4 py-lg-5 dashboard-page">
+<main class="container pt-3 pt-lg-4 pb-4 pb-lg-5 dashboard-page management-page">
   <div class="admin-dashboard-shell">
     <div th:replace="~{fragments/management-nav :: nav}"></div>
     <div class="admin-dashboard-content">
     <div th:replace="~{fragments/layout :: flash}"></div>
     <div class="dashboard-heading mb-4">
-        <div><span class="page-kicker"><i class="bi bi-speedometer2"></i> Trung tâm điều hành</span><h1 class="h3 mb-1" th:text="${currentUser.role == T(vn.iotstar.entity.DomainEnums.Role).ADMIN ? 'Dashboard toàn hệ thống' : 'Dashboard cửa hàng phụ trách'}">Dashboard</h1><p class="text-muted mb-0" th:text="${currentUser.role == T(vn.iotstar.entity.DomainEnums.Role).ADMIN ? 'Doanh thu, commission và vận hành của toàn chuỗi UTETra.' : 'Dữ liệu chỉ bao gồm các cửa hàng được Admin phân công.'}">Theo dõi nhanh dữ liệu.</p></div>
-        <span class="dashboard-live"><i class="bi bi-circle-fill"></i> Dữ liệu theo bộ lọc</span>
+        <div><h1 class="h3 mb-1" th:text="${currentUser.role == T(vn.iotstar.entity.DomainEnums.Role).ADMIN ? 'Dashboard toàn hệ thống' : 'Dashboard cửa hàng phụ trách'}">Dashboard</h1><p class="text-muted mb-0" th:text="${currentUser.role == T(vn.iotstar.entity.DomainEnums.Role).ADMIN ? 'Doanh thu, commission và vận hành của toàn chuỗi UTETra.' : 'Dữ liệu chỉ bao gồm các cửa hàng được Admin phân công.'}">Theo dõi nhanh dữ liệu.</p></div>
+        <span class="dashboard-live"><i class="bi bi-circle-fill"></i> Dữ liệu trực tiếp</span>
     </div>
     <div th:replace="~{fragments/dashboard-filter :: panel}"></div>
     <div class="dashboard-kpi-grid mb-4">
         <a class="card stat-card stat-card-featured text-decoration-none" th:href="@{/management/orders(status=NEW,shop=${report.filter.shopId})}"><small>Đơn mới đang chờ</small><strong th:text="${dashboard.newCount}">0</strong><span class="stat-note">Trong phạm vi shop đã chọn</span><i class="bi bi-receipt"></i></a>
-        <a class="card stat-card text-decoration-none" th:href="@{/management/orders(shop=${report.filter.shopId})}"><small>Đơn chờ xử lý</small><strong th:text="${dashboard.pendingCount}">0</strong><span class="stat-note">Đơn mở và yêu cầu cần theo dõi</span><i class="bi bi-hourglass-split"></i></a>
-        <div class="card stat-card"><small>Khách thanh toán trong kỳ</small><strong class="dashboard-kpi-money" th:text="${#numbers.formatDecimal(dashboard.periodGross,0,'COMMA',0,'POINT')} + ' ₫'">0 ₫</strong><span class="stat-note">Đã giao và đã thanh toán</span><i class="bi bi-cash-stack"></i></div>
-        <a class="card stat-card text-decoration-none" th:href="@{/management/orders(status=DELIVERED,shop=${report.filter.shopId})}"><small>Đã giao trong kỳ</small><strong th:text="${dashboard.deliveredPeriodCount}">0</strong><span class="stat-note">Theo ngày giao</span><i class="bi bi-check2-circle"></i></a>
-        <a class="card stat-card text-decoration-none" th:href="@{/management/orders(status=CANCELLED,shop=${report.filter.shopId})}"><small>Đã hủy trong kỳ</small><strong th:text="${dashboard.cancelledPeriodCount}">0</strong><span class="stat-note">Theo ngày tạo</span><i class="bi bi-x-circle"></i></a>
+        <a class="card stat-card text-decoration-none" th:href="@{/management/orders(pending=true,shop=${report.filter.shopId})}"><small>Đơn chờ xử lý</small><strong th:text="${dashboard.pendingCount}">0</strong><span class="stat-note">Đơn mở và yêu cầu cần theo dõi</span><i class="bi bi-hourglass-split"></i></a>
+        <a class="card stat-card text-decoration-none" th:href="@{/management(from=${dashboardRange.from},to=${dashboardRange.to},shopId=${report.filter.shopId},status=DELIVERED)} + '#revenue-report'"><small>Khách thanh toán trong kỳ</small><strong class="dashboard-kpi-money" th:text="${#numbers.formatDecimal(dashboard.periodGross,0,'COMMA',0,'POINT')} + ' ₫'">0 ₫</strong><span class="stat-note">Xem đối soát đơn đã giao</span><i class="bi bi-cash-stack"></i></a>
+        <a class="card stat-card text-decoration-none" th:href="@{/management(from=${dashboardRange.from},to=${dashboardRange.to},shopId=${report.filter.shopId},status=DELIVERED)} + '#revenue-report'"><small>Đã giao trong kỳ</small><strong th:text="${dashboard.deliveredPeriodCount}">0</strong><span class="stat-note">Xem theo ngày giao</span><i class="bi bi-check2-circle"></i></a>
+        <a class="card stat-card text-decoration-none" th:href="@{/management(from=${dashboardRange.from},to=${dashboardRange.to},shopId=${report.filter.shopId},status=CANCELLED)} + '#revenue-report'"><small>Đã hủy trong kỳ</small><strong th:text="${dashboard.cancelledPeriodCount}">0</strong><span class="stat-note">Xem theo ngày tạo</span><i class="bi bi-x-circle"></i></a>
     </div>
+    <section class="row g-2 mb-4" aria-label="Ba dòng tiền trong kỳ">
+      <div class="col-sm-6 col-lg-4"><div class="card h-100 p-3"><small class="text-muted">Gross · Khách đã thanh toán</small><strong class="h5 mb-1" th:text="${#numbers.formatDecimal(dashboard.periodGross,0,'COMMA',0,'POINT')} + ' ₫'">0 ₫</strong><small class="text-muted">Tổng tiền của đơn đã giao, đã thanh toán trong kỳ</small></div></div>
+      <div class="col-sm-6 col-lg-4"><div class="card h-100 p-3"><small class="text-muted">Seller · Shop thực nhận</small><strong class="h5 mb-1 text-success" th:text="${#numbers.formatDecimal(managementSellerRevenue,0,'COMMA',0,'POINT')} + ' ₫'">0 ₫</strong><small class="text-muted">Tổng doanh thu người bán theo snapshot đơn hàng</small></div></div>
+      <div class="col-sm-6 col-lg-4"><div class="card h-100 p-3"><small class="text-muted">Platform · Commission app</small><strong class="h5 mb-1 text-primary" th:text="${#numbers.formatDecimal(dashboard.periodCommission,0,'COMMA',0,'POINT')} + ' ₫'">0 ₫</strong><small class="text-muted">Chiết khấu nền tảng ghi nhận trong kỳ</small></div></div>
+    </section>
+    <div th:replace="~{fragments/dashboard-comparison :: panel(
+        comparison=${dashboard.revenueComparison},
+        period=${dashboardRange},
+        title='So sánh giá trị đơn giao thành công',
+        description='Tổng khách đã thanh toán trong kỳ và kỳ trước có cùng số ngày, chỉ trong phạm vi cửa hàng được phép xem.'
+    )}"></div>
+    <section class="dashboard-today card dashboard-panel mb-4">
+        <div class="dashboard-today-copy"><span class="section-kicker">ƯU TIÊN HÔM NAY</span><h2 class="h5 mb-1">Việc cần xử lý</h2><p class="text-muted small mb-0">Hàng đợi hiện tại trong phạm vi quản lý, không giới hạn bởi bộ lọc thời gian.</p></div>
+        <div class="dashboard-today-links">
+            <a th:href="@{/management/orders(status=NEW,shop=${report.filter.shopId})}"><b th:text="${dashboard.newCount}">0</b><span>Đơn mới</span><i class="bi bi-arrow-right"></i></a>
+            <a th:href="@{/management/orders(status=DELIVERY_FAILED,shop=${report.filter.shopId})}"><b th:text="${dashboard.failedCount}">0</b><span>Giao thất bại</span><i class="bi bi-arrow-right"></i></a>
+            <a th:href="@{/management/orders(status=RETURN_REQUESTED,shop=${report.filter.shopId})}"><b th:text="${dashboard.pendingReturnCount}">0</b><span>Yêu cầu trả hàng</span><i class="bi bi-arrow-right"></i></a>
+            <a th:href="@{/management/products(shop=${report.filter.shopId})}"><b th:text="${dashboard.lowStockCount}">0</b><span>Sắp hết hàng</span><i class="bi bi-arrow-right"></i></a>
+        </div>
+    </section>
     <section class="card dashboard-panel mb-4" th:if="${currentUser.role == T(vn.iotstar.entity.DomainEnums.Role).ADMIN}">
         <div class="dashboard-panel-heading"><div><span class="section-kicker">TOÀN HỆ THỐNG</span><h2 class="h5 mb-0">Quy mô và chiết khấu nền tảng</h2></div><a class="btn btn-sm btn-outline-primary" th:href="@{/management/shops}">Quản lý cửa hàng</a></div>
         <div class="dashboard-system-overview">
-            <div><small>Người dùng</small><strong th:text="${userCount}">0</strong></div>
-            <div><small>Cửa hàng</small><strong th:text="${shopCount}">0</strong></div>
-            <div><small>Sản phẩm</small><strong th:text="${productCount}">0</strong></div>
-            <div><small>Đơn hàng</small><strong th:text="${orderCount}">0</strong></div>
-            <div><small>Commission trong kỳ</small><strong th:text="${#numbers.formatDecimal(dashboard.periodCommission,0,'COMMA',0,'POINT')} + ' ₫'">0 ₫</strong></div>
+            <a th:href="@{/management/users}"><small>Người dùng</small><strong th:text="${userCount}">0</strong></a>
+            <a th:href="@{/management/shops}"><small>Cửa hàng</small><strong th:text="${shopCount}">0</strong></a>
+            <a th:href="@{/management/products}"><small>Sản phẩm</small><strong th:text="${productCount}">0</strong></a>
+            <a th:href="@{/management/orders}"><small>Đơn hàng</small><strong th:text="${orderCount}">0</strong></a>
+            <a th:href="@{/management(from=${dashboardRange.from},to=${dashboardRange.to},status=DELIVERED)} + '#revenue-report'"><small>Commission trong kỳ</small><strong th:text="${#numbers.formatDecimal(dashboard.periodCommission,0,'COMMA',0,'POINT')} + ' ₫'">0 ₫</strong></a>
         </div>
     </section>
     <section class="card dashboard-panel mb-4" th:if="${currentUser.role == T(vn.iotstar.entity.DomainEnums.Role).MANAGER}">
         <div class="dashboard-panel-heading"><div><span class="section-kicker">PHẠM VI PHÂN CÔNG</span><h2 class="h5 mb-0">Cửa hàng đang quản lý</h2></div></div>
-        <p class="text-muted small mb-0">Bạn chỉ xem số liệu, sản phẩm và đơn hàng thuộc cửa hàng được Admin phân công. Dùng bộ chọn shop phía trên để đi sâu vào từng cửa hàng.</p>
+        <p class="text-muted small mb-3">Bạn chỉ xem số liệu, sản phẩm và đơn hàng thuộc cửa hàng được Admin phân công.</p>
+        <div class="dashboard-shop-links" th:if="${!#lists.isEmpty(reportShops)}">
+            <a th:each="item : ${reportShops}" th:href="@{/management(range=${dashboardRange.preset},from=${dashboardRange.from},to=${dashboardRange.to},shopId=${item.id})}"
+               th:classappend="${report.filter.shopId == item.id} ? ' is-active' : ''"><i class="bi bi-shop" aria-hidden="true"></i><span th:text="${item.name}">UTETra</span><i class="bi bi-arrow-up-right" aria-hidden="true"></i></a>
+        </div>
+        <p class="text-muted small mb-0" th:if="${#lists.isEmpty(reportShops)}">Chưa được phân công cửa hàng. Vui lòng liên hệ Admin.</p>
     </section>
     <div th:replace="~{fragments/revenue-report :: panel}"></div>
     <div class="row g-4 mb-4">
@@ -62,5 +87,6 @@ document.addEventListener('DOMContentLoaded',()=>{
   new Chart(document.getElementById('shopRevenueChart'),{type:'bar',data:{labels:data.shopLabels,datasets:[{label:'Khách thanh toán',data:data.shopGross,backgroundColor:'#2d7ddd',borderRadius:7},{label:'Commission app',data:data.shopCommission,backgroundColor:'#ef7190',borderRadius:7}]},options:{maintainAspectRatio:false,indexAxis:'y',plugins:{tooltip:{callbacks:{label:context=>' '+context.dataset.label+': '+money(context.parsed.x)}}},scales:{x:{beginAtZero:true,ticks:{callback:compact}},y:{grid:{display:false}}}}});
 });
 </script>
+<link rel="stylesheet" th:href="@{/css/step43-management-shipper.css}">
 </body>
 </html>

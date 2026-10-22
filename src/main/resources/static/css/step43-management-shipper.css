@@ -1,0 +1,30 @@
+/* Bước 43 – style dành riêng cho dashboard Management/Shipper (TV3). */
+.dashboard-shop-links { display: flex; flex-wrap: wrap; gap: .55rem; }
+.dashboard-shop-links a { display: inline-flex; align-items: center; gap: .5rem; min-height: 38px; padding: .45rem .65rem; border: 1px solid #d7e6f4; border-radius: 11px; background: #f8fbff; color: var(--ute-blue-dark); font-size: .78rem; font-weight: 700; text-decoration: none; }
+.dashboard-shop-links a:hover, .dashboard-shop-links a.is-active { border-color: #77aee8; background: #eaf4ff; }
+
+.shipper-actions { min-width: 260px; }
+.shipper-overview-card { position: relative; display: block; padding: 1.15rem; color: var(--ute-navy); text-decoration: none; transition: transform .2s, border-color .2s, box-shadow .2s; }
+.shipper-overview-card:hover,.shipper-overview-card.is-active { transform: translateY(-2px); border-color: var(--ute-blue); box-shadow: 0 12px 26px rgba(17,79,132,.12); color: var(--ute-navy); }
+.shipper-overview-card > span { display: block; margin-top: .25rem; }
+.shipper-filter-card { border: 1px solid #dce7ef; border-radius: 18px; }
+.shipper-order-card { border: 1px solid #dce7ef; border-radius: 18px; box-shadow: 0 8px 24px rgba(18,56,89,.06); }
+.shipper-order-info { min-width: 0; }
+.shipper-order-line { display: flex; align-items: flex-start; flex-wrap: wrap; gap: .45rem; margin-top: .35rem; color: #52677b; font-size: .9rem; overflow-wrap: anywhere; }
+.shipper-order-line i { flex: 0 0 18px; color: var(--ute-blue); }
+.shipper-order-line a { font-weight: 700; }
+.shipper-address-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin: .7rem 0 .5rem 1.5rem; }
+.shipper-address-actions .btn { font-weight: 700; }
+.shipper-delivery-facts { display: flex; flex-wrap: wrap; gap: .45rem .9rem; padding: .7rem .85rem; border-radius: 12px; background: #f4f8fc; }
+.shipper-failure-reason { display: flex; gap: .65rem; padding: .7rem .85rem; border: 1px solid #f1cbd3; border-radius: 12px; background: #fff4f6; color: #9c263d; }
+.shipper-failure-reason > div { display: grid; gap: .1rem; overflow-wrap: anywhere; }
+.shipper-proof { padding: .4rem .7rem .4rem .4rem; border: 1px solid #d6e1eb; border-radius: 12px; background: #f9fbfd; }
+.shipper-proof img { width: 70px; height: 70px; }
+.shipper-action-heading { margin-bottom: .65rem; color: var(--ute-navy); font-size: .85rem; font-weight: 800; }
+.shipper-actions > form > .btn { min-height: 44px; font-weight: 750; }
+.delivery-failure-details > summary { list-style: none; cursor: pointer; }
+.delivery-failure-details > summary::-webkit-details-marker { display: none; }
+.stat-card-danger strong { color: #c9334d; }
+.stat-card-danger i { color: rgba(220,53,69,.12); }
+
+@media(max-width: 767.98px){.shipper-order-line{font-size:.83rem}.shipper-address-actions{margin-left:0}.shipper-actions{min-width:0;width:100%}}

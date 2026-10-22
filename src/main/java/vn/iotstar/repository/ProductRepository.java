@@ -164,4 +164,8 @@ public interface ProductRepository
         @Param("threshold") int threshold,
         Pageable pageable
     );
+    // TV3 Step 43: unpaginated count for the management action KPI.
+    @Query("select count(p) from Product p where p.shop.id in :shopIds and p.stock <= :threshold")
+    long countLowStockForManagement(@Param("shopIds") List<Long> shopIds,
+                                   @Param("threshold") int threshold);
 }

@@ -4,10 +4,13 @@
 <body>
 <header th:replace="~{fragments/layout :: header}"></header>
 <main class="container py-4">
+<div class="alert alert-info my-2" th:if="${pending}">Đang lọc các đơn cần xử lý. <a th:href="@{/management/orders(shop=${selectedShop})}">Xem tất cả đơn</a></div>
+
     <div th:replace="~{fragments/management-nav :: nav}"></div>
     <div th:replace="~{fragments/layout :: flash}"></div>
     <h1 class="h3">Điều phối đơn hàng</h1>
     <form class="row g-2 mb-3">
+        <input type="hidden" name="pending" value="true" th:if="${pending}">
         <div class="col"><input class="form-control" name="q" th:value="${q}" placeholder="Mã đơn / khách"></div>
         <div class="col">
             <select class="form-select" name="shop">
@@ -87,9 +90,9 @@
     </div>
     <nav class="mt-3" th:if="${orders.totalPages > 1}">
       <ul class="pagination justify-content-center">
-        <li class="page-item" th:classappend="${orders.first} ? 'disabled'"><a class="page-link" th:href="@{/management/orders(page=${orders.number - 1},q=${q},shop=${selectedShop},status=${selectedStatus})}">Trước</a></li>
-        <li class="page-item" th:each="i : ${#numbers.sequence(0,orders.totalPages - 1)}" th:classappend="${i == orders.number} ? 'active'"><a class="page-link" th:href="@{/management/orders(page=${i},q=${q},shop=${selectedShop},status=${selectedStatus})}" th:text="${i + 1}"></a></li>
-        <li class="page-item" th:classappend="${orders.last} ? 'disabled'"><a class="page-link" th:href="@{/management/orders(page=${orders.number + 1},q=${q},shop=${selectedShop},status=${selectedStatus})}">Sau</a></li>
+        <li class="page-item" th:classappend="${orders.first} ? 'disabled'"><a class="page-link" th:href="@{/management/orders(page=${orders.number - 1},pending=${pending},q=${q},shop=${selectedShop},status=${selectedStatus})}">Trước</a></li>
+        <li class="page-item" th:each="i : ${#numbers.sequence(0,orders.totalPages - 1)}" th:classappend="${i == orders.number} ? 'active'"><a class="page-link" th:href="@{/management/orders(page=${i},pending=${pending},q=${q},shop=${selectedShop},status=${selectedStatus})}" th:text="${i + 1}"></a></li>
+        <li class="page-item" th:classappend="${orders.last} ? 'disabled'"><a class="page-link" th:href="@{/management/orders(page=${orders.number + 1},pending=${pending},q=${q},shop=${selectedShop},status=${selectedStatus})}">Sau</a></li>
       </ul>
     </nav>
 </main>
