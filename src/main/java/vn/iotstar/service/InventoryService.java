@@ -1,6 +1,7 @@
 package vn.iotstar.service;
 
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.FlushModeType;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
@@ -38,18 +39,32 @@ public class InventoryService {
             );
         }
 
+        // Khóa dòng trước khi nạp lại dữ liệu, tránh đọc version cũ lúc chờ khóa.
+        var lockedIds = entityManager.createQuery(
+                "select p.id from Product p where p.id = :id",
+                Long.class
+            )
+            .setParameter("id", productId)
+            .setFlushMode(FlushModeType.COMMIT)
+            .setLockMode(LockModeType.PESSIMISTIC_WRITE)
+            .getResultList();
+
+        if (lockedIds.isEmpty()) {
+            throw new IllegalArgumentException(
+                "Không tìm thấy sản phẩm."
+            );
+        }
+
         Product product = productRepository
-            .findByIdForUpdate(productId)
+            .findById(productId)
             .orElseThrow(() ->
                 new IllegalArgumentException(
                     "Không tìm thấy sản phẩm."
                 )
             );
 
-        entityManager.refresh(
-            product,
-            LockModeType.PESSIMISTIC_WRITE
-        );
+        entityManager.refresh(product);
+        entityManager.lock(product, LockModeType.PESSIMISTIC_WRITE);
 
         return product;
     }

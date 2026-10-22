@@ -128,6 +128,8 @@ public interface ProductRepository
 
     long countByShopId(Long shopId);
 
+    long countByShopIdAndStockLessThanEqual(Long shopId, int stock);
+
     @EntityGraph(attributePaths = {"shop", "category"})
     @Query("""
         select p from Product p

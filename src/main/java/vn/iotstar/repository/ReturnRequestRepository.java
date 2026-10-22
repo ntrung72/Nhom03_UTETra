@@ -19,6 +19,11 @@ public interface ReturnRequestRepository
 
     boolean existsByOrderId(Long orderId);
 
+    long countByShopIdAndStatusIn(
+        Long shopId,
+        Collection<ReturnStatus> statuses
+    );
+
     @EntityGraph(attributePaths = {
         "media",
         "order",

@@ -592,7 +592,7 @@ class ReturnRequestTests extends CheckoutTestFixtures {
             ReturnStatus.REFUND_PENDING,
             "Sẽ hoàn qua tài khoản ngân hàng"
         );
-        renderDetail(request, "Xác nhận tiền đã hoàn");
+        renderDetail(request, "Ghi nhận hoàn tiền thủ công");
 
         returns.confirmRefund(
             other,

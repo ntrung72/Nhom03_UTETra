@@ -5,7 +5,10 @@
 <header th:replace="~{fragments/layout :: header}"></header>
 
 <main class="container py-4"
-      th:with="state=${returnRequest.status.name()}">
+      th:with="state=${returnRequest.status.name()},
+               verification=${returnRequest.refundVerification.name()},
+               onlinePayment=${returnRequest.order.paymentMethod.name() == 'VNPAY'
+                                or returnRequest.order.paymentMethod.name() == 'MOMO'}">
 
     <div th:replace="~{fragments/vendor-nav :: nav}"></div>
     <div th:replace="~{fragments/layout :: flash}"></div>
@@ -58,6 +61,12 @@
                         <dd class="col-sm-8"
                             th:text="${returnRequest.order.receiverPhone}">
                             Số điện thoại
+                        </dd>
+
+                        <dt class="col-sm-4">Phương thức thanh toán</dt>
+                        <dd class="col-sm-8"
+                            th:text="${returnRequest.order.paymentMethod.label}">
+                            Phương thức thanh toán
                         </dd>
 
                         <dt class="col-sm-4">Lý do trả hàng</dt>
@@ -149,6 +158,79 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </section>
+
+            <section class="card mt-4" aria-labelledby="return-timeline-title">
+                <div class="card-header bg-white">
+                    <h2 id="return-timeline-title" class="h5 mb-0">
+                        Lịch sử xử lý trả hàng
+                    </h2>
+                </div>
+
+                <div class="card-body">
+                    <p class="text-muted mb-0"
+                       th:if="${#lists.isEmpty(timeline)}">
+                        Chưa có lịch sử xử lý.
+                    </p>
+
+                    <ol class="list-group list-group-flush"
+                        th:unless="${#lists.isEmpty(timeline)}">
+                        <li class="list-group-item px-0"
+                            th:each="entry : ${timeline}">
+                            <div class="d-flex flex-wrap justify-content-between
+                                        align-items-center gap-2 mb-2">
+                                <h3 class="h6 mb-0"
+                                    th:text="${entry.newStatus.label}">
+                                    Trạng thái xử lý
+                                </h3>
+
+                                <time class="small text-muted"
+                                      th:datetime="${entry.changedAt}"
+                                      th:text="${#temporals.format(
+                                          entry.changedAt,
+                                          'dd/MM/yyyy HH:mm:ss'
+                                      )}">
+                                    Thời gian xử lý
+                                </time>
+                            </div>
+
+                            <p class="small mb-1"
+                               th:if="${entry.oldStatus != null}">
+                                <span th:text="${entry.oldStatus.label}">
+                                    Trạng thái trước
+                                </span>
+                                <span aria-label="chuyển sang"> → </span>
+                                <span th:text="${entry.newStatus.label}">
+                                    Trạng thái sau
+                                </span>
+                            </p>
+
+                            <p class="small text-muted mb-1"
+                               th:if="${entry.oldStatus == null
+                                        and entry.newStatus.name() != 'REQUESTED'}">
+                                Mốc từ dữ liệu cũ; không có nhật ký đầy đủ
+                                cho các bước trước.
+                            </p>
+
+                            <p class="small mb-1">
+                                <strong>Người thực hiện:</strong>
+                                <span th:text="${entry.changedBy != null
+                                    ? entry.changedBy.fullName
+                                    : 'Không có thông tin'}">
+                                    Người thực hiện
+                                </span>
+                            </p>
+
+                            <p class="small text-break mb-0"
+                               style="white-space: pre-wrap;"
+                               th:if="${entry.note != null
+                                        and !entry.note.isBlank()}"
+                               th:text="${entry.note}">
+                                Ghi chú xử lý
+                            </p>
+                        </li>
+                    </ol>
                 </div>
             </section>
         </div>
@@ -265,19 +347,29 @@
                     </form>
 
                     <form th:if="${state == 'REFUND_PENDING'
-                                  and canConfirmRefund}"
+                                  and canConfirmRefund
+                                  and verification == 'PENDING'}"
                           th:action="@{/vendor/returns/{id}/refund(
                               id=${returnRequest.id}
                           )}"
                           method="post"
                           onsubmit="return window.confirm(
-                              'Bạn xác nhận đã thực sự hoàn tiền cho khách?'
+                              'Bạn xác nhận đã hoàn tiền cho khách ngoài hệ thống? Đây là xác nhận thủ công.'
                           );">
 
                         <div class="alert alert-warning small">
                             Chỉ xác nhận sau khi đã hoàn tiền cho khách
                             bằng tiền mặt hoặc chuyển khoản và có
-                            mã tham chiếu để đối soát.
+                            mã tham chiếu để đối soát. Thao tác này ghi nhận
+                            xác nhận thủ công và không gửi lệnh hoàn tiền
+                            đến cổng thanh toán.
+                        </div>
+
+                        <div class="alert alert-warning small"
+                             th:if="${onlinePayment}">
+                            Với đơn VNPay hoặc MoMo, xác nhận thủ công
+                            không đồng nghĩa cổng thanh toán đã xác minh
+                            giao dịch hoàn tiền.
                         </div>
 
                         <label for="refund-reference" class="form-label">
@@ -305,7 +397,7 @@
                                   required></textarea>
 
                         <button type="submit" class="btn btn-success w-100">
-                            Xác nhận tiền đã hoàn
+                            Ghi nhận hoàn tiền thủ công
                         </button>
                     </form>
 
@@ -313,6 +405,14 @@
                                  and !canConfirmRefund}"
                          class="alert alert-info mb-0">
                         Đang chờ chủ cửa hàng hoặc Admin xác nhận hoàn tiền.
+                    </div>
+
+                    <div th:if="${state == 'REFUND_PENDING'
+                                 and canConfirmRefund
+                                 and verification != 'PENDING'}"
+                         class="alert alert-warning mb-0">
+                        Yêu cầu đã có thông tin xác nhận hoàn tiền.
+                        Vui lòng kiểm tra lại trước khi xử lý tiếp.
                     </div>
 
                     <div th:if="${state == 'REJECTED'
@@ -325,9 +425,27 @@
 
                     <div class="border-top mt-3 pt-3"
                          th:if="${returnRequest.resolutionNote != null
-                                  or returnRequest.refundReference != null}">
+                                  or returnRequest.refundReference != null
+                                  or state == 'REFUNDED'}">
 
                         <h3 class="h6">Thông tin xử lý</h3>
+
+                        <p class="small"
+                           th:if="${state == 'REFUNDED'}">
+                            <strong>Loại xác nhận:</strong>
+                            <span th:text="${returnRequest.refundVerification.label}">
+                                Loại xác nhận hoàn tiền
+                            </span>
+                        </p>
+
+                        <div class="alert alert-warning small"
+                             th:if="${state == 'REFUNDED'
+                                      and onlinePayment
+                                      and verification != 'GATEWAY_CONFIRMED'}">
+                            Chưa có xác nhận hoàn tiền từ cổng thanh toán.
+                            Thông tin dưới đây là xác nhận thủ công
+                            của người xử lý.
+                        </div>
 
                         <p class="text-break"
                            style="white-space: pre-wrap;"
@@ -353,12 +471,12 @@
 
                         <p class="small text-muted"
                            th:if="${returnRequest.refundedAt != null}"
-                           th:text="${'Hoàn tiền lúc '
+                           th:text="${'Ghi nhận xác nhận lúc '
                                + #temporals.format(
                                    returnRequest.refundedAt,
                                    'dd/MM/yyyy HH:mm'
                                )}">
-                            Thời gian hoàn tiền
+                            Thời gian ghi nhận xác nhận
                         </p>
 
                         <p class="small text-muted mb-0"
