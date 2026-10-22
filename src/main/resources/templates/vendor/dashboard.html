@@ -2,221 +2,492 @@
 <html lang="vi" xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments/layout :: head('Kênh người bán')}"></head>
 <body>
-	<header th:replace="~{fragments/layout :: header}"></header>
-	<main class="container py-4 dashboard-page">
-		<div class="admin-dashboard-shell">
-			<div th:replace="~{fragments/vendor-nav :: nav}"></div>
-			<div class="admin-dashboard-content">
-				<div th:replace="~{fragments/layout :: flash}"></div>
-				<div th:if="${shop == null}"
-					class="card p-5 text-center empty-state">
-					<i class="bi bi-shop-window fs-1"></i>
-					<h1 class="h3">Mở cửa hàng UTETra</h1>
-					<p>Đăng ký shop để quản lý sản phẩm, đơn hàng, khuyến mãi và
-						doanh thu.</p>
-					<a class="btn btn-primary" th:href="@{/vendor/register}">Đăng
-						ký cửa hàng</a>
-				</div>
-				<div th:if="${shop != null}">
-					<div class="dashboard-heading mb-4">
-						<div>
-							<span class="page-kicker"><i class="bi bi-graph-up-arrow"></i>
-								Tổng quan kinh doanh</span>
-							<h1 class="h3 mb-1" th:text="${shop.name}">Cửa hàng</h1>
-							<p class="text-muted mb-0">Theo dõi doanh thu, đơn hàng và
-								tồn kho theo thời gian thực.</p>
-						</div>
-						<div class="d-flex gap-2 align-items-center">
-							<span th:switch="${shop.status.name()}"> <span
-								th:case="'PENDING'" class="badge text-bg-warning">Chờ
-									duyệt</span> <span th:case="'APPROVED'" class="badge text-bg-success">Đã
-									duyệt</span> <span th:case="'REJECTED'" class="badge text-bg-danger">Bị
-									từ chối</span> <span th:case="'SUSPENDED'"
-								class="badge text-bg-secondary">Tạm ngưng</span> <span
-								th:case="*" class="badge text-bg-info" th:text="${shop.status}">Trạng
-									thái</span>
-							</span><a class="btn btn-outline-primary" th:href="@{/vendor/shop/edit}"><i
-								class="bi bi-pencil-square"></i> Sửa shop</a>
-						</div>
-					</div>
-					<div class="d-flex flex-wrap gap-2 mb-3"
-						aria-label="Tổng quan sản phẩm và giao hàng">
-						<a class="btn btn-outline-primary btn-sm"
-							th:href="@{/vendor/products}"> <i
-							class="bi bi-cup-straw me-1"></i>Sản phẩm: <strong
-							th:text="${productCount}">0</strong>
-						</a> <a class="btn btn-outline-primary btn-sm"
-							th:href="@{/vendor/orders(status=SHIPPING)}"> <i
-							class="bi bi-truck me-1"></i>Đơn đang giao: <strong
-							th:text="${shippingCount}">0</strong>
-						</a>
-					</div>
-					<div th:replace="~{fragments/dashboard-filter :: panel}"></div>
-					<div class="dashboard-kpi-grid mb-4">
-						<a class="card stat-card stat-card-featured text-decoration-none"
-							th:href="@{/vendor/orders(status=NEW)}"><small>Đơn
-								mới đang chờ</small><strong th:text="${dashboard.newCount}">0</strong><span
-							class="stat-note">Mở danh sách cần xác nhận</span><i
-							class="bi bi-receipt"></i></a> <a
-							class="card stat-card text-decoration-none"
-							th:href="@{/vendor/orders}"><small>Đơn chờ xử lý</small><strong
-							th:text="${dashboard.pendingCount}">0</strong><span
-							class="stat-note">Bao gồm giao lỗi và yêu cầu hoàn</span><i
-							class="bi bi-hourglass-split"></i></a>
-						<div class="card stat-card">
-							<small>Thực nhận trong kỳ</small><strong
-								class="dashboard-kpi-money text-success"
-								th:text="${#numbers.formatDecimal(dashboard.periodRevenue,0,'COMMA',0,'POINT')} + ' ₫'">0
-								₫</strong><span class="stat-note">Đã giao và đã thanh toán</span><i
-								class="bi bi-wallet2"></i>
-						</div>
-						<a class="card stat-card text-decoration-none"
-							th:href="@{/vendor/orders(status=DELIVERED)}"><small>Đã
-								giao trong kỳ</small><strong th:text="${dashboard.deliveredPeriodCount}">0</strong><span
-							class="stat-note">Theo ngày giao</span><i
-							class="bi bi-check2-circle"></i></a> <a
-							class="card stat-card text-decoration-none"
-							th:href="@{/vendor/orders(status=CANCELLED)}"><small>Đã
-								hủy trong kỳ</small><strong th:text="${dashboard.cancelledPeriodCount}">0</strong><span
-							class="stat-note">Theo ngày tạo đơn</span><i
-							class="bi bi-x-circle"></i></a>
-					</div>
-					<section class="dashboard-today card dashboard-panel mb-4">
-						<div>
-							<span class="section-kicker">ƯU TIÊN HÔM NAY</span>
-							<h2 class="h5 mb-1">Công việc cần xử lý</h2>
-							<p class="text-muted small mb-0">Số đơn đang mở của shop,
-								không giới hạn bởi bộ lọc doanh thu.</p>
-						</div>
-						<div class="dashboard-today-links">
-							<a th:href="@{/vendor/orders(status=NEW)}"><b
-								th:text="${dashboard.newCount}">0</b><span>Đơn mới cần
-									xác nhận</span><i class="bi bi-arrow-right"></i></a> <a
-								th:href="@{/vendor/orders(status=DELIVERY_FAILED)}"><b
-								th:text="${dashboard.failedCount}">0</b><span>Giao thất
-									bại cần theo dõi</span><i class="bi bi-arrow-right"></i></a> <a
-								th:href="@{/vendor/products}"><b
-								th:text="${#lists.size(dashboard.lowStockProducts)}">0</b><span>Sản
-									phẩm gần hết hàng</span><i class="bi bi-arrow-right"></i></a>
-						</div>
-					</section>
-					<div th:replace="~{fragments/revenue-report :: panel}"></div>
-					<div class="row g-4 mb-4">
-						<div class="col-xl-8">
-							<section class="card dashboard-panel h-100">
-								<div class="dashboard-panel-heading">
-									<div>
-										<span class="section-kicker">XU HƯỚNG TRONG KỲ</span>
-										<h2 class="h5 mb-0">Doanh thu thực nhận hoàn tất</h2>
-									</div>
-									<small class="text-muted">Theo ngày giao hàng</small>
-								</div>
-								<div class="chart-wrap chart-wrap-lg">
-									<canvas id="vendorRevenueChart"></canvas>
-								</div>
-							</section>
-						</div>
-						<div class="col-xl-4">
-							<section class="card dashboard-panel h-100">
-								<div class="dashboard-panel-heading">
-									<div>
-										<span class="section-kicker">VẬN HÀNH TRONG KỲ</span>
-										<h2 class="h5 mb-0">Đơn theo trạng thái</h2>
-									</div>
-								</div>
-								<div class="chart-wrap">
-									<canvas id="vendorStatusChart"></canvas>
-								</div>
-								<div class="dashboard-mini-stats">
-									<span><b th:text="${dashboard.cancelledPeriodCount}">0</b>
-										Đã hủy</span><span><b th:text="${dashboard.failedPeriodCount}">0</b>
-										Giao thất bại</span><span><b
-										th:text="${dashboard.returnPeriodCount}">0</b> Trả/hoàn</span>
-								</div>
-							</section>
-						</div>
-					</div>
-					<div class="row g-4">
-						<div class="col-lg-7">
-							<section class="card dashboard-panel h-100">
-								<div class="dashboard-panel-heading">
-									<div>
-										<span class="section-kicker">TOP TRONG KỲ</span>
-										<h2 class="h5 mb-0">Sản phẩm bán chạy</h2>
-									</div>
-									<a th:href="@{/vendor/products}"
-										class="small text-decoration-none">Quản lý sản phẩm</a>
-								</div>
-								<div class="table-responsive">
-									<table class="table dashboard-table">
-										<thead>
-											<tr>
-												<th>#</th>
-												<th>Sản phẩm</th>
-												<th class="text-end">Đã bán</th>
-												<th class="text-end">Doanh thu</th>
-											</tr>
-										</thead>
-										<tbody>
-											<tr th:each="item,stat : ${dashboard.topProducts}">
-												<td><span class="rank-badge" th:text="${stat.count}">1</span></td>
-												<td class="fw-semibold" th:text="${item.name}">Sản phẩm</td>
-												<td class="text-end" th:text="${item.quantity}">0</td>
-												<td class="text-end fw-bold"
-													th:text="${#numbers.formatDecimal(item.revenue,0,'COMMA',0,'POINT')} + ' ₫'">0
-													₫</td>
-											</tr>
-										</tbody>
-									</table>
-									<div class="empty-dashboard"
-										th:if="${#lists.isEmpty(dashboard.topProducts)}">
-										<i class="bi bi-bar-chart"></i> Chưa có đơn giao thành công
-										trong khoảng đã chọn.
-									</div>
-								</div>
-							</section>
-						</div>
-						<div class="col-lg-5">
-							<section class="card dashboard-panel h-100">
-								<div class="dashboard-panel-heading">
-									<div>
-										<span class="section-kicker text-danger">CẦN CHÚ Ý</span>
-										<h2 class="h5 mb-0">Sản phẩm gần hết hàng</h2>
-									</div>
-									<span class="badge text-bg-warning">≤ 10</span>
-								</div>
-								<div class="inventory-list">
-									<a class="inventory-item"
-										th:each="item : ${dashboard.lowStockProducts}"
-										th:href="@{/vendor/products/{id}/edit(id=${item.id})}"><span><b
-											th:text="${item.name}">Sản phẩm</b><small>Cập nhật
-												tồn kho</small></span><strong
-										th:classappend="${item.stock == 0} ? 'text-danger' : 'text-warning'"
-										th:text="|${item.stock} còn lại|">0 còn lại</strong></a>
-									<div class="empty-dashboard"
-										th:if="${#lists.isEmpty(dashboard.lowStockProducts)}">
-										<i class="bi bi-check-circle text-success"></i> Tồn kho đang
-										ổn định.
-									</div>
-								</div>
-							</section>
-						</div>
-					</div>
-				</div>
-			</div>
-		</div>
-	</main>
-	<footer th:replace="~{fragments/layout :: footer}"></footer>
-	<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
-	<script
-		src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-	<script th:if="${shop != null}" th:inline="javascript">
-document.addEventListener('DOMContentLoaded',()=>{
-  if(typeof Chart==='undefined')return;
-  const data={labels:/*[[${dashboard.dateLabels}]]*/[],revenue:/*[[${dashboard.sellerSeries}]]*/[],statusLabels:/*[[${dashboard.statusLabels}]]*/[],statusValues:/*[[${dashboard.statusValues}]]*/[]};
-  const money=value=>new Intl.NumberFormat('vi-VN').format(value)+' ₫';
-  new Chart(document.getElementById('vendorRevenueChart'),{type:'line',data:{labels:data.labels,datasets:[{label:'Shop thực nhận (đã giao, đã thanh toán)',data:data.revenue,borderColor:'#1769d2',backgroundColor:'rgba(23,105,210,.12)',fill:true,tension:.35,pointRadius:2,pointHoverRadius:5}]},options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'bottom',labels:{usePointStyle:true,boxWidth:10}},tooltip:{callbacks:{label:context=>' '+context.dataset.label+': '+money(context.parsed.y)}}},scales:{x:{grid:{display:false},ticks:{autoSkip:true,maxTicksLimit:9}},y:{beginAtZero:true,ticks:{callback:value=>new Intl.NumberFormat('vi-VN',{notation:'compact'}).format(value)+' ₫'}}}}});
-  new Chart(document.getElementById('vendorStatusChart'),{type:'doughnut',data:{labels:data.statusLabels,datasets:[{data:data.statusValues,backgroundColor:['#2563eb','#06b6d4','#f59e0b','#8b5cf6','#14b8a6','#3b82f6','#22c55e','#ef4444','#64748b','#f97316','#be123c'],borderWidth:0,hoverOffset:6}]},options:{maintainAspectRatio:false,cutout:'68%',plugins:{legend:{position:'bottom',labels:{boxWidth:10,usePointStyle:true,padding:14}}}}});
+<header th:replace="~{fragments/layout :: header}"></header>
+
+<main class="container py-4 dashboard-page">
+    <div class="admin-dashboard-shell">
+        <div th:replace="~{fragments/vendor-nav :: nav}"></div>
+
+        <div class="admin-dashboard-content">
+            <div th:replace="~{fragments/layout :: flash}"></div>
+
+            <div th:if="${shop == null}"
+                 class="card p-5 text-center empty-state">
+                <i class="bi bi-shop-window fs-1"></i>
+                <h1 class="h3">Mở cửa hàng UTETra</h1>
+                <p>
+                    Đăng ký shop để quản lý sản phẩm, đơn hàng,
+                    khuyến mãi và doanh thu.
+                </p>
+                <a class="btn btn-primary"
+                   th:href="@{/vendor/register}">
+                    Đăng ký cửa hàng
+                </a>
+            </div>
+
+            <div th:if="${shop != null}">
+                <div class="dashboard-heading mb-4">
+                    <div>
+                        <span class="page-kicker">
+                            <i class="bi bi-graph-up-arrow"></i>
+                            Tổng quan kinh doanh
+                        </span>
+                        <h1 class="h3 mb-1" th:text="${shop.name}">
+                            Cửa hàng
+                        </h1>
+                        <p class="text-muted mb-0">
+                            Theo dõi doanh thu, đơn hàng và tồn kho.
+                        </p>
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
+                        <span th:switch="${shop.status.name()}">
+                            <span th:case="'PENDING'"
+                                  class="badge text-bg-warning">
+                                Chờ duyệt
+                            </span>
+                            <span th:case="'APPROVED'"
+                                  class="badge text-bg-success">
+                                Đã duyệt
+                            </span>
+                            <span th:case="'REJECTED'"
+                                  class="badge text-bg-danger">
+                                Bị từ chối
+                            </span>
+                            <span th:case="'SUSPENDED'"
+                                  class="badge text-bg-secondary">
+                                Tạm ngưng
+                            </span>
+                            <span th:case="*"
+                                  class="badge text-bg-info"
+                                  th:text="${shop.status}">
+                                Trạng thái
+                            </span>
+                        </span>
+
+                        <a class="btn btn-outline-primary"
+                           th:href="@{/vendor/shop/edit}">
+                            <i class="bi bi-pencil-square"></i>
+                            Sửa shop
+                        </a>
+                    </div>
+                </div>
+
+                <div class="d-flex flex-wrap gap-2 mb-3"
+                     aria-label="Tổng quan sản phẩm và giao hàng">
+                    <a class="btn btn-outline-primary btn-sm"
+                       th:href="@{/vendor/products}">
+                        <i class="bi bi-cup-straw me-1"></i>
+                        Sản phẩm:
+                        <strong th:text="${productCount}">0</strong>
+                    </a>
+
+                    <a class="btn btn-outline-primary btn-sm"
+                       th:href="@{/vendor/orders(status=SHIPPING)}">
+                        <i class="bi bi-truck me-1"></i>
+                        Đơn đang giao:
+                        <strong th:text="${shippingCount}">0</strong>
+                    </a>
+                </div>
+
+                <div th:replace="~{fragments/dashboard-filter :: panel}"></div>
+
+                <div class="dashboard-kpi-grid mb-4">
+                    <a class="card stat-card stat-card-featured text-decoration-none"
+                       th:href="@{/vendor/orders(status=NEW)}">
+                        <small>Đơn mới đang chờ</small>
+                        <strong th:text="${dashboard.newCount}">0</strong>
+                        <span class="stat-note">
+                            Mở danh sách cần xác nhận
+                        </span>
+                        <i class="bi bi-receipt"></i>
+                    </a>
+
+                    <a class="card stat-card text-decoration-none"
+                       th:href="@{/vendor/orders}">
+                        <small>Đơn chờ xử lý</small>
+                        <strong th:text="${dashboard.pendingCount}">0</strong>
+                        <span class="stat-note">
+                            Bao gồm giao lỗi và yêu cầu hoàn
+                        </span>
+                        <i class="bi bi-hourglass-split"></i>
+                    </a>
+
+                    <div class="card stat-card">
+                        <small>Thực nhận trong kỳ</small>
+                        <strong class="dashboard-kpi-money text-success"
+                                th:text="${#numbers.formatDecimal(
+                                    dashboard.periodRevenue,
+                                    0, 'COMMA', 0, 'POINT'
+                                ) + ' ₫'}">
+                            0 ₫
+                        </strong>
+                        <span class="stat-note">
+                            Đã giao và đã thanh toán
+                        </span>
+                        <i class="bi bi-wallet2"></i>
+                    </div>
+
+                    <a class="card stat-card text-decoration-none"
+                       th:href="@{/vendor/orders(status=DELIVERED)}">
+                        <small>Đã giao trong kỳ</small>
+                        <strong th:text="${dashboard.deliveredPeriodCount}">
+                            0
+                        </strong>
+                        <span class="stat-note">Theo ngày giao</span>
+                        <i class="bi bi-check2-circle"></i>
+                    </a>
+
+                    <a class="card stat-card text-decoration-none"
+                       th:href="@{/vendor/orders(status=CANCELLED)}">
+                        <small>Đã hủy trong kỳ</small>
+                        <strong th:text="${dashboard.cancelledPeriodCount}">
+                            0
+                        </strong>
+                        <span class="stat-note">Theo ngày tạo đơn</span>
+                        <i class="bi bi-x-circle"></i>
+                    </a>
+                </div>
+
+                <div th:replace="~{fragments/dashboard-comparison :: panel(
+                    comparison=${dashboard.revenueComparison},
+                    period=${dashboardRange},
+                    title='So sánh doanh thu shop thực nhận',
+                    description='Chỉ tính phần shop thực nhận từ đơn đã giao và đã thanh toán; so với kỳ liền trước có cùng số ngày.'
+                )}"></div>
+
+                <section class="dashboard-today card dashboard-panel mb-4">
+                    <div>
+                        <span class="section-kicker">ƯU TIÊN HÔM NAY</span>
+                        <h2 class="h5 mb-1">Công việc cần xử lý</h2>
+                        <p class="text-muted small mb-0">
+                            Hàng đợi và tồn kho hiện tại của shop,
+                            không giới hạn bởi bộ lọc doanh thu.
+                        </p>
+                    </div>
+
+                    <div class="dashboard-today-links">
+                        <a th:href="@{/vendor/orders(status=NEW)}">
+                            <b th:text="${dashboard.newCount}">0</b>
+                            <span>Đơn mới cần xác nhận</span>
+                            <i class="bi bi-arrow-right"></i>
+                        </a>
+
+                        <a th:href="@{/vendor/orders(status=DELIVERY_FAILED)}">
+                            <b th:text="${dashboard.failedCount}">0</b>
+                            <span>Giao thất bại cần theo dõi</span>
+                            <i class="bi bi-arrow-right"></i>
+                        </a>
+
+                        <a th:href="@{/vendor/returns}">
+                            <b th:text="${dashboard.pendingReturnCount}">0</b>
+                            <span>Trả hàng chưa hoàn tất</span>
+                            <i class="bi bi-arrow-right"></i>
+                        </a>
+
+                        <a th:href="@{/vendor/inventory}">
+                            <b th:text="${dashboard.lowStockCount}">0</b>
+                            <span>Sản phẩm gần hết hàng</span>
+                            <i class="bi bi-arrow-right"></i>
+                        </a>
+                    </div>
+                </section>
+
+                <div th:replace="~{fragments/revenue-report :: panel}"></div>
+
+                <div class="row g-4 mb-4">
+                    <div class="col-xl-8">
+                        <section class="card dashboard-panel h-100">
+                            <div class="dashboard-panel-heading">
+                                <div>
+                                    <span class="section-kicker">
+                                        XU HƯỚNG TRONG KỲ
+                                    </span>
+                                    <h2 class="h5 mb-0">
+                                        Doanh thu thực nhận hoàn tất
+                                    </h2>
+                                </div>
+                                <small class="text-muted">
+                                    Theo ngày giao hàng
+                                </small>
+                            </div>
+
+                            <div class="chart-wrap chart-wrap-lg">
+                                <canvas id="vendorRevenueChart"></canvas>
+                            </div>
+                        </section>
+                    </div>
+
+                    <div class="col-xl-4">
+                        <section class="card dashboard-panel h-100">
+                            <div class="dashboard-panel-heading">
+                                <div>
+                                    <span class="section-kicker">
+                                        VẬN HÀNH TRONG KỲ
+                                    </span>
+                                    <h2 class="h5 mb-0">Đơn theo trạng thái</h2>
+                                </div>
+                            </div>
+
+                            <div class="chart-wrap">
+                                <canvas id="vendorStatusChart"></canvas>
+                            </div>
+
+                            <div class="dashboard-mini-stats">
+                                <span>
+                                    <b th:text="${dashboard.cancelledPeriodCount}">
+                                        0
+                                    </b>
+                                    Đã hủy
+                                </span>
+                                <span>
+                                    <b th:text="${dashboard.failedPeriodCount}">
+                                        0
+                                    </b>
+                                    Giao thất bại
+                                </span>
+                                <span>
+                                    <b th:text="${dashboard.returnPeriodCount}">
+                                        0
+                                    </b>
+                                    Trả/hoàn
+                                </span>
+                            </div>
+                        </section>
+                    </div>
+                </div>
+
+                <div class="row g-4">
+                    <div class="col-lg-7">
+                        <section class="card dashboard-panel h-100">
+                            <div class="dashboard-panel-heading">
+                                <div>
+                                    <span class="section-kicker">
+                                        TOP TRONG KỲ
+                                    </span>
+                                    <h2 class="h5 mb-0">Sản phẩm bán chạy</h2>
+                                </div>
+                                <a th:href="@{/vendor/products}"
+                                   class="small text-decoration-none">
+                                    Quản lý sản phẩm
+                                </a>
+                            </div>
+
+                            <div class="table-responsive">
+                                <table class="table dashboard-table">
+                                    <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Sản phẩm</th>
+                                        <th class="text-end">Đã bán</th>
+                                        <th class="text-end">Doanh thu</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    <tr th:each="item,stat : ${dashboard.topProducts}">
+                                        <td>
+                                            <span class="rank-badge"
+                                                  th:text="${stat.count}">
+                                                1
+                                            </span>
+                                        </td>
+                                        <td class="fw-semibold"
+                                            th:text="${item.name}">
+                                            Sản phẩm
+                                        </td>
+                                        <td class="text-end"
+                                            th:text="${item.quantity}">
+                                            0
+                                        </td>
+                                        <td class="text-end fw-bold"
+                                            th:text="${#numbers.formatDecimal(
+                                                item.revenue,
+                                                0, 'COMMA', 0, 'POINT'
+                                            ) + ' ₫'}">
+                                            0 ₫
+                                        </td>
+                                    </tr>
+                                    </tbody>
+                                </table>
+
+                                <div class="empty-dashboard"
+                                     th:if="${#lists.isEmpty(dashboard.topProducts)}">
+                                    <i class="bi bi-bar-chart"></i>
+                                    Chưa có đơn giao thành công
+                                    trong khoảng đã chọn.
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+
+                    <div class="col-lg-5">
+                        <section class="card dashboard-panel h-100">
+                            <div class="dashboard-panel-heading">
+                                <div>
+                                    <span class="section-kicker text-danger">
+                                        CẦN CHÚ Ý
+                                    </span>
+                                    <h2 class="h5 mb-0">
+                                        Sản phẩm gần hết hàng
+                                    </h2>
+                                </div>
+                                <span class="badge text-bg-warning">≤ 10</span>
+                            </div>
+
+                            <div class="inventory-list">
+                                <a class="inventory-item"
+                                   th:each="item : ${dashboard.lowStockProducts}"
+                                   th:href="@{/vendor/products/{id}/edit(id=${item.id})}">
+                                    <span>
+                                        <b th:text="${item.name}">Sản phẩm</b>
+                                        <small>Cập nhật tồn kho</small>
+                                    </span>
+                                    <strong th:classappend="${item.stock == 0}
+                                                ? 'text-danger'
+                                                : 'text-warning'"
+                                            th:text="|${item.stock} còn lại|">
+                                        0 còn lại
+                                    </strong>
+                                </a>
+
+                                <div class="empty-dashboard"
+                                     th:if="${#lists.isEmpty(dashboard.lowStockProducts)}">
+                                    <i class="bi bi-check-circle text-success"></i>
+                                    Tồn kho đang ổn định.
+                                </div>
+
+                                <p class="small text-muted mt-3 mb-0"
+                                   th:if="${dashboard.lowStockCount > #lists.size(dashboard.lowStockProducts)}">
+                                    Danh sách hiển thị tối đa 8 sản phẩm.
+                                    <a th:href="@{/vendor/inventory}">
+                                        Xem thêm trong Kho hàng
+                                    </a>
+                                </p>
+                            </div>
+                        </section>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script th:if="${shop != null}" th:inline="javascript">
+document.addEventListener('DOMContentLoaded', () => {
+    if (typeof Chart === 'undefined') return;
+
+    const data = {
+        labels: /*[[${dashboard.dateLabels}]]*/ [],
+        revenue: /*[[${dashboard.sellerSeries}]]*/ [],
+        statusLabels: /*[[${dashboard.statusLabels}]]*/ [],
+        statusValues: /*[[${dashboard.statusValues}]]*/ []
+    };
+
+    const money = value =>
+        new Intl.NumberFormat('vi-VN').format(value) + ' ₫';
+
+    new Chart(document.getElementById('vendorRevenueChart'), {
+        type: 'line',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                label: 'Shop thực nhận (đã giao, đã thanh toán)',
+                data: data.revenue,
+                borderColor: '#1769d2',
+                backgroundColor: 'rgba(23,105,210,.12)',
+                fill: true,
+                tension: .35,
+                pointRadius: 2,
+                pointHoverRadius: 5
+            }]
+        },
+        options: {
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        usePointStyle: true,
+                        boxWidth: 10
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: context =>
+                            ' ' + context.dataset.label + ': '
+                            + money(context.parsed.y)
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        autoSkip: true,
+                        maxTicksLimit: 9
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: value =>
+                            new Intl.NumberFormat('vi-VN', {
+                                notation: 'compact'
+                            }).format(value) + ' ₫'
+                    }
+                }
+            }
+        }
+    });
+
+    new Chart(document.getElementById('vendorStatusChart'), {
+        type: 'doughnut',
+        data: {
+            labels: data.statusLabels,
+            datasets: [{
+                data: data.statusValues,
+                backgroundColor: [
+                    '#2563eb',
+                    '#06b6d4',
+                    '#f59e0b',
+                    '#8b5cf6',
+                    '#14b8a6',
+                    '#3b82f6',
+                    '#22c55e',
+                    '#ef4444',
+                    '#64748b',
+                    '#f97316',
+                    '#be123c'
+                ],
+                borderWidth: 0,
+                hoverOffset: 6
+            }]
+        },
+        options: {
+            maintainAspectRatio: false,
+            cutout: '68%',
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        boxWidth: 10,
+                        usePointStyle: true,
+                        padding: 14
+                    }
+                }
+            }
+        }
+    });
 });
 </script>
 </body>

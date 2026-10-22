@@ -7,6 +7,7 @@ import jakarta.validation.Validator;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +24,8 @@ import vn.iotstar.dto.WebForms.ReturnRequestForm;
 import vn.iotstar.entity.CustomerOrder;
 import vn.iotstar.entity.ReturnRequest;
 import vn.iotstar.entity.ReturnRequestMedia;
+import vn.iotstar.entity.ReturnRequest.RefundVerification;
+import vn.iotstar.entity.ReturnStatusHistory;
 import vn.iotstar.entity.Shop;
 import vn.iotstar.entity.User;
 import vn.iotstar.entity.DomainEnums.*;
@@ -30,6 +33,7 @@ import vn.iotstar.repository.ManagerShopRepository;
 import vn.iotstar.repository.OrderRepository;
 import vn.iotstar.repository.ReturnRequestMediaRepository;
 import vn.iotstar.repository.ReturnRequestRepository;
+import vn.iotstar.repository.ReturnStatusHistoryRepository;
 import vn.iotstar.repository.ShopRepository;
 import vn.iotstar.repository.UserRepository;
 
@@ -40,6 +44,7 @@ public class ReturnRequestService {
 
     private final ReturnRequestRepository returnRequestRepository;
     private final ReturnRequestMediaRepository mediaRepository;
+    private final ReturnStatusHistoryRepository historyRepository;
     private final OrderRepository orderRepository;
     private final ManagerShopRepository managerShopRepository;
     private final ShopRepository shopRepository;
@@ -53,10 +58,6 @@ public class ReturnRequestService {
     @PersistenceContext
     private EntityManager entityManager;
 
-    /**
-     * Người mua xem yêu cầu của đơn mình.
-     * Trả về null nếu đơn chưa có yêu cầu trả hàng.
-     */
     public ReturnRequest forOrder(User user, Long orderId) {
         var account = requireBuyer(user);
         requirePositiveId(orderId);
@@ -75,9 +76,6 @@ public class ReturnRequestService {
         return request;
     }
 
-    /**
-     * Dùng khi hiển thị các đơn thuộc phạm vi quản lý của shop.
-     */
     public Map<Long, ReturnRequest> forOrders(
             User actor,
             List<Long> orderIds) {
@@ -174,6 +172,20 @@ public class ReturnRequestService {
         return request;
     }
 
+    public List<ReturnStatusHistory> historyForShop(
+            User actor,
+            Long requestId) {
+
+        return readHistory(getForShop(actor, requestId));
+    }
+
+    public List<ReturnStatusHistory> historyForUser(
+            User user,
+            Long orderId) {
+
+        return readHistory(getForUser(user, orderId));
+    }
+
     @Transactional
     public ReturnRequest create(
             User user,
@@ -238,6 +250,7 @@ public class ReturnRequestService {
         request.setDescription(safeForm.getDescription());
         request.setRefundAmount(refundAmount);
         request.setStatus(ReturnStatus.REQUESTED);
+        request.setRefundVerification(RefundVerification.PENDING);
 
         returnRequestRepository.saveAndFlush(request);
 
@@ -265,6 +278,15 @@ public class ReturnRequestService {
             OrderStatus.RETURN_REQUESTED,
             account,
             "Khách yêu cầu trả hàng: " + safeForm.getReason().getLabel()
+        );
+
+        recordStatus(
+            request,
+            null,
+            ReturnStatus.REQUESTED,
+            account,
+            request.getRequestedAt(),
+            "Lý do trả hàng: " + safeForm.getReason().getLabel()
         );
 
         notifyUser(
@@ -311,9 +333,12 @@ public class ReturnRequestService {
             );
         }
 
+        preserveExistingHistory(request);
+        var now = LocalDateTime.now();
+
         request.setStatus(decision);
         request.setResolvedBy(account);
-        request.setResolvedAt(LocalDateTime.now());
+        request.setResolvedAt(now);
         request.setResolutionNote(safeNote);
 
         if (decision == ReturnStatus.REJECTED) {
@@ -327,6 +352,15 @@ public class ReturnRequestService {
                 )
             );
         }
+
+        recordStatus(
+            request,
+            ReturnStatus.REQUESTED,
+            decision,
+            account,
+            now,
+            safeNote
+        );
 
         notifyUser(
             request.getUser(),
@@ -358,7 +392,18 @@ public class ReturnRequestService {
         requireStatus(request, ReturnStatus.APPROVED);
         requireActiveReturnOrder(request);
 
+        preserveExistingHistory(request);
+        var now = LocalDateTime.now();
         request.setStatus(ReturnStatus.RETURNING);
+
+        recordStatus(
+            request,
+            ReturnStatus.APPROVED,
+            ReturnStatus.RETURNING,
+            account,
+            now,
+            "Khách xác nhận đã gửi hàng trả."
+        );
 
         notifyUser(
             request.getShop().getOwner(),
@@ -401,13 +446,25 @@ public class ReturnRequestService {
             ? requiredNote(note, "Ghi chú xử lý hoàn tiền")
             : optionalNote(note);
 
+        preserveExistingHistory(request);
+        var now = LocalDateTime.now();
+
         request.setStatus(target);
         request.setResolvedBy(account);
-        request.setResolvedAt(LocalDateTime.now());
+        request.setResolvedAt(now);
 
         if (!safeNote.isBlank()) {
             request.setResolutionNote(safeNote);
         }
+
+        recordStatus(
+            request,
+            expected,
+            target,
+            account,
+            now,
+            safeNote
+        );
 
         if (target == ReturnStatus.RECEIVED) {
             notifyUser(
@@ -467,15 +524,25 @@ public class ReturnRequestService {
             "Ghi chú hoàn tiền"
         );
 
+        if (request.getRefundVerification() != RefundVerification.PENDING
+                || request.getRefundedAt() != null) {
+            throw new IllegalArgumentException(
+                "Yêu cầu đã có xác nhận hoàn tiền. Vui lòng tải lại trang."
+            );
+        }
+
+        preserveExistingHistory(request);
+        String gatewayCaveat = gatewayRefundCaveat(request.getOrder());
+
         // Khóa đơn và trạng thái yêu cầu đảm bảo chỉ hoàn kho một lần.
         orderService.applyReturnStatus(
             request.getOrder(),
             OrderStatus.RETURNED_REFUNDED,
             account,
             shorten(
-                "Đã xác nhận hoàn "
+                "Xác nhận thủ công hoàn "
                     + request.getRefundAmount().toPlainString()
-                    + "đ, tham chiếu " + safeReference,
+                    + "đ, tham chiếu " + safeReference + "." + gatewayCaveat,
                 500
             )
         );
@@ -483,23 +550,155 @@ public class ReturnRequestService {
         var now = LocalDateTime.now();
 
         request.setStatus(ReturnStatus.REFUNDED);
+        request.setRefundVerification(RefundVerification.MANUAL_CONFIRMED);
         request.setRefundReference(safeReference);
         request.setRefundNote(safeNote);
         request.setRefundedAt(now);
         request.setResolvedBy(account);
         request.setResolvedAt(now);
 
+        recordStatus(
+            request,
+            ReturnStatus.REFUND_PENDING,
+            ReturnStatus.REFUNDED,
+            account,
+            now,
+            safeNote
+        );
+
         notifyUser(
             request.getUser(),
-            "Đã hoàn tiền",
-            "Đơn " + request.getOrder().getCode()
-                + " đã hoàn "
+            "Đã ghi nhận xác nhận hoàn tiền thủ công",
+            "Người xử lý xác nhận đã hoàn "
                 + request.getRefundAmount().toPlainString()
-                + "đ. Mã tham chiếu: " + safeReference + ".",
+                + "đ cho đơn " + request.getOrder().getCode()
+                + ". Mã tham chiếu: " + safeReference + "." + gatewayCaveat,
             "/orders/" + request.getOrder().getId()
         );
 
         entityManager.flush();
+    }
+
+    private List<ReturnStatusHistory> readHistory(ReturnRequest request) {
+        var stored = historyRepository
+            .findByReturnRequestIdOrderByChangedAtAscIdAsc(request.getId());
+
+        return List.copyOf(
+            stored.isEmpty() ? legacySnapshots(request) : stored
+        );
+    }
+
+    private void preserveExistingHistory(ReturnRequest request) {
+        if (!historyRepository
+                .findByReturnRequestIdOrderByChangedAtAscIdAsc(request.getId())
+                .isEmpty()) {
+            return;
+        }
+
+        for (var snapshot : legacySnapshots(request)) {
+            saveHistory(request, snapshot);
+        }
+    }
+
+    private List<ReturnStatusHistory> legacySnapshots(ReturnRequest request) {
+        var snapshots = new ArrayList<ReturnStatusHistory>();
+
+        if (request.getRequestedAt() != null && request.getUser() != null) {
+            snapshots.add(newHistory(
+                request,
+                null,
+                ReturnStatus.REQUESTED,
+                request.getUser(),
+                request.getRequestedAt(),
+                "Thời điểm tạo yêu cầu từ dữ liệu hiện có."
+            ));
+        }
+
+        // RETURNING vẫn giữ người và thời điểm duyệt của luồng cũ.
+        ReturnStatus knownStatus = request.getStatus() == ReturnStatus.RETURNING
+            ? ReturnStatus.APPROVED
+            : request.getStatus();
+
+        LocalDateTime knownTime = knownStatus == ReturnStatus.REFUNDED
+                && request.getRefundedAt() != null
+            ? request.getRefundedAt()
+            : request.getResolvedAt();
+
+        if (knownStatus != ReturnStatus.REQUESTED
+                && request.getResolvedBy() != null
+                && knownTime != null) {
+
+            String knownNote = knownStatus == ReturnStatus.REFUNDED
+                ? request.getRefundNote()
+                : request.getResolutionNote();
+
+            snapshots.add(newHistory(
+                request,
+                null,
+                knownStatus,
+                request.getResolvedBy(),
+                knownTime,
+                knownNote
+            ));
+        }
+
+        snapshots.sort(
+            java.util.Comparator.comparing(
+                ReturnStatusHistory::getChangedAt
+            )
+        );
+
+        return snapshots;
+    }
+
+    private void recordStatus(
+            ReturnRequest request,
+            ReturnStatus previous,
+            ReturnStatus next,
+            User actor,
+            LocalDateTime changedAt,
+            String note) {
+
+        saveHistory(
+            request,
+            newHistory(request, previous, next, actor, changedAt, note)
+        );
+    }
+
+    private ReturnStatusHistory newHistory(
+            ReturnRequest request,
+            ReturnStatus previous,
+            ReturnStatus next,
+            User actor,
+            LocalDateTime changedAt,
+            String note) {
+
+        var history = new ReturnStatusHistory();
+        history.setReturnRequest(request);
+        history.setOldStatus(previous);
+        history.setNewStatus(next);
+        history.setChangedBy(actor);
+        history.setChangedAt(changedAt);
+        history.setNote(note);
+
+        return history;
+    }
+
+    private void saveHistory(
+            ReturnRequest request,
+            ReturnStatusHistory history) {
+
+        // Khởi tạo collection trước INSERT để không thêm trùng bản ghi vừa lưu.
+        request.getStatusHistory().size();
+        historyRepository.save(history);
+        request.getStatusHistory().add(history);
+    }
+
+    private String gatewayRefundCaveat(CustomerOrder order) {
+        return order.getPaymentMethod() == PaymentMethod.VNPAY
+                || order.getPaymentMethod() == PaymentMethod.MOMO
+            ? " Cổng thanh toán chưa xác nhận hoàn tiền."
+            : "";
     }
 
     private ReturnRequest lockForShop(
@@ -536,7 +735,7 @@ public class ReturnRequestService {
         );
 
         var request = returnRequestRepository
-            .findByIdForUpdate(candidate.getId())
+            .findById(candidate.getId())
             .orElseThrow(this::notFound);
 
         entityManager.refresh(
@@ -559,8 +758,7 @@ public class ReturnRequestService {
     private void prepareDetail(ReturnRequest request) {
         requireConsistentRequest(request);
 
-        // Tải hai collection bằng các truy vấn riêng,
-        // tránh fetch đồng thời hai List trong một EntityGraph.
+        // Tải riêng hai collection để tránh fetch đồng thời hai List.
         request.getMedia().size();
         request.getOrder().getItems().size();
     }

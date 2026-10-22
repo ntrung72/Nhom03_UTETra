@@ -88,6 +88,10 @@ public class ReturnRequest {
     @Column(name = "refund_reference", length = 120)
     private String refundReference;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "refund_verification", length = 24)
+    private RefundVerification refundVerification;
+
     @Column(name = "refund_note", length = 1000)
     private String refundNote;
 
@@ -102,14 +106,52 @@ public class ReturnRequest {
 
     @OneToMany(
         mappedBy = "returnRequest",
-        cascade = CascadeType.ALL,
+        cascade = {
+            CascadeType.PERSIST,
+            CascadeType.MERGE,
+            CascadeType.REMOVE,
+            CascadeType.DETACH
+        },
         orphanRemoval = true
     )
     @OrderBy("id ASC")
     private List<ReturnRequestMedia> media = new ArrayList<>();
 
+    @OneToMany(mappedBy = "returnRequest")
+    @OrderBy("changedAt ASC, id ASC")
+    private List<ReturnStatusHistory> statusHistory = new ArrayList<>();
+
+    public RefundVerification getRefundVerification() {
+        if (refundVerification != null) {
+            return refundVerification;
+        }
+
+        return status == ReturnStatus.REFUNDED
+            ? RefundVerification.MANUAL_CONFIRMED
+            : RefundVerification.PENDING;
+    }
+
     @PreUpdate
     void touch() {
         updatedAt = LocalDateTime.now();
+    }
+
+    public enum RefundVerification {
+
+        PENDING("Chưa xác nhận hoàn tiền"),
+
+        MANUAL_CONFIRMED("Đã xác nhận hoàn tiền thủ công"),
+
+        GATEWAY_CONFIRMED("Cổng thanh toán đã xác nhận hoàn tiền");
+
+        private final String label;
+
+        RefundVerification(String label) {
+            this.label = label;
+        }
+
+        public String getLabel() {
+            return label;
+        }
     }
 }

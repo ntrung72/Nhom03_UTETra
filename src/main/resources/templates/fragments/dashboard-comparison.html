@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<body>
+<section class="card mb-4"
+         th:fragment="panel(comparison, period, title, description)"
+         th:if="${comparison != null and period != null}"
+         th:with="previousPeriod=${period.previous()},
+                  trend=${comparison.trend()}"
+         th:attr="aria-label=${title}">
+
+    <div class="card-body">
+        <div class="mb-3">
+            <h2 class="h5 mb-1" th:text="${title}">
+                So sánh doanh thu
+            </h2>
+            <p class="small text-muted mb-0" th:text="${description}">
+                So sánh với kỳ liền trước có cùng số ngày.
+            </p>
+        </div>
+
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="border rounded p-3 h-100">
+                    <p class="small text-muted mb-1">Kỳ trước</p>
+                    <p class="h4 text-break mb-1"
+                       th:text="${#numbers.formatDecimal(
+                           comparison.previous,
+                           0, 'COMMA', 0, 'POINT'
+                       ) + ' ₫'}">
+                        0 ₫
+                    </p>
+                    <p class="small text-muted mb-0"
+                       th:text="${#temporals.format(
+                           previousPeriod.from, 'dd/MM/yyyy'
+                       ) + ' – ' + #temporals.format(
+                           previousPeriod.to, 'dd/MM/yyyy'
+                       )}">
+                        Khoảng ngày kỳ trước
+                    </p>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="border rounded p-3 h-100">
+                    <p class="small text-muted mb-1">Kỳ đang xem</p>
+                    <p class="h4 text-break mb-1"
+                       th:text="${#numbers.formatDecimal(
+                           comparison.current,
+                           0, 'COMMA', 0, 'POINT'
+                       ) + ' ₫'}">
+                        0 ₫
+                    </p>
+                    <p class="small text-muted mb-0"
+                       th:text="${#temporals.format(
+                           period.from, 'dd/MM/yyyy'
+                       ) + ' – ' + #temporals.format(
+                           period.to, 'dd/MM/yyyy'
+                       )}">
+                        Khoảng ngày kỳ đang xem
+                    </p>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="border rounded p-3 h-100">
+                    <p class="small text-muted mb-2">
+                        Thay đổi so với kỳ trước
+                    </p>
+
+                    <span class="badge mb-2"
+                          th:classappend="${trend == 'up'
+                              ? 'text-bg-success'
+                              : (trend == 'down'
+                                  ? 'text-bg-danger'
+                                  : 'text-bg-secondary')}"
+                          th:text="${trend == 'up'
+                              ? 'Tăng'
+                              : (trend == 'down' ? 'Giảm' : 'Không đổi')}">
+                        Không đổi
+                    </span>
+
+                    <p class="h4 text-break mb-1"
+                       th:if="${comparison.changePercent != null}"
+                       th:text="${(comparison.changePercent.signum() > 0 ? '+' : '')
+                           + #numbers.formatDecimal(
+                               comparison.changePercent,
+                               1, 'POINT', 1, 'COMMA'
+                           ) + '%'}">
+                        0,0%
+                    </p>
+
+                    <p class="small text-muted mb-0"
+                       th:if="${comparison.changePercent == null}">
+                        Kỳ trước bằng 0, chưa có cơ sở tính tỷ lệ phần trăm.
+                    </p>
+
+                    <p class="small text-muted mb-0"
+                       th:if="${comparison.changePercent != null}">
+                        Hai kỳ có cùng số ngày.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+</body>
+</html>
