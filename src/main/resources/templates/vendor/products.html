@@ -1,181 +1,63 @@
 <!doctype html>
 <html lang="vi" xmlns:th="http://www.thymeleaf.org">
-<head th:replace="~{fragments/layout :: head('Quản lý sản phẩm')}"></head>
+<head th:replace="~{fragments/layout :: head('Sản phẩm shop')}"></head>
 <body>
 <header th:replace="~{fragments/layout :: header}"></header>
-<div th:replace="~{fragments/layout :: flash}"></div>
-
 <main class="container py-4">
-    <nav th:replace="~{fragments/vendor-nav :: nav}"></nav>
-
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-        <div>
-            <h1 class="h3 mb-1">Quản lý sản phẩm</h1>
-            <p class="text-muted mb-0" th:text="${shop.name}">
-                Tên cửa hàng
-            </p>
-        </div>
-
-        <a th:if="${shop.approved}"
-           class="btn btn-primary"
-           th:href="@{/vendor/products/new}">
-            <i class="bi bi-plus-lg me-1"></i>Thêm sản phẩm
-        </a>
+    <div class="admin-dashboard-shell">
+    <div th:replace="~{fragments/vendor-nav :: nav}"></div>
+    <div class="admin-dashboard-content">
+    <div th:replace="~{fragments/layout :: flash}"></div>
+    <div class="d-flex justify-content-between align-items-center">
+        <h1 class="h3">Sản phẩm của tôi</h1>
+        <a class="btn btn-primary" th:href="@{/vendor/products/new}">Thêm sản phẩm</a>
     </div>
-
-    <div th:if="${!shop.approved}" class="alert alert-warning" role="alert">
-        Cửa hàng cần được duyệt và đang hoạt động để thêm, sửa hoặc ẩn/hiện sản phẩm.
+    <form class="my-3" method="get">
+        <div class="input-group">
+            <input class="form-control" name="q" th:value="${q}" placeholder="Tìm tên hoặc SKU">
+            <button class="btn btn-outline-primary">Tìm kiếm</button>
+        </div>
+    </form>
+    <div class="table-responsive card">
+        <table class="table align-middle mb-0">
+            <thead><tr><th>Sản phẩm</th><th>Danh mục</th><th>Giá</th><th>Kho</th><th>Đã bán</th><th>Trạng thái</th><th></th></tr></thead>
+            <tbody>
+            <tr th:each="p : ${products.content}">
+                <td th:text="${p.name + ' (' + p.sku + ')'}"></td>
+                <td th:text="${p.category.name}"></td>
+                <td th:text="${#numbers.formatDecimal(p.price,0,'COMMA',0,'POINT')} + ' ₫'"></td>
+                <td th:text="${p.stock}"></td>
+                <td th:text="${p.soldCount}"></td>
+                <td th:text="${p.status.label}"></td>
+                <td class="text-nowrap">
+                    <a class="btn btn-sm btn-outline-primary" th:href="@{/vendor/products/{id}/edit(id=${p.id})}">Sửa</a>
+                    <a class="btn btn-sm btn-outline-secondary" th:href="@{/vendor/inventory(productId=${p.id})}">Lịch sử kho</a>
+                    <form class="d-inline" th:action="@{/vendor/products/{id}/toggle(id=${p.id})}" method="post">
+                        <button class="btn btn-sm btn-outline-warning" th:text="${p.status.name() == 'HIDDEN' ? 'Bỏ ẩn' : 'Ẩn'}"></button>
+                    </form>
+                </td>
+            </tr>
+            <tr th:if="${products.empty}"><td colspan="7" class="text-center text-muted py-4">Không tìm thấy sản phẩm.</td></tr>
+            </tbody>
+        </table>
     </div>
-
-    <div class="card shadow-sm mb-4">
-        <div class="card-body">
-            <form th:action="@{/vendor/products}" method="get"
-                  class="row g-2 align-items-end">
-                <div class="col-md-8">
-                    <label for="q" class="form-label">Tìm sản phẩm</label>
-                    <input id="q" name="q" type="search"
-                           class="form-control"
-                           th:value="${q}"
-                           placeholder="Nhập tên sản phẩm hoặc mã SKU">
-                </div>
-
-                <div class="col-md-4 d-flex gap-2">
-                    <button type="submit" class="btn btn-primary">
-                        Tìm kiếm
-                    </button>
-                    <a class="btn btn-outline-secondary"
-                       th:href="@{/vendor/products}">
-                        Xóa bộ lọc
-                    </a>
-                </div>
-            </form>
-        </div>
+    <nav class="mt-3" th:if="${products.totalPages > 1}" aria-label="Phân trang sản phẩm">
+        <ul class="pagination justify-content-center">
+            <li class="page-item" th:classappend="${products.first} ? 'disabled'">
+                <a class="page-link" th:href="@{/vendor/products(page=${products.number - 1},q=${q})}">Trước</a>
+            </li>
+            <li class="page-item" th:each="i : ${#numbers.sequence(0, products.totalPages - 1)}"
+                th:classappend="${i == products.number} ? 'active'">
+                <a class="page-link" th:href="@{/vendor/products(page=${i},q=${q})}" th:text="${i + 1}"></a>
+            </li>
+            <li class="page-item" th:classappend="${products.last} ? 'disabled'">
+                <a class="page-link" th:href="@{/vendor/products(page=${products.number + 1},q=${q})}">Sau</a>
+            </li>
+        </ul>
+    </nav>
     </div>
-
-    <div class="card shadow-sm">
-        <div class="card-header bg-white">
-            <span th:text="|Tổng cộng: ${page.totalElements} sản phẩm|">
-                Tổng cộng: 0 sản phẩm
-            </span>
-        </div>
-
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                <tr>
-                    <th scope="col">Sản phẩm</th>
-                    <th scope="col">Danh mục</th>
-                    <th scope="col">Giá</th>
-                    <th scope="col">Tồn kho</th>
-                    <th scope="col">Đã bán</th>
-                    <th scope="col">Đánh giá</th>
-                    <th scope="col">Trạng thái</th>
-                    <th scope="col">Thao tác</th>
-                </tr>
-                </thead>
-
-                <tbody>
-                <tr th:if="${page.empty}">
-                    <td colspan="8" class="text-center text-muted py-5">
-                        Không có sản phẩm phù hợp.
-                    </td>
-                </tr>
-
-                <tr th:each="product : ${page.content}">
-                    <td>
-                        <div class="d-flex align-items-center gap-3">
-                            <img th:if="${!#strings.isEmpty(product.imageUrl)}"
-                                 th:src="${product.imageUrl}"
-                                 th:alt="${product.name}"
-                                 width="56" height="56"
-                                 class="rounded object-fit-cover">
-
-                            <div th:if="${#strings.isEmpty(product.imageUrl)}"
-                                 class="rounded bg-light d-flex align-items-center justify-content-center"
-                                 style="width: 56px; height: 56px; flex-shrink: 0;">
-                                <i class="bi bi-cup-straw fs-3 text-secondary"></i>
-                            </div>
-
-                            <div>
-                                <div class="fw-semibold" th:text="${product.name}">
-                                    Tên sản phẩm
-                                </div>
-                                <small class="text-muted"
-                                       th:text="|SKU: ${product.sku}|">
-                                    SKU
-                                </small>
-                            </div>
-                        </div>
-                    </td>
-
-                    <td th:text="${product.category.name}">Danh mục</td>
-
-                    <td class="text-nowrap"
-                        th:text="${#numbers.formatDecimal(product.price, 1, 'POINT', 2, 'COMMA')} + ' ₫'">
-                        25.000,00 ₫
-                    </td>
-
-                    <td th:text="${product.stock}">0</td>
-                    <td th:text="${product.soldCount}">0</td>
-
-                    <td class="text-nowrap"
-                        th:text="${#numbers.formatDecimal(product.averageRating, 1, 2)} + ' / 5'">
-                        0,00 / 5
-                    </td>
-
-                    <td>
-                        <span class="badge text-bg-secondary"
-                              th:text="${product.status.label}">
-                            Trạng thái
-                        </span>
-                    </td>
-
-                    <td>
-                        <div class="d-flex gap-2">
-                            <a class="btn btn-sm btn-outline-primary"
-                               th:href="@{/vendor/products/{id}/edit(id=${product.id})}">
-                                Sửa
-                            </a>
-
-                            <form th:action="@{/vendor/products/{id}/toggle(id=${product.id})}"
-                                  method="post">
-                                <button type="submit"
-                                        class="btn btn-sm btn-outline-secondary text-nowrap"
-                                        th:disabled="${!shop.approved}"
-                                        th:text="${product.status.name() == 'HIDDEN'} ? 'Hiện' : 'Ẩn'">
-                                    Ẩn
-                                </button>
-                            </form>
-                        </div>
-                    </td>
-                </tr>
-                </tbody>
-            </table>
-        </div>
-
-        <div th:if="${page.totalPages > 1}"
-             class="card-footer bg-white d-flex flex-wrap justify-content-between align-items-center gap-3">
-            <span th:text="|Trang ${page.number + 1} / ${page.totalPages}|">
-                Trang 1 / 1
-            </span>
-
-            <nav aria-label="Phân trang sản phẩm" class="d-flex gap-2">
-                <a th:if="${page.hasPrevious()}"
-                   class="btn btn-sm btn-outline-primary"
-                   th:href="@{/vendor/products(q=${q}, page=${page.number - 1})}">
-                    Trang trước
-                </a>
-
-                <a th:if="${page.hasNext()}"
-                   class="btn btn-sm btn-outline-primary"
-                   th:href="@{/vendor/products(q=${q}, page=${page.number + 1})}">
-                    Trang sau
-                </a>
-            </nav>
-        </div>
     </div>
 </main>
-
 <footer th:replace="~{fragments/layout :: footer}"></footer>
 <th:block th:replace="~{fragments/layout :: scripts}"></th:block>
 </body>

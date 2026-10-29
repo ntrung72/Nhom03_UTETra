@@ -3,8 +3,11 @@
 <head th:replace="~{fragments/layout :: head('Danh mục')}"></head>
 <body>
 <header th:replace="~{fragments/layout :: header}"></header>
-<main class="container py-4">
-    <div th:replace="~{fragments/management-nav :: nav}"></div>
+<main class="container py-4 management-page">
+    <div class="admin-dashboard-shell">
+        <div th:replace="~{fragments/management-nav :: nav}"></div>
+        <div class="admin-dashboard-content">
+    <div th:replace="~{fragments/layout :: flash}"></div>
     <div class="card p-4">
         <h1 class="h3" th:text="${category == null ? 'Thêm danh mục' : 'Sửa danh mục'}"></h1>
         <form th:action="@{/management/categories/save}" th:object="${categoryForm}" method="post" enctype="multipart/form-data">
@@ -21,6 +24,8 @@
             <div class="form-check"><input class="form-check-input" type="checkbox" th:field="*{active}"><label class="form-check-label">Hoạt động</label></div>
             <button class="btn btn-primary mt-3">Lưu danh mục</button>
         </form>
+    </div>
+        </div>
     </div>
 </main>
 <footer th:replace="~{fragments/layout :: footer}"></footer>

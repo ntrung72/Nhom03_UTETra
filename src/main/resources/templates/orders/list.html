@@ -5,7 +5,6 @@
 <header th:replace="~{fragments/layout :: header}"></header>
 <main class="container py-4">
     <div th:replace="~{fragments/layout :: flash}"></div>
-    <span class="page-kicker"><i class="bi bi-receipt"></i> Đơn mua</span>
     <h1 class="h3 mb-1">Lịch sử mua hàng</h1>
     <p class="text-muted mb-3">Theo dõi tiến trình và xem lại mọi đơn hàng của bạn.</p>
     <div class="d-flex flex-wrap gap-2 mb-3">
@@ -13,19 +12,49 @@
         <a class="btn btn-sm" th:classappend="${selectedStatus == s} ? 'btn-primary' : 'btn-outline-primary'" th:each="s : ${statuses}"
            th:href="@{/orders(status=${s})}" th:text="${s.label}"></a>
     </div>
-    <article class="card order-card mb-3 p-3 p-md-4" th:each="o : ${orders.content}">
+    <article class="card order-card order-history-card mb-3 p-3 p-md-4" th:each="o : ${orders.content}"
+             th:with="items=${orderPreviews[o.id]}, returnRequest=${returnRequests[o.id]}" th:attr="data-order-status=${o.status.name()}">
         <div class="d-flex flex-column flex-sm-row justify-content-between gap-3">
-            <div>
-                <strong th:text="${o.code}"></strong>
-                <span class="badge text-bg-primary ms-2" th:text="${o.status.label}"></span>
-                <span class="badge text-bg-light border ms-1" th:text="${o.paymentMethod.label + ' · ' + o.paymentStatus.label}"></span>
-                <div class="text-muted"
-                     th:text="${o.shop.name + ' · ' + #temporals.format(o.createdAt,'dd/MM/yyyy HH:mm')}"></div>
+            <div class="order-history-entry">
+                <div class="order-history-images" th:if="${items != null and !items.isEmpty()}"
+                     th:classappend="${items.size() > 1} ? ' order-history-images-multiple' : ''">
+                    <img class="order-history-thumb" width="76" height="76" loading="lazy"
+                         th:each="item, stat : ${items}" th:if="${stat.index < 3}"
+                         th:alt="${item.productName}"
+                         th:src="${item.imageUrl != null and !#strings.isEmpty(item.imageUrl) ? item.imageUrl : '/images/product-placeholder.svg'}">
+                    <span class="order-history-item-count" th:if="${items.size() > 1}"
+                          th:text="${items.size() + ' món'}"></span>
+                </div>
+                <div class="order-history-info">
+                    <div class="order-history-heading">
+                        <strong class="order-history-code" th:text="${o.code}"></strong>
+                        <span class="badge order-history-badge order-history-status"
+                              th:text="${returnRequest != null and o.status.name() == 'RETURN_REQUESTED' ? returnRequest.status.label : o.displayStatusLabel}"
+                              th:attr="data-status=${returnRequest != null and o.status.name() == 'RETURN_REQUESTED' ? returnRequest.status.name() : (o.awaitingBankTransferConfirmation ? 'AWAITING_PAYMENT' : o.status.name())}"></span>
+                        <span class="badge order-history-badge order-history-payment"
+                              th:text="${o.paymentMethod.label + ' · ' + o.paymentStatus.label}"
+                              th:attr="data-payment-status=${o.paymentStatus.name()}"></span>
+                    </div>
+                    <div class="text-muted"
+                         th:text="${o.shop.name + ' · ' + #temporals.format(o.createdAt,'dd/MM/yyyy HH:mm')}"></div>
+                    <div class="order-history-products" th:if="${items != null}"
+                         th:classappend="${items.size() > 1} ? ' order-history-products-multiple' : ''">
+                        <span class="order-history-product" th:each="item : ${items}">
+                            <span th:text="${item.productName}"></span>
+                            <span class="text-muted" th:text="${' ×' + item.quantity}"></span>
+                        </span>
+                    </div>
+                </div>
             </div>
             <div class="text-end">
                 <strong class="text-primary"
                         th:text="${#numbers.formatDecimal(o.totalAmount,0,'COMMA',0,'POINT')} + ' ₫'"></strong><br>
-                <a class="btn btn-sm btn-outline-primary" th:href="@{/orders/{id}(id=${o.id})}">Chi tiết</a>
+                <div class="d-flex justify-content-end gap-2 mt-2">
+                    <a class="btn btn-sm btn-outline-primary" th:href="@{/orders/{id}(id=${o.id})}">Chi tiết</a>
+                    <form th:action="@{/orders/{id}/reorder(id=${o.id})}" method="post">
+                        <button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-arrow-repeat me-1"></i>Mua lại</button>
+                    </form>
+                </div>
             </div>
         </div>
     </article>

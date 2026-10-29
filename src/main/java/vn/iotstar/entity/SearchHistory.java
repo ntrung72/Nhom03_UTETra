@@ -1,5 +1,6 @@
 package vn.iotstar.entity;
 
+import vn.iotstar.util.VietnamTime;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import lombok.Getter;
@@ -29,7 +30,7 @@ public class SearchHistory {
     private String normalizedKeyword;
 
     @Column(name = "searched_at", nullable = false)
-    private LocalDateTime searchedAt = LocalDateTime.now();
+    private LocalDateTime searchedAt = VietnamTime.now();
 
     @Column(name = "search_count", nullable = false)
     private int searchCount = 1;

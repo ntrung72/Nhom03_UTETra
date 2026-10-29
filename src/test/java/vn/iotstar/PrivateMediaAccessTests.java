@@ -90,11 +90,7 @@ class PrivateMediaAccessTests {
         order.setShippingAddress("01 Vo Van Ngan");
         order.setSubtotal(new BigDecimal("30000"));
         order.setTotalAmount(new BigDecimal("30000"));
-        order.setProductDiscount(BigDecimal.ZERO);
-        order.setVoucherDiscount(BigDecimal.ZERO);
-        order.setShippingDiscount(BigDecimal.ZERO);
-        order.setFinalShippingFee(BigDecimal.ZERO);
-        order.setDeliveryProofUrl(mediaStorageService.upload(image("delivery.png"), "delivery-proofs"));
+        order.setDeliveryProofUrl(mediaStorageService.upload(image("delivery.jpg"), "delivery-proofs"));
         order = orderRepository.save(order);
         assertTrue(order.getDeliveryProofUrl().startsWith("private:delivery-proofs/"));
 
@@ -109,7 +105,7 @@ class PrivateMediaAccessTests {
         ReturnRequestMedia evidence = new ReturnRequestMedia();
         evidence.setReturnRequest(request);
         evidence.setType(MediaType.IMAGE);
-        evidence.setUrl(mediaStorageService.upload(image("return.png"), "returns"));
+        evidence.setUrl(mediaStorageService.upload(image("return.jpg"), "returns"));
         evidence = returnRequestMediaRepository.save(evidence);
         assertTrue(evidence.getUrl().startsWith("private:returns/"));
 
@@ -122,7 +118,7 @@ class PrivateMediaAccessTests {
                 mvc.perform(get(path).with(user(allowed.getUsername()).roles(allowed.getRole().name())))
                     .andExpect(status().isOk())
                     .andExpect(header().string("Cache-Control", "no-store"))
-                    .andExpect(header().string("Content-Type", "image/png"));
+                    .andExpect(header().string("Content-Type", "image/jpeg"));
             }
             for (User denied : new User[] {unrelatedCustomer, unrelatedVendor, unrelatedShipper, unrelatedManager}) {
                 mvc.perform(get(path).with(user(denied.getUsername()).roles(denied.getRole().name())))
@@ -142,7 +138,7 @@ class PrivateMediaAccessTests {
         assertThrows(IllegalArgumentException.class,
             () -> mediaStorageService.readPrivate(evidenceReference, "delivery-proofs"));
 
-        String publicImage = mediaStorageService.upload(image("product.png"), "products");
+        String publicImage = mediaStorageService.upload(image("product.jpg"), "products");
         assertTrue(publicImage.startsWith("/uploads/products/"));
         mvc.perform(get(publicImage)).andExpect(status().isOk());
     }
@@ -158,10 +154,7 @@ class PrivateMediaAccessTests {
         return userRepository.save(user);
     }
 
-    private MockMultipartFile image(String filename) throws Exception {
-        var buffered = new java.awt.image.BufferedImage(3, 3, java.awt.image.BufferedImage.TYPE_INT_RGB);
-        var out = new java.io.ByteArrayOutputStream();
-        javax.imageio.ImageIO.write(buffered, "png", out);
-        return new MockMultipartFile("file", filename, "image/png", out.toByteArray());
+    private MockMultipartFile image(String filename) {
+        return new MockMultipartFile("file", filename, "image/jpeg", new byte[] {1, 2, 3, 4});
     }
 }

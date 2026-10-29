@@ -1,570 +1,146 @@
 <!doctype html>
 <html lang="vi" xmlns:th="http://www.thymeleaf.org">
-<head th:replace="~{fragments/layout :: head('Thông tin sản phẩm')}"></head>
+<head th:replace="~{fragments/layout :: head('Sản phẩm')}"></head>
 <body>
 <header th:replace="~{fragments/layout :: header}"></header>
-<div th:replace="~{fragments/layout :: flash}"></div>
-
-<main class="container py-4">
-    <nav th:replace="~{fragments/vendor-nav :: nav}"></nav>
-
-    <div class="row justify-content-center">
-        <div class="col-lg-10">
-            <div class="card shadow-sm">
-                <div class="card-body p-4">
-                    <h1 class="h3 mb-2"
-                        th:text="${editing} ? 'Sửa sản phẩm' : 'Thêm sản phẩm'">
-                        Thông tin sản phẩm
-                    </h1>
-
-                    <p class="text-muted mb-4" th:text="${shop.name}">
-                        Tên cửa hàng
-                    </p>
-
-                    <div th:if="${!shop.approved}"
-                         class="alert alert-warning" role="alert">
-                        Cửa hàng cần được duyệt và đang hoạt động để lưu sản phẩm.
-                    </div>
-
-                    <div th:if="${#lists.isEmpty(categories)}"
-                         class="alert alert-warning" role="alert">
-                        Chưa có danh mục đang hoạt động để chọn.
-                    </div>
-
-                    <form th:action="${editing}
-                              ? @{/vendor/products/{id}/edit(id=${productId})}
-                              : @{/vendor/products/new}"
-                          th:object="${productForm}"
-                          method="post"
-                          enctype="multipart/form-data"
-                          novalidate>
-
-                        <input type="hidden" th:field="*{version}">
-
-                        <div th:if="${#fields.hasErrors('version')}"
-                             class="alert alert-danger" role="alert"
-                             th:errors="*{version}">
-                            Phiên bản sản phẩm không hợp lệ.
-                        </div>
-
-                        <div th:if="${#fields.hasGlobalErrors()}"
-                             class="alert alert-danger" role="alert">
-                            <ul class="mb-0">
-                                <li th:each="error : ${#fields.globalErrors()}"
-                                    th:text="${error}">
-                                    Lỗi lưu sản phẩm
-                                </li>
-                            </ul>
-
-                            <a th:if="${editing}"
-                               class="btn btn-sm btn-outline-danger mt-2"
-                               th:href="@{/vendor/products/{id}/edit(id=${productId})}">
-                                Mở lại trang sửa với dữ liệu mới nhất
-                            </a>
-                        </div>
-
-                        <div class="row g-3">
-                            <div class="col-md-8">
-                                <label for="name" class="form-label">
-                                    Tên sản phẩm
-                                </label>
-                                <input id="name" type="text"
-                                       class="form-control"
-                                       th:field="*{name}"
-                                       th:classappend="${#fields.hasErrors('name')} ? 'is-invalid' : ''"
-                                       minlength="3" maxlength="180" required>
-                                <div class="invalid-feedback"
-                                     th:errors="*{name}"></div>
-                            </div>
-
-                            <div class="col-md-4">
-                                <label for="sku" class="form-label">
-                                    Mã SKU
-                                </label>
-                                <input id="sku" type="text"
-                                       class="form-control"
-                                       th:field="*{sku}"
-                                       th:classappend="${#fields.hasErrors('sku')} ? 'is-invalid' : ''"
-                                       minlength="2" maxlength="60"
-                                       placeholder="Ví dụ: TS-TV2-001" required>
-                                <div class="invalid-feedback"
-                                     th:errors="*{sku}"></div>
-                                <div class="form-text">
-                                    Mã sản phẩm không được trùng.
-                                </div>
-                            </div>
-
-                            <div class="col-md-6">
-                                <label for="categoryId" class="form-label">
-                                    Danh mục
-                                </label>
-                                <select id="categoryId"
-                                        class="form-select"
-                                        th:field="*{categoryId}"
-                                        th:classappend="${#fields.hasErrors('categoryId')} ? 'is-invalid' : ''"
-                                        required>
-                                    <option value="">-- Chọn danh mục --</option>
-                                    <option th:each="category : ${categories}"
-                                            th:value="${category.id}"
-                                            th:attr="data-slug=${category.slug}"
-                                            th:text="${category.name}">
-                                        Danh mục
-                                    </option>
-                                </select>
-                                <div class="invalid-feedback"
-                                     th:errors="*{categoryId}"></div>
-                            </div>
-
-                            <div class="col-md-6">
-                                <label for="status" class="form-label">
-                                    Trạng thái
-                                </label>
-                                <select id="status"
-                                        class="form-select"
-                                        th:field="*{status}"
-                                        th:classappend="${#fields.hasErrors('status')} ? 'is-invalid' : ''"
-                                        required>
-                                    <option th:each="statusOption : ${statuses}"
-                                            th:value="${statusOption.name()}"
-                                            th:text="${statusOption.label}">
-                                        Trạng thái
-                                    </option>
-                                </select>
-                                <div class="invalid-feedback"
-                                     th:errors="*{status}"></div>
-                            </div>
-
-                            <div class="col-md-6">
-                                <label for="price" class="form-label">
-                                    Giá sản phẩm (đồng)
-                                </label>
-                                <input id="price" type="number"
-                                       class="form-control"
-                                       th:field="*{price}"
-                                       th:classappend="${#fields.hasErrors('price')} ? 'is-invalid' : ''"
-                                       min="1000" max="999999999999.99"
-                                       step="0.01" required>
-                                <div class="invalid-feedback"
-                                     th:errors="*{price}"></div>
-                            </div>
-
-                            <div class="col-md-6">
-                                <label for="stock" class="form-label">
-                                    Số lượng tồn kho
-                                </label>
-                                <input id="stock" type="number"
-                                       class="form-control"
-                                       th:field="*{stock}"
-                                       th:classappend="${#fields.hasErrors('stock')} ? 'is-invalid' : ''"
-                                       min="0" max="2147483647"
-                                       step="1" required>
-                                <div class="invalid-feedback"
-                                     th:errors="*{stock}"></div>
-                                <div class="form-text">
-                                    Sản phẩm đang bán sẽ chuyển sang hết hàng
-                                    khi tồn kho bằng 0.
-                                </div>
-                            </div>
-
-                            <div class="col-12">
-                                <label for="description" class="form-label">
-                                    Mô tả sản phẩm
-                                </label>
-                                <textarea id="description"
-                                          class="form-control"
-                                          th:field="*{description}"
-                                          th:classappend="${#fields.hasErrors('description')} ? 'is-invalid' : ''"
-                                          rows="6"
-                                          minlength="20" maxlength="5000"
-                                          required></textarea>
-                                <div class="invalid-feedback"
-                                     th:errors="*{description}"></div>
-                            </div>
-
-                            <div class="col-12">
-                                <label for="image" class="form-label">
-                                    Ảnh bìa mới — không bắt buộc
-                                </label>
-                                <input id="image"
-                                       class="form-control"
-                                       type="file"
-                                       name="image"
-                                       accept="image/jpeg,image/png,image/webp">
-                                <div class="form-text">
-                                    JPG, PNG hoặc WEBP; tối đa 10 MB.
-                                    Ảnh này sẽ trở thành ảnh chính.
-                                    Ảnh cũ vẫn nằm trong bộ ảnh nếu không được
-                                    đánh dấu xóa.
-                                </div>
-                            </div>
-                        </div>
-
-                        <section class="mt-4">
-                            <hr>
-                            <h2 class="h5">
-                                <i class="bi bi-images"></i>
-                                Bộ ảnh sản phẩm
-                            </h2>
-
-                            <p class="text-muted small">
-                                Tối đa 8 ảnh mỗi sản phẩm, bao gồm ảnh bìa.
-                                Chọn ảnh chính hoặc dùng mũi tên để đổi thứ tự.
-                                Các thay đổi được áp dụng khi lưu sản phẩm.
-                            </p>
-
-                            <div class="mb-3"
-                                 th:if="${product != null
-                                     and #lists.isEmpty(gallery)
-                                     and product.imageUrl != null
-                                     and !#strings.isEmpty(product.imageUrl)
-                                     and product.imageUrl != '/images/product-placeholder.svg'}">
-                                <img th:src="@{${product.imageUrl}}"
-                                     alt="Ảnh sản phẩm hiện tại"
-                                     class="img-thumbnail"
-                                     style="width: 180px; height: 180px; object-fit: cover;">
-                                <div class="text-muted small mt-1">
-                                    Ảnh hiện tại sẽ được đưa vào bộ ảnh
-                                    khi lưu sản phẩm.
-                                </div>
-                            </div>
-
-                            <div id="galleryEditor"
-                                 class="d-flex flex-wrap gap-3"
-                                 th:if="${!#lists.isEmpty(gallery)}">
-
-                                <div class="gallery-editor-item border rounded p-2"
-                                     th:each="photo : ${gallery}"
-                                     style="width: 180px;">
-
-                                    <input type="hidden"
-                                           name="galleryOrder"
-                                           th:value="${photo.id}">
-
-                                    <img th:src="@{${photo.imageUrl}}"
-                                         th:alt="|Ảnh sản phẩm thứ ${photo.sortOrder + 1}|"
-                                         class="rounded w-100 mb-2"
-                                         style="height: 150px; object-fit: cover;">
-
-                                    <div class="form-check mb-2">
-                                        <input class="form-check-input"
-                                               type="radio"
-                                               name="primaryImageId"
-                                               th:id="${'primary-image-' + photo.id}"
-                                               th:value="${photo.id}"
-                                               th:checked="${photo.primary}">
-                                        <label class="form-check-label small"
-                                               th:for="${'primary-image-' + photo.id}">
-                                            Ảnh chính
-                                        </label>
-                                    </div>
-
-                                    <div class="form-check mb-2">
-                                        <input class="form-check-input"
-                                               type="checkbox"
-                                               name="removeImageIds"
-                                               th:id="${'remove-image-' + photo.id}"
-                                               th:value="${photo.id}">
-                                        <label class="form-check-label small text-danger"
-                                               th:for="${'remove-image-' + photo.id}">
-                                            Xóa ảnh
-                                        </label>
-                                    </div>
-
-                                    <div class="d-flex gap-2">
-                                        <button class="btn btn-sm btn-outline-secondary"
-                                                type="button"
-                                                data-gallery-move="up"
-                                                aria-label="Chuyển ảnh lên trước"
-                                                title="Chuyển ảnh lên trước">
-                                            <i class="bi bi-arrow-left"></i>
-                                        </button>
-
-                                        <button class="btn btn-sm btn-outline-secondary"
-                                                type="button"
-                                                data-gallery-move="down"
-                                                aria-label="Chuyển ảnh ra sau"
-                                                title="Chuyển ảnh ra sau">
-                                            <i class="bi bi-arrow-right"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <label class="form-label mt-3" for="galleryImages">
-                                Thêm ảnh vào bộ ảnh
-                            </label>
-                            <input id="galleryImages"
-                                   class="form-control"
-                                   type="file"
-                                   name="galleryImages"
-                                   multiple
-                                   accept="image/jpeg,image/png,image/webp">
-                            <div class="form-text">
-                                Có thể chọn nhiều ảnh cùng lúc.
-                                Mỗi ảnh tối đa 10 MB;
-                                ảnh mới được thêm vào cuối danh sách.
-                            </div>
-                        </section>
-
-                        <div id="toppingOptionNotice"
-                             class="alert alert-info mt-4" hidden>
-                            Topping bán riêng không áp dụng tùy chọn
-                            size, đường, đá và topping đi kèm.
-                        </div>
-
-                        <section id="drinkOptions" class="mt-4">
-                            <hr>
-                            <h2 class="h5">Size và phụ thu</h2>
-                            <p class="text-muted small">
-                                Chọn ít nhất một size đang bán.
-                                Phụ thu được cộng vào giá sản phẩm.
-                            </p>
-
-                            <div class="row g-3">
-                                <div class="col-md-4">
-                                    <div class="border rounded p-3 h-100">
-                                        <div class="form-check mb-3">
-                                            <input id="sizeMActive"
-                                                   type="checkbox"
-                                                   class="form-check-input"
-                                                   th:field="*{sizeMActive}">
-                                            <label for="sizeMActive"
-                                                   class="form-check-label fw-semibold">
-                                                Bán size M
-                                            </label>
-                                        </div>
-
-                                        <label for="sizeMExtraPrice"
-                                               class="form-label">
-                                            Phụ thu M (đồng)
-                                        </label>
-                                        <input id="sizeMExtraPrice"
-                                               type="number"
-                                               class="form-control"
-                                               th:field="*{sizeMExtraPrice}"
-                                               th:classappend="${#fields.hasErrors('sizeMExtraPrice')} ? 'is-invalid' : ''"
-                                               min="0" max="999999999999.99"
-                                               step="0.01" required>
-                                        <div class="invalid-feedback"
-                                             th:errors="*{sizeMExtraPrice}"></div>
-                                    </div>
-                                </div>
-
-                                <div class="col-md-4">
-                                    <div class="border rounded p-3 h-100">
-                                        <div class="form-check mb-3">
-                                            <input id="sizeLActive"
-                                                   type="checkbox"
-                                                   class="form-check-input"
-                                                   th:field="*{sizeLActive}">
-                                            <label for="sizeLActive"
-                                                   class="form-check-label fw-semibold">
-                                                Bán size L
-                                            </label>
-                                        </div>
-
-                                        <label for="sizeLExtraPrice"
-                                               class="form-label">
-                                            Phụ thu L (đồng)
-                                        </label>
-                                        <input id="sizeLExtraPrice"
-                                               type="number"
-                                               class="form-control"
-                                               th:field="*{sizeLExtraPrice}"
-                                               th:classappend="${#fields.hasErrors('sizeLExtraPrice')} ? 'is-invalid' : ''"
-                                               min="0" max="999999999999.99"
-                                               step="0.01" required>
-                                        <div class="invalid-feedback"
-                                             th:errors="*{sizeLExtraPrice}"></div>
-                                    </div>
-                                </div>
-
-                                <div class="col-md-4">
-                                    <div class="border rounded p-3 h-100">
-                                        <div class="form-check mb-3">
-                                            <input id="sizeXlActive"
-                                                   type="checkbox"
-                                                   class="form-check-input"
-                                                   th:field="*{sizeXlActive}">
-                                            <label for="sizeXlActive"
-                                                   class="form-check-label fw-semibold">
-                                                Bán size XL
-                                            </label>
-                                        </div>
-
-                                        <label for="sizeXlExtraPrice"
-                                               class="form-label">
-                                            Phụ thu XL (đồng)
-                                        </label>
-                                        <input id="sizeXlExtraPrice"
-                                               type="number"
-                                               class="form-control"
-                                               th:field="*{sizeXlExtraPrice}"
-                                               th:classappend="${#fields.hasErrors('sizeXlExtraPrice')} ? 'is-invalid' : ''"
-                                               min="0" max="999999999999.99"
-                                               step="0.01" required>
-                                        <div class="invalid-feedback"
-                                             th:errors="*{sizeXlExtraPrice}"></div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <h2 class="h5 mt-4">Topping áp dụng</h2>
-                            <p class="text-muted small">
-                                Chọn các topping khách có thể thêm vào sản phẩm.
-                                Có thể bỏ chọn tất cả.
-                            </p>
-
-                            <p th:if="${#lists.isEmpty(toppings)}"
-                               class="text-muted">
-                                Chưa có topping đang hoạt động.
-                            </p>
-
-                            <div class="row g-2">
-                                <div class="col-md-6"
-                                     th:each="topping : ${toppings}">
-                                    <div class="form-check border rounded p-3 ps-5">
-                                        <input type="checkbox"
-                                               class="form-check-input"
-                                               th:field="*{toppingIds}"
-                                               th:value="${topping.id}"
-                                               th:id="${'topping-' + topping.id}">
-                                        <label class="form-check-label"
-                                               th:for="${'topping-' + topping.id}">
-                                            <span th:text="${topping.name}">
-                                                Tên topping
-                                            </span>
-                                            <span class="text-muted"
-                                                  th:text="${' (+'
-                                                    + #numbers.formatDecimal(topping.price, 1, 'POINT', 2, 'COMMA')
-                                                    + ' ₫)'}">
-                                                Giá topping
-                                            </span>
-                                        </label>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div th:if="${#fields.hasErrors('toppingIds')}"
-                                 class="text-danger small mt-2"
-                                 th:errors="*{toppingIds}"></div>
-
-                            <h2 class="h5 mt-4">Đường và đá</h2>
-                            <p class="text-muted small">
-                                Khách có thể chọn các mức dưới đây khi đặt đồ uống.
-                                Đường và đá không có phụ thu.
-                            </p>
-
-                            <div class="row g-3">
-                                <div class="col-md-6">
-                                    <div class="border rounded p-3 h-100">
-                                        <div class="fw-semibold mb-2">
-                                            Mức đường
-                                        </div>
-                                        <div class="d-flex flex-wrap gap-2">
-                                            <span class="badge text-bg-light border"
-                                                  th:each="level : ${sugarLevels}"
-                                                  th:text="${level.label}">
-                                                Mức đường
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="col-md-6">
-                                    <div class="border rounded p-3 h-100">
-                                        <div class="fw-semibold mb-2">
-                                            Mức đá
-                                        </div>
-                                        <div class="d-flex flex-wrap gap-2">
-                                            <span class="badge text-bg-light border"
-                                                  th:each="level : ${iceLevels}"
-                                                  th:text="${level.label}">
-                                                Mức đá
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </section>
-
-                        <div class="d-flex flex-wrap gap-2 mt-4">
-                            <button type="submit"
-                                    class="btn btn-primary"
-                                    th:disabled="${!shop.approved or #lists.isEmpty(categories)}"
-                                    th:text="${editing} ? 'Lưu thay đổi' : 'Thêm sản phẩm'">
-                                Lưu sản phẩm
-                            </button>
-
-                            <a class="btn btn-outline-secondary"
-                               th:href="@{/vendor/products}">
-                                Quay lại danh sách
-                            </a>
-                        </div>
-                    </form>
-                </div>
+<main class="container py-4" th:classappend="${managementMode == true} ? ' management-page'">
+    <div class="admin-dashboard-shell">
+        <th:block th:if="${managementMode == true}">
+            <div th:replace="~{fragments/management-nav :: nav}"></div>
+        </th:block>
+        <th:block th:unless="${managementMode == true}">
+            <div th:replace="~{fragments/vendor-nav :: nav}"></div>
+        </th:block>
+        <div class="admin-dashboard-content">
+    <div th:replace="~{fragments/layout :: flash}"></div>
+    <div class="card product-editor-card">
+        <div class="product-editor-heading">
+            <div>
+                <h1 class="h3 mb-1" th:text="${product == null ? 'Thêm sản phẩm' : 'Sửa sản phẩm'}"></h1>
+                <p class="text-muted mb-0" th:text="${managementMode == true ? 'Quản trị thông tin bán hàng, hình ảnh, size và topping của cửa hàng trong phạm vi phụ trách.' : 'Thiết lập thông tin bán hàng, size và topping khách được phép lựa chọn.'}"></p>
             </div>
+            <a class="btn btn-light" th:href="${managementMode == true ? '/management/products' : '/vendor/products'}"><i class="bi bi-arrow-left"></i> Quay lại</a>
+        </div>
+        <form th:action="${managementMode == true ? '/management/products/save' : '/vendor/products/save'}" th:object="${productForm}" method="post" enctype="multipart/form-data">
+            <input type="hidden" name="id" th:value="${product?.id}">
+            <input type="hidden" th:field="*{version}">
+            <section class="product-editor-section">
+                <h2><i class="bi bi-info-circle"></i> Thông tin cơ bản</h2>
+                <div class="row g-3">
+                    <div class="col-12" th:if="${managementMode == true}">
+                        <label class="form-label" for="managementProductShop">Cửa hàng</label>
+                        <select class="form-select" id="managementProductShop" name="shopId" required th:disabled="${product != null}">
+                            <option value="">Chọn cửa hàng</option>
+                            <option th:each="shop : ${shops}" th:value="${shop.id}" th:text="${shop.name}"
+                                    th:selected="${shop.id == selectedShopId}"></option>
+                        </select>
+                        <input th:if="${product != null}" type="hidden" name="shopId" th:value="${selectedShopId}">
+                        <small class="text-muted" th:text="${product == null ? 'Manager chỉ thấy shop được Admin phân công.' : 'Không thể chuyển sản phẩm sang shop khác sau khi đã tạo.'}"></small>
+                    </div>
+                    <div class="col-md-8"><label class="form-label">Tên sản phẩm</label><input class="form-control" th:field="*{name}"><div class="field-error" th:errors="*{name}"></div></div>
+                    <div class="col-md-4"><label class="form-label">SKU</label><input class="form-control" th:field="*{sku}"><div class="field-error" th:errors="*{sku}"></div></div>
+                    <div class="col-md-4"><label class="form-label">Danh mục</label><select class="form-select" id="productCategory" th:field="*{categoryId}"><option th:each="c : ${categories}" th:value="${c.id}" th:text="${c.name}" th:attr="data-slug=${c.slug}"></option></select></div>
+                    <div class="col-md-4"><label class="form-label">Giá gốc</label><div class="input-group"><input class="form-control" type="number" min="1000" step="1000" th:field="*{price}"><span class="input-group-text">₫</span></div><div class="field-error" th:errors="*{price}"></div></div>
+                    <div class="col-md-2"><label class="form-label">Tồn kho</label><input class="form-control" type="number" min="0" th:field="*{stock}"><div class="field-error" th:errors="*{stock}"></div></div>
+                    <div class="col-md-6" th:if="${product != null}"><label class="form-label">Lý do thay đổi tồn kho</label><input class="form-control" th:field="*{stockNote}" maxlength="255" placeholder="Ví dụ: nhập thêm 50 ly, kiểm kê thiếu 5"><small class="text-muted">Bắt buộc nếu số lượng tồn kho thay đổi, ít nhất 5 ký tự.</small><div class="field-error" th:errors="*{stockNote}"></div></div>
+                    <div class="col-md-2"><label class="form-label">Trạng thái</label><select class="form-select" th:field="*{status}"><option th:each="s : ${T(vn.iotstar.entity.DomainEnums.ProductStatus).values()}" th:value="${s}" th:text="${s.label}"></option></select></div>
+                    <div class="col-12"><label class="form-label">Mô tả</label><textarea class="form-control" rows="5" th:field="*{description}"></textarea><div class="field-error" th:errors="*{description}"></div></div>
+                    <div class="col-12"><label class="form-label">Ảnh đại diện mới</label><input class="form-control" type="file" name="image" accept="image/jpeg,image/png,image/webp"><small class="text-muted">JPG, PNG hoặc WEBP; tối đa 10 MB. Ảnh này sẽ thành ảnh chính, ảnh cũ vẫn nằm trong gallery.</small></div>
+                </div>
+            </section>
+
+            <section class="product-editor-section">
+                <h2><i class="bi bi-images"></i> Bộ ảnh sản phẩm</h2>
+                <p class="text-muted small">Tối đa 8 ảnh mỗi sản phẩm. Chọn ảnh chính hoặc dùng mũi tên để đổi thứ tự hiển thị.</p>
+                <div th:if="${product != null and #lists.isEmpty(gallery) and product.imageUrl != null}" class="mb-3">
+                    <img class="gallery-editor-preview" th:src="${product.imageUrl}" alt="Ảnh sản phẩm hiện tại">
+                    <small class="text-muted d-block mt-1">Ảnh hiện tại sẽ được đưa vào gallery khi lưu sản phẩm.</small>
+                </div>
+                <div id="galleryEditor" class="gallery-editor-grid" th:if="${!#lists.isEmpty(gallery)}">
+                    <div class="gallery-editor-item" th:each="photo : ${gallery}">
+                        <input type="hidden" name="galleryOrder" th:value="${photo.id}">
+                        <img th:src="${photo.imageUrl}" th:alt="|Ảnh sản phẩm thứ ${photo.sortOrder + 1}|">
+                        <label class="small"><input type="radio" name="primaryImageId" th:value="${photo.id}" th:checked="${photo.primary}"> Ảnh chính</label>
+                        <label class="small text-danger"><input type="checkbox" name="removeImageIds" th:value="${photo.id}"> Xóa ảnh</label>
+                        <div class="d-flex gap-1"><button class="btn btn-sm btn-outline-secondary" type="button" data-gallery-move="up" aria-label="Chuyển ảnh lên trước"><i class="bi bi-arrow-left"></i></button><button class="btn btn-sm btn-outline-secondary" type="button" data-gallery-move="down" aria-label="Chuyển ảnh ra sau"><i class="bi bi-arrow-right"></i></button></div>
+                    </div>
+                </div>
+                <label class="form-label mt-3" for="galleryImages">Thêm ảnh vào gallery</label>
+                <input id="galleryImages" class="form-control" type="file" name="galleryImages" multiple accept="image/jpeg,image/png,image/webp">
+                <small class="text-muted">Mỗi ảnh tối đa 10 MB; ảnh mới được thêm vào cuối danh sách.</small>
+            </section>
+
+            <div id="drinkOptions">
+                <section class="product-editor-section">
+                    <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+                        <div><h2 class="mb-1"><i class="bi bi-cup-straw"></i> Size và phụ thu</h2><p class="text-muted small mb-0">Bật các size món này đang bán và nhập phần tiền cộng thêm.</p></div>
+                        <span class="option-hint">Ít nhất 1 size</span>
+                    </div>
+                    <div class="size-editor-grid">
+                        <label class="size-editor-card">
+                            <input type="checkbox" th:field="*{sizeMActive}"><span class="size-letter">M</span>
+                            <span class="size-state">Đang áp dụng</span>
+                            <span class="input-group input-group-sm"><input class="form-control" type="number" min="0" step="1000" th:field="*{sizeMExtraPrice}"><span class="input-group-text">₫</span></span>
+                            <span class="field-error" th:errors="*{sizeMExtraPrice}"></span>
+                        </label>
+                        <label class="size-editor-card">
+                            <input type="checkbox" th:field="*{sizeLActive}"><span class="size-letter">L</span>
+                            <span class="size-state">Đang áp dụng</span>
+                            <span class="input-group input-group-sm"><input class="form-control" type="number" min="0" step="1000" th:field="*{sizeLExtraPrice}"><span class="input-group-text">₫</span></span>
+                            <span class="field-error" th:errors="*{sizeLExtraPrice}"></span>
+                        </label>
+                        <label class="size-editor-card">
+                            <input type="checkbox" th:field="*{sizeXlActive}"><span class="size-letter">XL</span>
+                            <span class="size-state">Đang áp dụng</span>
+                            <span class="input-group input-group-sm"><input class="form-control" type="number" min="0" step="1000" th:field="*{sizeXlExtraPrice}"><span class="input-group-text">₫</span></span>
+                            <span class="field-error" th:errors="*{sizeXlExtraPrice}"></span>
+                        </label>
+                    </div>
+                </section>
+
+                <section class="product-editor-section">
+                    <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+                        <div><h2 class="mb-1"><i class="bi bi-grid"></i> Topping áp dụng</h2><p class="text-muted small mb-0">Chỉ topping được chọn mới xuất hiện trên trang sản phẩm.</p></div>
+                        <span class="option-hint" th:text="${#lists.size(toppings) + ' topping'}"></span>
+                    </div>
+                    <div class="topping-editor-grid">
+                        <label class="topping-editor-choice" th:each="t : ${toppings}">
+                            <input type="checkbox" th:field="*{toppingIds}" th:value="${t.id}">
+                            <span><i class="bi bi-check-circle-fill"></i><b th:text="${t.name}"></b><small th:text="${'+' + #numbers.formatDecimal(t.price,0,'COMMA',0,'POINT') + ' ₫'}"></small></span>
+                        </label>
+                    </div>
+                    <div class="alert alert-light border mt-3 mb-0" th:if="${#lists.isEmpty(toppings)}">Chưa có topping đang hoạt động. Manager/Admin cần tạo hoặc bật topping trước.</div>
+                </section>
+            </div>
+            <div class="alert alert-info" id="toppingProductNotice" hidden><i class="bi bi-info-circle"></i> Sản phẩm thuộc danh mục Topping nên không áp dụng cấu hình size và topping đi kèm.</div>
+            <div class="product-editor-actions"><a class="btn btn-light" th:href="${managementMode == true ? '/management/products' : '/vendor/products'}">Hủy</a><button class="btn btn-primary"><i class="bi bi-check2-circle"></i> Lưu sản phẩm</button></div>
+        </form>
+    </div>
         </div>
     </div>
 </main>
-
 <footer th:replace="~{fragments/layout :: footer}"></footer>
 <th:block th:replace="~{fragments/layout :: scripts}"></th:block>
-
 <script>
-    (() => {
-        const galleryEditor = document.getElementById('galleryEditor');
-
-        galleryEditor?.addEventListener('click', event => {
-            const button = event.target.closest('[data-gallery-move]');
-
-            if (!button) {
-                return;
-            }
-
-            const card = button.closest('.gallery-editor-item');
-
-            if (!card) {
-                return;
-            }
-
-            if (button.dataset.galleryMove === 'up'
-                    && card.previousElementSibling) {
-                galleryEditor.insertBefore(
-                    card,
-                    card.previousElementSibling
-                );
-            }
-
-            if (button.dataset.galleryMove === 'down'
-                    && card.nextElementSibling) {
-                galleryEditor.insertBefore(
-                    card.nextElementSibling,
-                    card
-                );
-            }
-        });
-
-        const categorySelect = document.getElementById('categoryId');
-        const options = document.getElementById('drinkOptions');
-        const notice = document.getElementById('toppingOptionNotice');
-
-        function updateOptions() {
-            const selected = categorySelect.selectedOptions[0];
-            const isTopping = selected?.dataset.slug === 'topping';
-
-            options.hidden = isTopping;
-            notice.hidden = !isTopping;
-
-            options.querySelectorAll('input, select, textarea')
-                .forEach(field => {
-                    field.disabled = isTopping;
-                });
-        }
-
-        categorySelect.addEventListener('change', updateOptions);
-        updateOptions();
-    })();
+document.addEventListener('DOMContentLoaded',()=>{
+  const galleryEditor=document.getElementById('galleryEditor');
+  galleryEditor?.addEventListener('click',event=>{
+    const button=event.target.closest('[data-gallery-move]');
+    if(!button)return;
+    const card=button.closest('.gallery-editor-item');
+    if(button.dataset.galleryMove==='up'&&card.previousElementSibling)galleryEditor.insertBefore(card,card.previousElementSibling);
+    if(button.dataset.galleryMove==='down'&&card.nextElementSibling)galleryEditor.insertBefore(card.nextElementSibling,card);
+  });
+  const category=document.getElementById('productCategory');
+  const options=document.getElementById('drinkOptions');
+  const notice=document.getElementById('toppingProductNotice');
+  const refresh=()=>{
+    const topping=category?.selectedOptions[0]?.dataset.slug==='topping';
+    if(options) options.hidden=topping;
+    if(notice) notice.hidden=!topping;
+  };
+  category?.addEventListener('change',refresh);refresh();
+});
 </script>
 </body>
 </html>

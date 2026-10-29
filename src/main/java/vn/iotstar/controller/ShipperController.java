@@ -21,9 +21,6 @@ public class ShipperController {
     private final CurrentUserService currentUserService;
     private final OrderService orderService;
 
-    @ModelAttribute("currentUser")
-    User currentUser() { return currentUserService.optional().orElse(null); }
-
     @GetMapping
     String dashboard(@RequestParam(required = false) OrderStatus status,
                      @RequestParam(required = false) String q,
@@ -54,10 +51,40 @@ public class ShipperController {
     String status(@PathVariable Long id, @RequestParam OrderStatus status,
                   @RequestParam(required = false) String failureReason,
                   @RequestParam(required = false) MultipartFile deliveryProof,
+                  @RequestParam(defaultValue = "false") boolean codCollected,
                   RedirectAttributes redirect) {
         try {
-            orderService.shipperUpdate(currentUserService.require(), id, status, failureReason, deliveryProof);
+            orderService.shipperUpdate(currentUserService.require(), id, status, failureReason, deliveryProof, codCollected);
             redirect.addFlashAttribute("success", "Đã cập nhật trạng thái giao hàng.");
+        } catch (IllegalArgumentException ex) {
+            redirect.addFlashAttribute("error", ex.getMessage());
+        }
+        return "redirect:/shipper";
+    }
+
+    @PostMapping("/orders/{id}/return-to-shop")
+    String returnToShop(@PathVariable Long id, RedirectAttributes redirect) {
+        try {
+            orderService.confirmReturnedToShop(currentUserService.require(), id);
+            redirect.addFlashAttribute("success", "Đã xác nhận kiện hàng về shop.");
+        } catch (IllegalArgumentException ex) {
+            redirect.addFlashAttribute("error", ex.getMessage());
+        }
+        return "redirect:/shipper";
+    }
+
+    @PostMapping("/orders/{id}/assignment")
+    String assignment(@PathVariable Long id, @RequestParam String decision,
+                      @RequestParam(required = false) String rejectionReason,
+                      RedirectAttributes redirect) {
+        try {
+            if (!"accept".equals(decision) && !"reject".equals(decision)) {
+                throw new IllegalArgumentException("Phản hồi phân công không hợp lệ.");
+            }
+            boolean accept = "accept".equals(decision);
+            orderService.respondToShipperAssignment(currentUserService.require(), id, accept, rejectionReason);
+            redirect.addFlashAttribute("success", accept ? "Đã chấp nhận đơn giao."
+                : "Đã từ chối đơn. Quản lý sẽ phân công lại.");
         } catch (IllegalArgumentException ex) {
             redirect.addFlashAttribute("error", ex.getMessage());
         }

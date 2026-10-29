@@ -5,13 +5,9 @@
 <header th:replace="~{fragments/layout :: header}"></header>
 
 <main>
-    <form class="mb-3" method="post" th:if="${currentUser != null and (currentUser.role.name() == 'USER' or currentUser.role.name() == 'VENDOR')}"
-          th:action="${following} ? @{/user/followed-shops/{id}/unfollow(id=${shop.id})} : @{/user/followed-shops/{id}/follow(id=${shop.id})}">
-        <button class="btn btn-outline-primary" th:text="${following} ? 'Bỏ theo dõi' : 'Theo dõi cửa hàng'"></button>
-    </form>
-
+    <div class="container"><div th:replace="~{fragments/layout :: flash}"></div></div>
     <section class="shop-public-hero">
-        <img class="shop-public-cover" th:src="${#strings.isEmpty(shop.imageUrl) ? '/images/logo.svg' : shop.imageUrl}" th:alt="${shop.name}">
+        <img class="shop-public-cover" th:src="${shop.imageUrl}" th:alt="${shop.name}">
         <div class="shop-public-shade"></div>
     </section>
 
@@ -21,10 +17,32 @@
                 <div>
                     <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
                         <h1 class="shop-public-name mb-0" th:text="${shop.name}">UTETra Thủ Đức</h1>
+                        <span class="shop-open-badge" th:classappend="${shop.openNow} ? ' is-open' : ' is-closed'">
+                            <i class="bi bi-circle-fill"></i>
+                            <span th:text="${shop.openNow} ? 'Đang mở cửa' : 'Đã đóng cửa'">Đang mở cửa</span>
+                        </span>
                     </div>
                     <p class="shop-public-description mb-0"
                        th:if="${shop.description != null and !shop.description.isBlank()}"
                        th:text="${shop.description}">Mô tả cửa hàng</p>
+                </div>
+                <div class="shop-public-actions">
+                    <div class="shop-public-rating" title="Điểm đánh giá trung bình của sản phẩm tại cửa hàng">
+                        <i class="bi bi-star-fill"></i>
+                        <strong th:text="${#numbers.formatDecimal(shopRating, 1, 1)}">4,8</strong>
+                        <span>đánh giá</span>
+                    </div>
+                    <form th:if="${currentUser != null and (currentUser.role.name() == 'USER' or currentUser.role.name() == 'VENDOR')}"
+                          th:action="${followingShop} ? @{/user/followed-shops/{id}/unfollow(id=${shop.id})} : @{/user/followed-shops/{id}/follow(id=${shop.id})}"
+                          method="post">
+                        <button class="btn btn-sm w-100" th:classappend="${followingShop} ? 'btn-outline-secondary' : 'btn-primary'" type="submit">
+                            <i class="bi me-1" th:classappend="${followingShop} ? 'bi-check-circle' : 'bi-plus-circle'"></i>
+                            <span th:text="${followingShop} ? 'Đang theo dõi · Bỏ theo dõi' : 'Theo dõi cửa hàng'">Theo dõi</span>
+                        </button>
+                    </form>
+                    <a class="btn btn-sm btn-outline-primary" th:if="${currentUser == null}" th:href="@{/login}">
+                        Đăng nhập để theo dõi
+                    </a>
                 </div>
             </div>
 
@@ -57,12 +75,30 @@
             </a>
         </div>
 
-        <div class="shop-products-section">
+        <div class="shop-products-section" id="shop-promotions">
             <div class="section-heading-row">
-                <div>
-                    <span class="section-kicker">MENU CỬA HÀNG</span>
-                    <h2 class="section-title mb-0">Sản phẩm nổi bật</h2>
+                <h2 class="section-title mb-0">Khuyến mãi đang diễn ra</h2>
+            </div>
+            <div class="row g-3" th:if="${!#lists.isEmpty(shopPromotions)}">
+                <div class="col-md-6 col-xl-4" th:each="promotion : ${shopPromotions}">
+                    <article class="shop-promotion-card h-100">
+                        <span class="shop-promotion-icon"><i class="bi" th:classappend="${promotion.type.name() == 'SHIPPING_DISCOUNT'} ? 'bi-truck' : 'bi-percent'"></i></span>
+                        <div>
+                            <strong th:text="${promotion.name}">Ưu đãi</strong>
+                            <p class="mb-1" th:text="${promotion.type.name() == 'PRODUCT_PERCENT' ? 'Giảm ' + #numbers.formatDecimal(promotion.discountValue,1,0) + '% giá sản phẩm' : 'Giảm phí vận chuyển tối đa ' + #numbers.formatDecimal(promotion.discountValue,0,'COMMA',0,'POINT') + ' ₫'}"></p>
+                            <small class="text-muted" th:text="${'Đến ' + #temporals.format(promotion.endsAt,'HH:mm · dd/MM/yyyy')}"></small>
+                            <a class="d-block mt-2" th:href="${promotion.product != null} ? @{/products/{id}(id=${promotion.product.id})} : '#shop-products'"
+                               th:text="${promotion.product != null} ? 'Xem sản phẩm áp dụng' : 'Xem sản phẩm của shop'">Xem sản phẩm</a>
+                        </div>
+                    </article>
                 </div>
+            </div>
+            <div class="panel text-muted p-3" th:if="${#lists.isEmpty(shopPromotions)}">Cửa hàng chưa có ưu đãi đang áp dụng.</div>
+        </div>
+
+        <div class="shop-products-section" id="shop-products">
+            <div class="section-heading-row">
+                <h2 class="section-title mb-0">Sản phẩm nổi bật</h2>
                 <span class="text-secondary small" th:text="|${products.totalElements} sản phẩm|">0 sản phẩm</span>
             </div>
 

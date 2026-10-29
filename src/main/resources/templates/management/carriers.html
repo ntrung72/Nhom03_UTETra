@@ -3,8 +3,10 @@
 <head th:replace="~{fragments/layout :: head('Nhà vận chuyển')}"></head>
 <body>
 <header th:replace="~{fragments/layout :: header}"></header>
-<main class="container py-4">
-    <div th:replace="~{fragments/management-nav :: nav}"></div>
+<main class="container py-4 management-page">
+    <div class="admin-dashboard-shell">
+        <div th:replace="~{fragments/management-nav :: nav}"></div>
+        <div class="admin-dashboard-content">
     <div th:replace="~{fragments/layout :: flash}"></div>
     <div class="d-flex justify-content-between align-items-center">
         <h1 class="h3">Nhà vận chuyển</h1>
@@ -26,8 +28,7 @@
                 <td th:text="${c.active ? 'Hoạt động' : 'Đã tắt'}"></td>
                 <td class="text-nowrap">
                     <a class="btn btn-sm btn-outline-primary" th:href="@{/management/carriers/{id}/edit(id=${c.id})}">Sửa</a>
-                    <form class="d-inline" th:action="@{/management/carriers/{id}/toggle(id=${c.id})}" method="post"><button class="btn btn-sm btn-outline-warning">Bật/tắt</button></form>
-                    <form class="d-inline" th:action="@{/management/carriers/{id}/delete(id=${c.id})}" method="post" onsubmit="return confirm('Xóa nhà vận chuyển này?')"><button class="btn btn-sm btn-outline-danger">Xóa</button></form>
+                    <form class="d-inline" th:action="@{/management/carriers/{id}/toggle(id=${c.id})}" method="post"><button class="btn btn-sm btn-outline-warning" th:text="${c.active ? 'Tắt' : 'Bật'}"></button></form>
                 </td>
             </tr>
             <tr th:if="${carriers.empty}"><td colspan="4" class="text-center text-muted py-4">Không tìm thấy nhà vận chuyển.</td></tr>
@@ -41,6 +42,8 @@
             <li class="page-item" th:classappend="${carriers.last} ? 'disabled'"><a class="page-link" th:href="@{/management/carriers(page=${carriers.number + 1},q=${q})}">Sau</a></li>
         </ul>
     </nav>
+        </div>
+    </div>
 </main>
 <footer th:replace="~{fragments/layout :: footer}"></footer>
 <th:block th:replace="~{fragments/layout :: scripts}"></th:block>

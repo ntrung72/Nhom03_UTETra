@@ -3,8 +3,11 @@
 <head th:replace="~{fragments/layout :: head('Khuyến mãi')}"></head>
 <body>
 <header th:replace="~{fragments/layout :: header}"></header>
-<main class="container py-4">
-    <div th:replace="~{fragments/management-nav :: nav}"></div>
+<main class="container py-4 management-page">
+    <div class="admin-dashboard-shell">
+        <div th:replace="~{fragments/management-nav :: nav}"></div>
+        <div class="admin-dashboard-content">
+    <div th:replace="~{fragments/layout :: flash}"></div>
     <div class="card p-4">
         <h1 class="h3" th:text="${promotion == null ? 'Tạo chương trình khuyến mãi' : 'Sửa chương trình khuyến mãi'}"></h1>
         <form th:action="@{/management/promotions/save}" th:object="${promotionForm}" method="post">
@@ -40,6 +43,8 @@
             </div>
             <button class="btn btn-primary mt-3">Lưu chương trình</button>
         </form>
+    </div>
+        </div>
     </div>
 </main>
 <footer th:replace="~{fragments/layout :: footer}"></footer>

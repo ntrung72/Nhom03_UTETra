@@ -3,13 +3,16 @@
 <head th:replace="~{fragments/layout :: head('Thông tin topping')}"></head>
 <body>
 <header th:replace="~{fragments/layout :: header}"></header>
-<main class="container py-4">
-    <div th:replace="~{fragments/management-nav :: nav}"></div>
+<main class="container py-4 management-page">
+    <div class="admin-dashboard-shell">
+        <div th:replace="~{fragments/management-nav :: nav}"></div>
+        <div class="admin-dashboard-content">
+    <div th:replace="~{fragments/layout :: flash}"></div>
     <div class="row justify-content-center">
         <div class="col-xl-7">
             <section class="card p-4 p-lg-5">
                 <div class="d-flex justify-content-between align-items-start gap-3 mb-4">
-                    <div><span class="page-kicker"><i class="bi bi-cup-straw"></i> Topping</span><h1 class="h3 mb-1" th:text="${topping == null ? 'Thêm topping mới' : 'Chỉnh sửa topping'}"></h1><p class="text-muted mb-0">Giá này sẽ được cộng vào giá sản phẩm khi khách lựa chọn.</p></div>
+                    <div><h1 class="h3 mb-1" th:text="${topping == null ? 'Thêm topping mới' : 'Chỉnh sửa topping'}"></h1><p class="text-muted mb-0">Giá này sẽ được cộng vào giá sản phẩm khi khách lựa chọn.</p></div>
                     <span class="badge text-bg-light border" th:if="${topping != null}" th:text="${appliedProductCount + ' sản phẩm đang áp dụng'}"></span>
                 </div>
                 <form th:action="@{/management/toppings/save}" th:object="${toppingForm}" method="post" novalidate>
@@ -36,6 +39,8 @@
                     </div>
                 </form>
             </section>
+        </div>
+    </div>
         </div>
     </div>
 </main>

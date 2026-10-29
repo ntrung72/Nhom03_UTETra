@@ -38,7 +38,7 @@ public class ReorderService {
         TransactionTemplate transaction = new TransactionTemplate(transactionManager);
         transaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         List<PreviousItem> previousItems = transaction.execute(status -> {
-            CustomerOrder order = orderRepository.findByIdAndUserId(orderId, user.getId())
+            CustomerOrder order = orderRepository.findDetailedById(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đơn hàng."));
             if (!order.getUser().getId().equals(user.getId())) {
                 throw new IllegalArgumentException("Bạn không có quyền mua lại đơn hàng này.");
@@ -126,8 +126,12 @@ public class ReorderService {
         for (String oldName : previous.toppings().split(",")) {
             String name = oldName.trim();
             Long id = available.stream().filter(link -> link.getTopping().getName().equalsIgnoreCase(name))
-                .map(link -> link.getTopping().getId()).findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Topping '" + name + "' đã ngừng bán hoặc đổi tên."));
+                .map(link -> link.getTopping().getId()).findFirst().orElse(null);
+            if (id == null && "Trân châu đen".equalsIgnoreCase(name)) {
+                id = available.stream().filter(link -> "Trân châu đường đen".equalsIgnoreCase(link.getTopping().getName()))
+                    .map(link -> link.getTopping().getId()).findFirst().orElse(null);
+            }
+            if (id == null) throw new IllegalArgumentException("Topping '" + name + "' đã ngừng bán hoặc đổi tên.");
             ids.add(id);
         }
         return ids;

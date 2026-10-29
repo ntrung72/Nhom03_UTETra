@@ -3,19 +3,23 @@
 <head th:replace="~{fragments/layout :: head('Điểm thưởng UTETra')}"></head>
 <body>
 <header th:replace="~{fragments/layout :: header}"></header>
-<main class="container pt-3 pt-lg-4 pb-4 pb-lg-5">
+<main class="container pt-3 pt-lg-4 pb-4 pb-lg-5 account-page">
     <div th:replace="~{fragments/layout :: flash}"></div>
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-        <div><h1 class="h3 mb-1">Điểm thưởng UTETra</h1><p class="text-muted mb-0">Theo dõi điểm được cộng khi đơn hoàn tất và điểm thu hồi khi hoàn tiền.</p></div>
-        <a class="btn btn-outline-primary" th:href="@{/user/profile}"><i class="bi bi-arrow-left me-1"></i>Tài khoản của tôi</a>
+    <section th:replace="~{user/account-shell :: hero}"></section>
+    <div class="row g-4 align-items-start">
+        <aside th:replace="~{user/account-shell :: sidebar}"></aside>
+        <div class="col-lg-9">
+    <section class="account-panel">
+    <div class="account-panel-heading">
+        <div><h2>Điểm thưởng UTETra</h2><p>Theo dõi điểm được cộng khi đơn hoàn tất và điểm thu hồi khi hoàn tiền.</p></div>
     </div>
-    <section class="panel p-4 mb-4" aria-label="Số dư điểm thưởng">
+    <section class="rounded-4 border bg-light p-3 p-md-4 mb-4" aria-label="Số dư điểm thưởng">
         <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
             <div><span class="text-muted">Điểm hiện có</span><div class="display-5 fw-bold text-primary" th:text="${#numbers.formatInteger(pointBalance, 1, 'COMMA')}">0</div></div>
             <div class="text-muted">Cứ <strong th:text="${#numbers.formatInteger(vndPerPoint, 1, 'COMMA') + ' ₫'}">10,000 ₫</strong> tiền hàng sau giảm giá = <strong>1 điểm</strong>.<br>Không tính phí vận chuyển; mỗi đơn được làm tròn xuống.</div>
         </div>
     </section>
-    <section class="panel p-4">
+    <section>
         <h2 class="h5 mb-3">Lịch sử cộng/trừ điểm</h2>
         <div class="account-empty" th:unless="${pointHistory.hasContent()}"><i class="bi bi-stars"></i><strong>Chưa có giao dịch điểm</strong><span>Điểm sẽ được cộng sau khi đơn được giao và thanh toán thành công.</span></div>
         <div class="table-responsive" th:if="${pointHistory.hasContent()}">
@@ -30,6 +34,9 @@
         </div>
         <nav class="mt-4" th:if="${pointHistory.totalPages > 1}" aria-label="Trang lịch sử điểm"><ul class="pagination justify-content-center mb-0"><li class="page-item" th:classappend="${pointHistory.first} ? ' disabled'"><a class="page-link" th:href="@{/user/loyalty(page=${pointHistory.number - 1})}">Trước</a></li><li class="page-item active"><span class="page-link" th:text="${pointHistory.number + 1}">1</span></li><li class="page-item" th:classappend="${pointHistory.last} ? ' disabled'"><a class="page-link" th:href="@{/user/loyalty(page=${pointHistory.number + 1})}">Sau</a></li></ul></nav>
     </section>
+    </section>
+        </div>
+    </div>
 </main>
 <footer th:replace="~{fragments/layout :: footer}"></footer>
 <th:block th:replace="~{fragments/layout :: scripts}"></th:block>

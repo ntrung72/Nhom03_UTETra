@@ -1,276 +1,138 @@
 package vn.iotstar.service;
 
 import java.math.BigDecimal;
-import java.util.Locale;
-import java.time.LocalDateTime;
-import org.springframework.web.multipart.MultipartFile;
-import vn.iotstar.dto.WebForms.CategoryForm;
-import vn.iotstar.dto.WebForms.ToppingForm;
-import vn.iotstar.dto.WebForms.PromotionForm;
-import vn.iotstar.dto.WebForms.VoucherForm;
-import vn.iotstar.dto.WebForms.CarrierForm;
-import vn.iotstar.entity.Category;
-import vn.iotstar.entity.Topping;
-import vn.iotstar.entity.DomainEnums.PromotionType;
-import vn.iotstar.entity.DomainEnums.VoucherType;
-import vn.iotstar.entity.Voucher;
-import vn.iotstar.entity.Carrier;
-import vn.iotstar.entity.VoucherUsage;
-import vn.iotstar.entity.DomainEnums.ProductStatus;
-import vn.iotstar.repository.CategoryRepository;
-import vn.iotstar.repository.ToppingRepository;
-import vn.iotstar.repository.ProductToppingRepository;
-import vn.iotstar.service.MediaStorageService;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.security.access.AccessDeniedException;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import vn.iotstar.entity.ManagerShop;
-import vn.iotstar.entity.Product;
-import vn.iotstar.entity.Promotion;
-import vn.iotstar.entity.Shop;
-import vn.iotstar.entity.User;
-import vn.iotstar.entity.DomainEnums.Role;
-import vn.iotstar.entity.DomainEnums.AuditAction;
-import vn.iotstar.entity.DomainEnums.PaymentTransactionStatus;
-import vn.iotstar.entity.PaymentTransaction;
-import vn.iotstar.repository.PaymentTransactionRepository;
-import vn.iotstar.entity.DomainEnums.ShopStatus;
-import vn.iotstar.repository.ManagerShopRepository;
-import vn.iotstar.repository.ProductRepository;
-import vn.iotstar.repository.PromotionRepository;
-import vn.iotstar.repository.VoucherRepository;
-import vn.iotstar.repository.CarrierRepository;
-import vn.iotstar.repository.VoucherUsageRepository;
-import vn.iotstar.repository.ShopRepository;
-import vn.iotstar.repository.UserRepository;
-import vn.iotstar.repository.OrderRepository;
+import org.springframework.web.multipart.MultipartFile;
+import vn.iotstar.dto.WebForms.CarrierForm;
+import vn.iotstar.dto.WebForms.CategoryForm;
+import vn.iotstar.dto.WebForms.PromotionForm;
+import vn.iotstar.dto.WebForms.VoucherForm;
+import vn.iotstar.dto.WebForms.ToppingForm;
+import vn.iotstar.entity.*;
+import vn.iotstar.entity.DomainEnums.*;
+import vn.iotstar.repository.*;
 
-/**
- * Shared Management authorization and administration through Step 16.
- * Every shop-owned operation must enforce requireShopAccess(actor, shopId) on the server.
- * Commission rule for Step 17: copy Shop.commissionRate into an Order snapshot at
- * Order creation; subsequent Shop rate edits must not change any saved Order snapshot.
- * The CustomerOrder entity and checkout belong to TV1's later step, not this service.
- */
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class ManagementService {
-
-    private final OrderRepository orderRepository;
     private final UserRepository userRepository;
-    private final ManagerShopRepository managerShopRepository;
     private final ShopRepository shopRepository;
-    private final ProductRepository productRepository;
-    private final PromotionRepository promotionRepository;
-    private final VoucherRepository voucherRepository;
-    private final CarrierRepository carrierRepository;
-    private final VoucherUsageRepository voucherUsageRepository;
     private final CategoryRepository categoryRepository;
+    private final ProductRepository productRepository;
+    private final CarrierRepository carrierRepository;
     private final ToppingRepository toppingRepository;
     private final ProductToppingRepository productToppingRepository;
-    private final MediaStorageService mediaStorageService;
+    private final PromotionRepository promotionRepository;
+    private final VoucherRepository voucherRepository;
+    private final VoucherUsageRepository voucherUsageRepository;
+    private final OrderRepository orderRepository;
     private final PaymentTransactionRepository paymentTransactionRepository;
+    private final ManagerShopRepository managerShopRepository;
+    private final MediaStorageService mediaStorageService;
     private final AuditLogService auditLogService;
 
-    /** Admin can see every shop; Manager can see only assigned shops. */
-    public List<Shop> accessibleShops(User actor) {
-        requireManagementRole(actor);
+    public record DashboardStats(long userCount, long shopCount, long productCount,
+                                 long orderCount, long voucherCount,
+                                 BigDecimal platformRevenue, BigDecimal sellerRevenue) {}
+
+    public DashboardStats dashboard(User actor) {
         if (isAdmin(actor)) {
-            return shopRepository.findAll(Sort.by("name"));
+            return new DashboardStats(userRepository.count(), shopRepository.count(), productRepository.count(),
+                orderRepository.count(), voucherRepository.count(),
+                zeroIfNull(orderRepository.sumPlatformRevenue(PaymentStatus.PAID, OrderStatus.DELIVERED)),
+                zeroIfNull(orderRepository.sumSellerRevenue(PaymentStatus.PAID, OrderStatus.DELIVERED)));
         }
-        return managerShopRepository.findByManagerIdOrderByShopNameAsc(actor.getId())
-            .stream().map(ManagerShop::getShop).toList();
-    }
-
-    /** IDs for repository queries in the later Management Catalog / Order steps. */
-    public List<Long> accessibleShopIds(User actor) {
-        requireManagementRole(actor);
-        if (isAdmin(actor)) {
-            return shopRepository.findAll(Sort.by("name")).stream()
-                .map(Shop::getId).toList();
-        }
-        return managerShopRepository.findShopIdsByManagerId(actor.getId());
-    }
-
-    /** Mandatory server-side guard: never trust a shopId received in a request. */
-    public void requireShopAccess(User actor, Long shopId) {
-        requireManagementRole(actor);
-        if (shopId == null || shopId <= 0) {
-            throw forbiddenShop();
-        }
-        if (isAdmin(actor)) {
-            return;
-        }
-        if (!managerShopRepository.existsByManagerIdAndShopId(actor.getId(), shopId)) {
-            throw forbiddenShop();
-        }
-    }
-
-    /** Lookup helpers for later controllers; scope is checked before returning data. */
-    public Shop getShop(User actor, Long shopId) {
-        requireShopAccess(actor, shopId);
-        return shopRepository.findById(shopId)
-            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy cửa hàng."));
-    }
-
-    public Product getProduct(User actor, Long productId) {
-        requireManagementRole(actor);
-        Product product = productRepository.findById(productId)
-            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm."));
-        requireShopAccess(actor, product.getShop().getId());
-        return product;
-    }
-
-    public Promotion getPromotion(User actor, Long promotionId) {
-        requireManagementRole(actor);
-        Promotion promotion = promotionRepository.findById(promotionId)
-            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy khuyến mãi."));
-        if (promotion.getShop() == null) {
-            if (!isAdmin(actor)) {
-                throw forbiddenShop();
-            }
-        } else {
-            requireShopAccess(actor, promotion.getShop().getId());
-        }
-        return promotion;
-    }
-
-    /** Read-only lists already scoped at the backend; later steps can add pagination. */
-    public List<Product> accessibleProducts(User actor) {
-        requireManagementRole(actor);
-        if (isAdmin(actor)) {
-            return productRepository.findAll(Sort.by("name"));
-        }
-        return accessibleShopIds(actor).stream()
-            .flatMap(id -> productRepository.findByShopIdOrderByNameAsc(id).stream())
-            .toList();
-    }
-
-    public List<Promotion> accessiblePromotions(User actor) {
-        requireManagementRole(actor);
-        if (isAdmin(actor)) {
-            return promotionRepository.findAll(Sort.by(Sort.Direction.DESC, "startsAt"));
-        }
-        return accessibleShopIds(actor).stream()
-            .flatMap(id -> promotionRepository.findByShopIdOrderByStartsAtDesc(id).stream())
-            .toList();
-    }
-
-    // =================== STEP 13: User, Shop, Manager administration ===================
-
-    /** Summary only: financial/order dashboards belong to later steps. */
-    public record DashboardSummary(long users, long shops, long products) {}
-
-    public DashboardSummary dashboard(User actor) {
-        requireManagementRole(actor);
-        if (isAdmin(actor)) {
-            return new DashboardSummary(userRepository.count(), shopRepository.count(), productRepository.count());
-        }
-        List<Long> ids = accessibleShopIds(actor);
-        if (ids.isEmpty()) return new DashboardSummary(0, 0, 0);
-        return new DashboardSummary(userRepository.countOwnersInShops(ids), ids.size(),
-            productRepository.countByShopIdIn(ids));
+        List<Long> shopIds = assignedShopIds(actor);
+        if (shopIds.isEmpty()) return new DashboardStats(0, 0, 0, 0, 0, BigDecimal.ZERO, BigDecimal.ZERO);
+        long users = userRepository.searchForAssignedShops(shopIds, null, PageRequest.of(0, 1)).getTotalElements();
+        return new DashboardStats(users, shopIds.size(), productRepository.countByShopIdIn(shopIds),
+            orderRepository.countByShopIdIn(shopIds), 0,
+            zeroIfNull(orderRepository.sumPlatformRevenueByShopIds(shopIds, PaymentStatus.PAID, OrderStatus.DELIVERED)),
+            zeroIfNull(orderRepository.sumSellerRevenueByShopIds(shopIds, PaymentStatus.PAID, OrderStatus.DELIVERED)));
     }
 
     public Page<User> users(User actor, String q, int page) {
-        requireManagementRole(actor);
-        var pageable = PageRequest.of(Math.max(0, page), 20, Sort.by(Sort.Direction.DESC, "id"));
-        String query = cleanQuery(q);
-        if (isAdmin(actor)) return userRepository.searchManagement(query, pageable);
-        List<Long> ids = accessibleShopIds(actor);
-        return ids.isEmpty() ? Page.empty(pageable) : userRepository.searchShopOwners(ids, query, pageable);
+        var pageable = PageRequest.of(Math.max(page, 0), 20, Sort.by("id").descending());
+        if (isAdmin(actor)) return userRepository.search(vn.iotstar.util.SlugUtils.cleanQuery(q), pageable);
+        List<Long> shopIds = assignedShopIds(actor);
+        return shopIds.isEmpty() ? Page.empty(pageable)
+            : userRepository.searchForAssignedShops(shopIds, vn.iotstar.util.SlugUtils.cleanQuery(q), pageable);
     }
 
     @Transactional
     public void toggleUser(Long id, User actor) {
-        requireManagementRole(actor);
-        if (id == null) throw new IllegalArgumentException("Tài khoản không hợp lệ.");
         User target = userRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy người dùng."));
         if (target.getId().equals(actor.getId())) {
             throw new IllegalArgumentException("Bạn không thể tự khóa tài khoản của mình.");
         }
+        if (actor.getRole() == Role.MANAGER && (target.getRole() == Role.ADMIN || target.getRole() == Role.MANAGER)) {
+            throw new IllegalArgumentException("Manager không thể khóa tài khoản Admin hoặc Manager khác.");
+        }
         if (!isAdmin(actor)) {
-            if (target.getRole() == Role.ADMIN || target.getRole() == Role.MANAGER) {
-                throw new AccessDeniedException("Manager không được khóa tài khoản Admin/Manager.");
-            }
-            List<Long> ids = accessibleShopIds(actor);
-            if (ids.isEmpty() || !userRepository.isOwnerOfAssignedShop(target.getId(), ids)) {
-                throw forbiddenShop();
+            List<Long> shopIds = assignedShopIds(actor);
+            if (shopIds.isEmpty() || !userRepository.isUserInAssignedShops(target.getId(), shopIds)) {
+                throw new IllegalArgumentException("Bạn không được quản lý tài khoản ngoài cửa hàng được phân công.");
             }
         }
         boolean wasLocked = target.isLocked();
         target.setLocked(!wasLocked);
         auditLogService.record(target.isLocked() ? AuditAction.USER_LOCKED : AuditAction.USER_UNLOCKED,
             actor, "USER", target.getId(), target.getUsername(),
-            wasLocked ? "Đã khóa" : "Hoạt động",
-            target.isLocked() ? "Đã khóa" : "Hoạt động", null);
+            wasLocked ? "Đã khóa" : "Hoạt động", target.isLocked() ? "Đã khóa" : "Hoạt động", null);
     }
 
     @Transactional
-    public void changeRole(Long id, Role newRole, User actor) {
+    public void changeRole(Long id, Role role, User actor) {
         requireAdmin(actor);
-        if (newRole == null || id == null) throw new IllegalArgumentException("Vai trò/tài khoản không hợp lệ.");
         User target = userRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy người dùng."));
-        if (target.getId().equals(actor.getId())) {
-            throw new IllegalArgumentException("Không thể tự đổi vai trò Admin.");
-        }
-        if (target.getRole() == newRole) return;
-        // A Vendor owning a shop must retain the Vendor role until the shop is transferred/closed.
-        if (shopRepository.existsByOwnerId(target.getId()) && newRole != Role.VENDOR) {
-            throw new IllegalArgumentException("Chủ cửa hàng phải giữ vai trò Vendor khi vẫn sở hữu shop.");
-        }
-        if (target.getRole() == Role.MANAGER && newRole != Role.MANAGER) {
-            managerShopRepository.deleteByManagerId(target.getId());
-            managerShopRepository.flush();
-        }
+        if (target.getId().equals(actor.getId())) throw new IllegalArgumentException("Không thể tự đổi vai trò Admin.");
         Role previousRole = target.getRole();
-        target.setRole(newRole);
-        auditLogService.record(AuditAction.USER_ROLE_CHANGED, actor, "USER", target.getId(),
-            target.getUsername(), previousRole.getLabel(), newRole.getLabel(), null);
+        target.setRole(role);
+        if (role != Role.MANAGER) managerShopRepository.deleteByManagerId(target.getId());
+        if (previousRole != role) {
+            auditLogService.record(AuditAction.USER_ROLE_CHANGED, actor, "USER", target.getId(),
+                target.getUsername(), previousRole.getLabel(), role.getLabel(), null);
+        }
     }
 
     public Page<Shop> shops(User actor, String q, ShopStatus status, int page) {
-        requireManagementRole(actor);
-        var pageable = PageRequest.of(Math.max(0, page), 20,
-            Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by(Sort.Direction.DESC, "id")));
-        String query = cleanQuery(q);
-        if (isAdmin(actor)) return shopRepository.searchManagement(query, status, pageable);
-        List<Long> ids = accessibleShopIds(actor);
-        return ids.isEmpty() ? Page.empty(pageable)
-            : shopRepository.searchAssigned(ids, query, status, pageable);
+        var pageable = PageRequest.of(Math.max(page, 0), 20, Sort.by("createdAt").descending());
+        if (isAdmin(actor)) return shopRepository.search(vn.iotstar.util.SlugUtils.cleanQuery(q), status, pageable);
+        List<Long> shopIds = assignedShopIds(actor);
+        return shopIds.isEmpty() ? Page.empty(pageable)
+            : shopRepository.searchAssigned(shopIds, vn.iotstar.util.SlugUtils.cleanQuery(q), status, pageable);
     }
 
     @Transactional
     public void updateShop(User actor, Long id, ShopStatus status, BigDecimal commissionRate) {
-        requireShopAccess(actor, id);
-        if (status == null) throw new IllegalArgumentException("Vui lòng chọn trạng thái shop.");
-        if (commissionRate == null || commissionRate.compareTo(BigDecimal.ZERO) < 0
-                || commissionRate.compareTo(new BigDecimal("100")) > 0
-                || commissionRate.scale() > 2) {
-            throw new IllegalArgumentException("Chiết khấu phải từ 0 đến 100% và tối đa 2 số thập phân.");
-        }
         Shop shop = shopRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy cửa hàng."));
+        requireShopAccess(actor, shop.getId());
+        if (commissionRate == null || commissionRate.compareTo(BigDecimal.ZERO) < 0
+            || commissionRate.compareTo(new BigDecimal("100")) > 0) {
+            throw new IllegalArgumentException("Chiết khấu ứng dụng phải từ 0 đến 100%.");
+        }
         ShopStatus previousStatus = shop.getStatus();
         BigDecimal previousCommission = shop.getCommissionRate();
         shop.setStatus(status);
-        shop.setEnabled(status != ShopStatus.SUSPENDED && status != ShopStatus.REJECTED);
         shop.setCommissionRate(commissionRate);
+        shop.setEnabled(status != ShopStatus.SUSPENDED && status != ShopStatus.REJECTED);
         if (previousStatus != status) {
             auditLogService.record(status == ShopStatus.APPROVED ? AuditAction.SHOP_APPROVED : AuditAction.SHOP_STATUS_CHANGED,
-                actor, "SHOP", shop.getId(), shop.getName(), previousStatus.name(), status.name(), null);
+                actor, "SHOP", shop.getId(), shop.getName(), previousStatus.getLabel(), status.getLabel(), null);
         }
         if (previousCommission == null || previousCommission.compareTo(commissionRate) != 0) {
             auditLogService.record(AuditAction.SHOP_COMMISSION_CHANGED, actor, "SHOP", shop.getId(),
@@ -279,57 +141,8 @@ public class ManagementService {
         }
     }
 
-    public List<User> managers(User actor) {
-        requireAdmin(actor);
-        return userRepository.findByRoleOrderByFullNameAsc(Role.MANAGER);
-    }
-
-    public Map<Long, Set<Long>> managerAssignments(User actor) {
-        requireAdmin(actor);
-        Map<Long, Set<Long>> result = new LinkedHashMap<>();
-        for (User manager : managers(actor)) {
-            result.put(manager.getId(), new LinkedHashSet<>(
-                managerShopRepository.findShopIdsByManagerId(manager.getId())));
-        }
-        return result;
-    }
-
-    @Transactional
-    public void assignManagerShops(User actor, Long managerId, List<Long> shopIds) {
-        requireAdmin(actor);
-        if (managerId == null) throw new IllegalArgumentException("Manager không hợp lệ.");
-        User manager = userRepository.findById(managerId)
-            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy Manager."));
-        if (manager.getRole() != Role.MANAGER) {
-            throw new IllegalArgumentException("Tài khoản được chọn không có vai trò Manager.");
-        }
-        List<Long> ids = shopIds == null ? List.of() : shopIds.stream().distinct().toList();
-        if (ids.stream().anyMatch(id -> id == null || id <= 0)) {
-            throw new IllegalArgumentException("Danh sách shop không hợp lệ.");
-        }
-        List<Shop> chosenShops = ids.isEmpty() ? List.of() : shopRepository.findAllById(ids);
-        if (chosenShops.size() != ids.size()) throw new IllegalArgumentException("Có cửa hàng không tồn tại.");
-        List<Long> previousIds = managerShopRepository.findShopIdsByManagerId(managerId);
-        // The manager_shop row has a unique (manager_id, shop_id) constraint.
-        managerShopRepository.deleteByManagerId(managerId);
-        managerShopRepository.flush();
-        for (Shop chosen : chosenShops) {
-            ManagerShop link = new ManagerShop();
-            link.setManager(manager);
-            link.setShop(chosen);
-            link.setAssignedBy(actor);
-            managerShopRepository.save(link);
-        }
-        if (!new java.util.HashSet<>(previousIds).equals(new java.util.HashSet<>(ids))) {
-            auditLogService.record(AuditAction.MANAGER_SHOPS_ASSIGNED, actor, "USER", manager.getId(),
-                manager.getUsername(), previousIds.toString(), ids.toString(), "Danh sách ID cửa hàng được phân công");
-        }
-    }
-
-    // ==================== STEP 14: Management catalog ====================
-
     public Page<Category> categories(String q, int page) {
-        return categoryRepository.search(cleanQuery(q),
+        return categoryRepository.search(vn.iotstar.util.SlugUtils.cleanQuery(q),
             PageRequest.of(Math.max(page, 0), 20, Sort.by("name")));
     }
 
@@ -338,51 +151,94 @@ public class ManagementService {
             .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy danh mục."));
     }
 
-    public List<Category> allCategories() { return categoryRepository.findAll(Sort.by("name")); }
+    public List<Category> allCategories() {
+        return categoryRepository.findAll();
+    }
 
     @Transactional
     public void saveCategory(Long id, CategoryForm form, MultipartFile image) {
-        Category category = id == null ? new Category() : getCategory(id);
-        String name = form.getName() == null ? "" : form.getName().trim();
-        if (name.length() < 2 || name.length() > 120) throw new IllegalArgumentException("Tên danh mục phải có từ 2 đến 120 ký tự.");
-        String slug = vn.iotstar.util.SlugUtils.toSlug(name);
-        boolean duplicated = id == null ? categoryRepository.existsBySlug(slug)
+        Category category = id == null ? new Category() : categoryRepository.findById(id)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy danh mục."));
+        String slug = vn.iotstar.util.SlugUtils.toSlug(form.getName());
+        boolean duplicatedSlug = id == null ? categoryRepository.existsBySlug(slug)
             : categoryRepository.existsBySlugAndIdNot(slug, id);
-        if (duplicated) throw new IllegalArgumentException("Tên danh mục đã tồn tại.");
-        category.setName(name);
+        if (duplicatedSlug) throw new IllegalArgumentException("Tên danh mục đã tồn tại.");
+        category.setName(form.getName().trim());
         category.setSlug(slug);
         category.setDescription(form.getDescription() == null ? null : form.getDescription().trim());
         category.setActive(form.isActive());
         String url = mediaStorageService.upload(image, "categories");
-        if (url != null) category.setImageUrl(url);
+        if (url != null) {
+            String previousUrl = category.getImageUrl();
+            category.setImageUrl(url);
+            mediaStorageService.deleteAfterCommit(previousUrl);
+        }
         if (category.getImageUrl() == null) category.setImageUrl("/images/category-placeholder.svg");
         categoryRepository.save(category);
     }
 
     @Transactional
     public void toggleCategory(Long id) {
-        Category category = getCategory(id);
+        Category category = categoryRepository.findById(id)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy danh mục."));
         category.setActive(!category.isActive());
     }
 
     public Page<Product> products(User actor, String q, Long shopId, Long categoryId, int page) {
-        requireManagementRole(actor);
         var pageable = PageRequest.of(Math.max(page, 0), 20, Sort.by("createdAt").descending());
-        if (isAdmin(actor)) return productRepository.searchManagement(cleanQuery(q), shopId, categoryId, pageable);
-        List<Long> ids = accessibleShopIds(actor);
-        return ids.isEmpty() ? Page.empty(pageable)
-            : productRepository.searchManagementAssigned(ids, cleanQuery(q), shopId, categoryId, pageable);
+        String search = vn.iotstar.util.SlugUtils.cleanQuery(q);
+        String searchSlug = search == null ? null : vn.iotstar.util.SlugUtils.toSlug(search);
+        if (isAdmin(actor)) {
+            return productRepository.searchManagement(search, searchSlug, shopId, categoryId, pageable);
+        }
+        List<Long> shopIds = assignedShopIds(actor);
+        return shopIds.isEmpty() ? Page.empty(pageable)
+            : productRepository.searchManagementAssigned(shopIds, search, searchSlug, shopId, categoryId, pageable);
     }
 
     @Transactional
     public void toggleProduct(User actor, Long id) {
-        Product product = getProduct(actor, id);
+        Product product = productRepository.findById(id)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm."));
+        requireShopAccess(actor, product.getShop().getId());
         product.setStatus(product.getStatus() == ProductStatus.HIDDEN
             ? (product.getStock() > 0 ? ProductStatus.ACTIVE : ProductStatus.OUT_OF_STOCK) : ProductStatus.HIDDEN);
     }
 
+    public Page<Carrier> carriers(String q, int page) {
+        return carrierRepository.search(vn.iotstar.util.SlugUtils.cleanQuery(q),
+            PageRequest.of(Math.max(page, 0), 20, Sort.by("name")));
+    }
+
+    public Carrier getCarrier(Long id) {
+        return carrierRepository.findById(id)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy nhà vận chuyển."));
+    }
+
+    @Transactional
+    public void saveCarrier(Long id, CarrierForm form) {
+        Carrier carrier = id == null ? new Carrier() : carrierRepository.findById(id)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy nhà vận chuyển."));
+        String name = form.getName().trim();
+        boolean duplicatedName = id == null ? carrierRepository.existsByNameIgnoreCase(name)
+            : carrierRepository.existsByNameIgnoreCaseAndIdNot(name, id);
+        if (duplicatedName) throw new IllegalArgumentException("Tên nhà vận chuyển đã tồn tại.");
+        carrier.setName(name);
+        carrier.setShippingFee(form.getShippingFee());
+        carrier.setActive(form.isActive());
+        carrierRepository.save(carrier);
+    }
+
+    @Transactional
+    public void toggleCarrier(Long id) {
+        Carrier carrier = carrierRepository.findById(id)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy nhà vận chuyển."));
+        carrier.setActive(!carrier.isActive());
+    }
+
     public Page<Topping> toppings(String q, int page) {
-        return toppingRepository.search(cleanQuery(q), PageRequest.of(Math.max(page, 0), 20, Sort.by("name")));
+        return toppingRepository.search(vn.iotstar.util.SlugUtils.cleanQuery(q),
+            PageRequest.of(Math.max(page, 0), 20, Sort.by("name")));
     }
 
     public Topping getTopping(Long id) {
@@ -390,17 +246,17 @@ public class ManagementService {
             .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy topping."));
     }
 
-    public long toppingProductCount(Long id) { return productToppingRepository.countByToppingId(id); }
+    public long toppingProductCount(Long id) {
+        return productToppingRepository.countByToppingId(id);
+    }
 
     @Transactional
     public void saveTopping(Long id, ToppingForm form) {
         Topping topping = id == null ? new Topping() : getTopping(id);
-        String name = form.getName() == null ? "" : form.getName().trim();
-        if (name.length() < 2 || name.length() > 120) throw new IllegalArgumentException("Tên topping phải có từ 2 đến 120 ký tự.");
-        if (form.getPrice() == null || form.getPrice().signum() < 0) throw new IllegalArgumentException("Giá topping không được âm.");
-        boolean duplicated = id == null ? toppingRepository.existsByNameIgnoreCase(name)
+        String name = form.getName().trim();
+        boolean duplicatedName = id == null ? toppingRepository.existsByNameIgnoreCase(name)
             : toppingRepository.existsByNameIgnoreCaseAndIdNot(name, id);
-        if (duplicated) throw new IllegalArgumentException("Tên topping đã tồn tại.");
+        if (duplicatedName) throw new IllegalArgumentException("Tên topping đã tồn tại.");
         topping.setName(name);
         topping.setPrice(form.getPrice());
         topping.setActive(form.isActive());
@@ -423,39 +279,39 @@ public class ManagementService {
     }
 
     public Page<Promotion> promotions(User actor, String q, Long shopId, PromotionType type, int page) {
-        requireManagementRole(actor);
         var pageable = PageRequest.of(Math.max(page, 0), 20, Sort.by("startsAt").descending());
-        if (isAdmin(actor)) return promotionRepository.search(cleanQuery(q), shopId, type, pageable);
-        List<Long> ids = accessibleShopIds(actor);
-        return ids.isEmpty() ? Page.empty(pageable)
-            : promotionRepository.searchAssigned(ids, cleanQuery(q), shopId, type, pageable);
+        if (isAdmin(actor)) return promotionRepository.search(vn.iotstar.util.SlugUtils.cleanQuery(q), shopId, type, pageable);
+        List<Long> shopIds = assignedShopIds(actor);
+        return shopIds.isEmpty() ? Page.empty(pageable)
+            : promotionRepository.searchAssigned(shopIds, vn.iotstar.util.SlugUtils.cleanQuery(q), shopId, type, pageable);
     }
 
     @Transactional
     public void savePromotion(Long id, Long shopId, PromotionForm form, User actor) {
-        requireManagementRole(actor);
-        if (form.getStartsAt() == null || form.getEndsAt() == null || !form.getEndsAt().isAfter(form.getStartsAt()))
+        if (form.getEndsAt() == null || form.getStartsAt() == null || !form.getEndsAt().isAfter(form.getStartsAt())) {
             throw new IllegalArgumentException("Thời gian kết thúc phải sau thời gian bắt đầu.");
-        if (form.getType() == null || form.getDiscountValue() == null || form.getDiscountValue().signum() <= 0)
-            throw new IllegalArgumentException("Loại khuyến mãi hoặc mức giảm không hợp lệ.");
-        if (form.getType() == PromotionType.PRODUCT_PERCENT && form.getDiscountValue().compareTo(new BigDecimal("100")) > 0)
+        }
+        if (form.getType() == PromotionType.PRODUCT_PERCENT
+            && form.getDiscountValue().compareTo(new BigDecimal("100")) > 0) {
             throw new IllegalArgumentException("Mức giảm phần trăm không được vượt quá 100%.");
+        }
         Promotion promotion = id == null ? new Promotion() : getPromotion(actor, id);
         Shop shop = shopId == null ? null : shopRepository.findById(shopId)
             .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy cửa hàng."));
-        if (shop == null && !isAdmin(actor)) throw new IllegalArgumentException("Manager phải chọn shop được phân công.");
+        if (shop == null && !isAdmin(actor)) {
+            throw new IllegalArgumentException("Manager phải chọn một cửa hàng được phân công.");
+        }
         if (shop != null) requireShopAccess(actor, shop.getId());
-        // Editing cannot move a manager-owned promotion to another shop without authorization.
         Product product = form.getProductId() == null ? null : productRepository.findById(form.getProductId())
             .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm."));
         if (product != null) requireShopAccess(actor, product.getShop().getId());
-        if (form.getType() == PromotionType.SHIPPING_DISCOUNT && product != null)
-            throw new IllegalArgumentException("Khuyến mãi vận chuyển không áp dụng riêng sản phẩm.");
-        if (product != null && (shop == null || !product.getShop().getId().equals(shop.getId())))
+        if (form.getType() == PromotionType.SHIPPING_DISCOUNT && product != null) {
+            throw new IllegalArgumentException("Khuyến mãi phí vận chuyển không áp dụng riêng cho một sản phẩm.");
+        }
+        if (product != null && (shop == null || !product.getShop().getId().equals(shop.getId()))) {
             throw new IllegalArgumentException("Sản phẩm không thuộc cửa hàng đã chọn.");
-        String name = form.getName() == null ? "" : form.getName().trim();
-        if (name.length() < 3 || name.length() > 180) throw new IllegalArgumentException("Tên chương trình không hợp lệ.");
-        promotion.setName(name);
+        }
+        promotion.setName(form.getName().trim());
         promotion.setType(form.getType());
         promotion.setDiscountValue(form.getDiscountValue());
         promotion.setShop(shop);
@@ -463,7 +319,7 @@ public class ManagementService {
         promotion.setStartsAt(form.getStartsAt());
         promotion.setEndsAt(form.getEndsAt());
         promotion.setActive(form.isActive());
-        if (id == null) promotion.setCreatedBy(actor);
+        promotion.setCreatedBy(actor);
         promotionRepository.save(promotion);
     }
 
@@ -473,32 +329,18 @@ public class ManagementService {
         promotionRepository.delete(promotion);
     }
 
-    // ==================== STEP 15: System Vouchers ====================
-
-    public Page<Voucher> vouchers(User actor, String q, VoucherType type, Boolean active, int page) {
-        requireAdmin(actor);
-        return voucherRepository.search(cleanQuery(q), type, active,
+    public Page<Voucher> vouchers(String q, VoucherType type, Boolean active, int page) {
+        return voucherRepository.search(vn.iotstar.util.SlugUtils.cleanQuery(q), type, active,
             PageRequest.of(Math.max(page, 0), 20, Sort.by("startsAt").descending()));
     }
 
-    public Voucher getVoucher(User actor, Long id) {
-        requireAdmin(actor);
+    public Voucher getVoucher(Long id) {
         return voucherRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy mã giảm giá."));
     }
 
     @Transactional
-    public void saveVoucher(User actor, Long id, VoucherForm form) {
-        requireAdmin(actor);
-        if (form == null || form.getCode() == null || !form.getCode().trim().matches("[A-Za-z0-9_-]{3,40}")
-            || form.getName() == null || form.getName().isBlank() || form.getName().length() > 180
-            || form.getType() == null || form.getDiscountValue() == null
-            || form.getDiscountValue().compareTo(BigDecimal.ZERO) <= 0
-            || form.getMinimumOrder() == null || form.getMinimumOrder().signum() < 0
-            || form.getMaxDiscount() != null && form.getMaxDiscount().signum() <= 0
-            || form.getQuantity() < 0) {
-            throw new IllegalArgumentException("Dữ liệu mã giảm giá không hợp lệ.");
-        }
+    public void saveVoucher(Long id, VoucherForm form) {
         if (form.getEndsAt() == null || form.getStartsAt() == null
             || !form.getEndsAt().isAfter(form.getStartsAt())) {
             throw new IllegalArgumentException("Thời gian kết thúc phải sau thời gian bắt đầu.");
@@ -516,10 +358,6 @@ public class ManagementService {
         if (duplicatedCode) throw new IllegalArgumentException("Mã giảm giá đã tồn tại.");
         Voucher voucher = id == null ? new Voucher() : voucherRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy mã giảm giá."));
-        if (id != null && voucherUsageRepository.existsByVoucherId(id)
-            && !voucher.getCode().equalsIgnoreCase(code)) {
-            throw new IllegalArgumentException("Mã đã có lịch sử sử dụng nên không thể đổi code.");
-        }
         voucher.setCode(code);
         voucher.setName(form.getName().trim());
         voucher.setType(form.getType());
@@ -535,159 +373,158 @@ public class ManagementService {
     }
 
     @Transactional
-    public void toggleVoucher(User actor, Long id) {
-        requireAdmin(actor);
+    public void toggleVoucher(Long id) {
         Voucher voucher = voucherRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy mã giảm giá."));
         voucher.setActive(!voucher.isActive());
     }
 
     @Transactional
-    public void deleteVoucher(User actor, Long id) {
-        requireAdmin(actor);
+    public void deleteVoucher(Long id) {
         Voucher voucher = voucherRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy mã giảm giá."));
+        if (orderRepository.existsByVoucherId(id)) {
+            throw new IllegalArgumentException("Mã đã được sử dụng trong đơn hàng nên không thể xóa. Bạn có thể tắt mã này.");
+        }
         if (voucherUsageRepository.existsByVoucherId(id)) {
             throw new IllegalArgumentException("Mã đã có lịch sử sử dụng nên không thể xóa. Bạn có thể tắt mã này.");
         }
         voucherRepository.delete(voucher);
     }
 
-    public Page<VoucherUsage> voucherUsages(User actor, Long voucherId, int page) {
-        requireAdmin(actor);
+    public Page<VoucherUsage> voucherUsages(Long voucherId, int page) {
         if (!voucherRepository.existsById(voucherId)) throw new IllegalArgumentException("Không tìm thấy mã giảm giá.");
         return voucherUsageRepository.findByVoucherIdOrderByUsedAtDesc(voucherId,
             PageRequest.of(Math.max(page, 0), 20));
     }
 
-    // ==================== STEP 16: Carrier and commission ====================
-
-    /** Carrier administration is available to Management roles; vendor/customer code only reads active carriers. */
-    public Page<Carrier> carriers(User actor, String q, int page) {
-        requireManagementRole(actor);
-        return carrierRepository.search(cleanQuery(q),
-            PageRequest.of(Math.max(page, 0), 20, Sort.by("name")));
-    }
-
-    public Carrier getCarrier(User actor, Long id) {
-        requireManagementRole(actor);
-        return carrierRepository.findById(id)
-            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy nhà vận chuyển."));
-    }
-
-    @Transactional
-    public void saveCarrier(User actor, Long id, CarrierForm form) {
-        requireManagementRole(actor);
-        if (form == null || form.getName() == null
-                || form.getName().trim().length() < 2 || form.getName().trim().length() > 150
-                || form.getShippingFee() == null || form.getShippingFee().signum() < 0
-                || form.getShippingFee().scale() > 2 || form.getShippingFee().precision() - form.getShippingFee().scale() > 12) {
-            throw new IllegalArgumentException("Tên hoặc phí vận chuyển không hợp lệ.");
-        }
-        Carrier carrier = id == null ? new Carrier() : carrierRepository.findById(id)
-            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy nhà vận chuyển."));
-        String name = form.getName().trim();
-        boolean duplicatedName = id == null ? carrierRepository.existsByNameIgnoreCase(name)
-            : carrierRepository.existsByNameIgnoreCaseAndIdNot(name, id);
-        if (duplicatedName) throw new IllegalArgumentException("Tên nhà vận chuyển đã tồn tại.");
-        carrier.setName(name);
-        carrier.setShippingFee(form.getShippingFee());
-        carrier.setActive(form.isActive());
-        carrierRepository.save(carrier);
-    }
-
-    @Transactional
-    public void toggleCarrier(User actor, Long id) {
-        Carrier carrier = getCarrier(actor, id);
-        carrier.setActive(!carrier.isActive());
-    }
-
-    @Transactional
-    public void deleteCarrier(User actor, Long id) {
-        Carrier carrier = getCarrier(actor, id);
-        // Step 17 will introduce Order -> Carrier references. Before then, Carrier has no orders.
-        // Once referenced by an Order, persistence FKs prevent deletion; deactivate instead.
-        carrierRepository.delete(carrier);
-        carrierRepository.flush();
-    }
-
-
-    // ==================== Step 21: Scoped Order Management ====================
-    /** Step 28: scoped, read-only VNPay transaction monitor for Management. */
-    public Page<PaymentTransaction> payments(User actor, String q,
-            PaymentTransactionStatus status, Long shopId, int page) {
-        requireManagementRole(actor);
-        var pageable = PageRequest.of(Math.max(0, page), 20,
-            Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
-        String query = cleanQuery(q);
-        if (shopId != null) requireShopAccess(actor, shopId);
-        if (isAdmin(actor)) {
-            return paymentTransactionRepository.searchManagement(query, status, shopId, pageable);
-        }
-        List<Long> shopIds = accessibleShopIds(actor);
-        return shopIds.isEmpty() ? Page.empty(pageable)
-            : paymentTransactionRepository.searchAssigned(query, status, shopId, shopIds, pageable);
-    }
-
-    public Page<vn.iotstar.entity.CustomerOrder> orders(User actor, String q, Long shopId,
-            vn.iotstar.entity.DomainEnums.OrderStatus status, int page) {
+    public Page<CustomerOrder> orders(User actor, String q, Long shopId, OrderStatus status, int page) {
         return orders(actor, q, shopId, status, false, page);
     }
 
-    public Page<vn.iotstar.entity.CustomerOrder> orders(User actor, String q, Long shopId,
-            vn.iotstar.entity.DomainEnums.OrderStatus status, boolean pending, int page) {
-        requireManagementRole(actor);
-        if (shopId != null) requireShopAccess(actor, shopId);
-        var pageable = PageRequest.of(Math.max(page, 0), 20,
-            Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
-        if (pending) {
-            List<vn.iotstar.entity.DomainEnums.OrderStatus> pendingStatuses = List.of(
-                vn.iotstar.entity.DomainEnums.OrderStatus.NEW,
-                vn.iotstar.entity.DomainEnums.OrderStatus.CONFIRMED,
-                vn.iotstar.entity.DomainEnums.OrderStatus.PREPARING,
-                vn.iotstar.entity.DomainEnums.OrderStatus.READY_FOR_PICKUP,
-                vn.iotstar.entity.DomainEnums.OrderStatus.DELIVERY_FAILED,
-                vn.iotstar.entity.DomainEnums.OrderStatus.RETURN_REQUESTED);
-            if (isAdmin(actor)) return orderRepository.searchManagementPending(
-                cleanQuery(q), shopId, status, pendingStatuses, pageable);
-            List<Long> ids = accessibleShopIds(actor);
-            return ids.isEmpty() ? Page.empty(pageable) : orderRepository.searchManagementAssignedPending(
-                ids, cleanQuery(q), shopId, status, pendingStatuses, pageable);
-        }
-        if (isAdmin(actor)) return orderRepository.searchManagement(cleanQuery(q), shopId, status, pageable);
-        List<Long> ids = accessibleShopIds(actor);
-        return ids.isEmpty() ? Page.empty(pageable)
-            : orderRepository.searchManagementAssigned(ids, cleanQuery(q), shopId, status, pageable);
+    public Page<CustomerOrder> orders(User actor, String q, Long shopId, OrderStatus status,
+                                      boolean pending, int page) {
+        var pageable = PageRequest.of(Math.max(page, 0), 20, Sort.by("createdAt").descending());
+        if (isAdmin(actor)) return orderRepository.searchManagement(vn.iotstar.util.SlugUtils.cleanQuery(q),
+            shopId, status, pending, OrderStatus.workQueueStatuses(), pageable);
+        List<Long> shopIds = assignedShopIds(actor);
+        return shopIds.isEmpty() ? Page.empty(pageable)
+            : orderRepository.searchManagementAssigned(shopIds, vn.iotstar.util.SlugUtils.cleanQuery(q),
+                shopId, status, pending, OrderStatus.workQueueStatuses(), pageable);
     }
 
-    public List<User> shippers(User actor) {
-        requireManagementRole(actor);
+    public Page<PaymentTransaction> payments(User actor, String q, PaymentTransactionStatus status, int page) {
+        requireAdmin(actor);
+        return paymentTransactionRepository.searchManagement(vn.iotstar.util.SlugUtils.cleanQuery(q), status,
+            PageRequest.of(Math.max(page, 0), 20, Sort.by("createdAt").descending().and(Sort.by("id").descending())));
+    }
+
+    public Set<Long> paymentReconciliationOrderIds(Page<PaymentTransaction> payments) {
+        Set<Long> orderIds = new LinkedHashSet<>();
+        for (PaymentTransaction payment : payments.getContent()) {
+            if (payment.getStatus() == PaymentTransactionStatus.SUCCESS) {
+                CustomerOrder order = payment.getOrder();
+                if (order.getStatus() == OrderStatus.CANCELLED || order.getPaymentStatus() == PaymentStatus.UNPAID) {
+                    orderIds.add(order.getId());
+                }
+            }
+        }
+        List<Long> successfulOrderIds = payments.getContent().stream()
+            .filter(payment -> payment.getStatus() == PaymentTransactionStatus.SUCCESS)
+            .map(payment -> payment.getOrder().getId()).distinct().toList();
+        if (!successfulOrderIds.isEmpty()) {
+            orderIds.addAll(paymentTransactionRepository.findOrderIdsWithMultipleTransactionsInStatus(
+                successfulOrderIds, PaymentTransactionStatus.SUCCESS));
+        }
+        return orderIds;
+    }
+
+    public List<User> shippers() {
         return userRepository.findByRoleAndEnabledTrueAndLockedFalseOrderByFullNameAsc(Role.SHIPPER);
     }
 
-    private void requireAdmin(User actor) {
-        requireManagementRole(actor);
-        if (!isAdmin(actor)) throw new AccessDeniedException("Chỉ Admin được sử dụng chức năng này.");
+    public List<Shop> accessibleShops(User actor) {
+        if (isAdmin(actor)) return shopRepository.findAll(Sort.by("name"));
+        return managerShopRepository.findByManagerIdOrderByShopNameAsc(actor.getId()).stream()
+            .map(ManagerShop::getShop).toList();
     }
 
-    private String cleanQuery(String value) {
-        if (value == null || value.isBlank()) return null;
-        String query = value.trim();
-        return query.length() > 120 ? query.substring(0, 120) : query;
+    public List<Product> accessibleProducts(User actor) {
+        if (isAdmin(actor)) return productRepository.findAll(Sort.by("name"));
+        List<Long> shopIds = assignedShopIds(actor);
+        return shopIds.isEmpty() ? List.of() : productRepository.findByShopIdInOrderByNameAsc(shopIds);
     }
 
-    private boolean isAdmin(User actor) {
-        return actor.getRole() == Role.ADMIN;
+    public Promotion getPromotion(User actor, Long id) {
+        Promotion promotion = promotionRepository.findById(id)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy khuyến mãi."));
+        if (promotion.getShop() == null && !isAdmin(actor)) throw forbiddenShop();
+        if (promotion.getShop() != null) requireShopAccess(actor, promotion.getShop().getId());
+        return promotion;
     }
 
-    private void requireManagementRole(User actor) {
-        if (actor == null || actor.getId() == null ||
-                (actor.getRole() != Role.MANAGER && actor.getRole() != Role.ADMIN)) {
-            throw new AccessDeniedException("Bạn không có quyền quản lý cửa hàng.");
+    public List<User> managers(User actor) {
+        requireAdmin(actor);
+        return userRepository.findByRoleOrderByFullNameAsc(Role.MANAGER);
+    }
+
+    public Map<Long, Set<Long>> managerAssignments(User actor) {
+        Map<Long, Set<Long>> result = new LinkedHashMap<>();
+        for (User manager : managers(actor)) {
+            result.put(manager.getId(), new LinkedHashSet<>(managerShopRepository.findShopIdsByManagerId(manager.getId())));
+        }
+        return result;
+    }
+
+    @Transactional
+    public void assignManagerShops(User actor, Long managerId, List<Long> shopIds) {
+        requireAdmin(actor);
+        User manager = userRepository.findById(managerId)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy Manager."));
+        if (manager.getRole() != Role.MANAGER) {
+            throw new IllegalArgumentException("Tài khoản được chọn không phải Manager.");
+        }
+        List<Long> uniqueIds = shopIds == null ? List.of() : shopIds.stream().distinct().toList();
+        List<Shop> shops = uniqueIds.isEmpty() ? List.of() : shopRepository.findAllById(uniqueIds);
+        if (shops.size() != uniqueIds.size()) throw new IllegalArgumentException("Có cửa hàng không tồn tại.");
+        List<Long> previousIds = managerShopRepository.findShopIdsByManagerId(managerId);
+        managerShopRepository.deleteByManagerId(managerId);
+        managerShopRepository.flush();
+        for (Shop shop : shops) {
+            ManagerShop assignment = new ManagerShop();
+            assignment.setManager(manager);
+            assignment.setShop(shop);
+            assignment.setAssignedBy(actor);
+            managerShopRepository.save(assignment);
+        }
+        if (!new java.util.HashSet<>(previousIds).equals(new java.util.HashSet<>(uniqueIds))) {
+            auditLogService.record(AuditAction.MANAGER_SHOPS_ASSIGNED, actor, "USER", manager.getId(),
+                manager.getUsername(), previousIds.toString(), uniqueIds.toString(), "Danh sách ID cửa hàng được phân công");
         }
     }
 
-    private AccessDeniedException forbiddenShop() {
-        return new AccessDeniedException("Bạn không được quản lý cửa hàng này.");
+    public void requireShopAccess(User actor, Long shopId) {
+        if (isAdmin(actor)) return;
+        if (actor.getRole() != Role.MANAGER
+            || !managerShopRepository.existsByManagerIdAndShopId(actor.getId(), shopId)) {
+            throw forbiddenShop();
+        }
+    }
+
+    private List<Long> assignedShopIds(User actor) {
+        return actor.getRole() == Role.MANAGER
+            ? managerShopRepository.findShopIdsByManagerId(actor.getId()) : List.of();
+    }
+
+    private boolean isAdmin(User actor) { return actor.getRole() == Role.ADMIN; }
+
+    private BigDecimal zeroIfNull(BigDecimal value) { return value == null ? BigDecimal.ZERO : value; }
+
+    private void requireAdmin(User actor) {
+        if (!isAdmin(actor)) throw new IllegalArgumentException("Chỉ Admin được thực hiện chức năng này.");
+    }
+
+    private IllegalArgumentException forbiddenShop() {
+        return new IllegalArgumentException("Bạn không được quản lý cửa hàng này.");
     }
 }

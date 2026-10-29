@@ -1,7 +1,10 @@
 package vn.iotstar.entity;
 
+import vn.iotstar.util.VietnamTime;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -58,7 +61,11 @@ public class User {
     private boolean locked;
 
     @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
+    private LocalDateTime createdAt = VietnamTime.now();
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("defaultAddress DESC, id ASC")
+    private List<Address> addresses = new ArrayList<>();
 
     public boolean hasRole(Role expected) {
         return role == expected;

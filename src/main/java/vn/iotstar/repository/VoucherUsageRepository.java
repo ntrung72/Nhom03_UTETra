@@ -15,7 +15,6 @@ public interface VoucherUsageRepository extends JpaRepository<VoucherUsage, Long
     long countByUserIdAndVoucherId(Long userId, Long voucherId);
     long countByUserIdAndVoucherIdAndStatus(Long userId, Long voucherId, VoucherUsageStatus status);
     long countByVoucherId(Long voucherId);
-    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"user", "voucher"})
     Page<VoucherUsage> findByVoucherIdOrderByUsedAtDesc(Long voucherId, Pageable pageable);
     boolean existsByOrderId(Long orderId);
     boolean existsByCheckoutReference(String checkoutReference);
@@ -26,6 +25,6 @@ public interface VoucherUsageRepository extends JpaRepository<VoucherUsage, Long
     Optional<VoucherUsage> findByCheckoutReferenceForUpdate(@Param("checkoutReference") String checkoutReference);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select u from VoucherUsage u where u.orderId = :orderId")
+    @Query("select u from VoucherUsage u where u.order.id = :orderId")
     Optional<VoucherUsage> findByOrderIdForUpdate(@Param("orderId") Long orderId);
 }

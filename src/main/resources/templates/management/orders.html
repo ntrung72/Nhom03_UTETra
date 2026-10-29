@@ -3,18 +3,17 @@
 <head th:replace="~{fragments/layout :: head('Điều phối đơn')}"></head>
 <body>
 <header th:replace="~{fragments/layout :: header}"></header>
-<main class="container py-4">
-<div class="alert alert-info my-2" th:if="${pending}">Đang lọc các đơn cần xử lý. <a th:href="@{/management/orders(shop=${selectedShop})}">Xem tất cả đơn</a></div>
-
-    <div th:replace="~{fragments/management-nav :: nav}"></div>
+<main class="container py-4 management-page">
+    <div class="admin-dashboard-shell">
+        <div th:replace="~{fragments/management-nav :: nav}"></div>
+        <div class="admin-dashboard-content">
     <div th:replace="~{fragments/layout :: flash}"></div>
     <h1 class="h3">Điều phối đơn hàng</h1>
     <form class="row g-2 mb-3">
-        <input type="hidden" name="pending" value="true" th:if="${pending}">
         <div class="col"><input class="form-control" name="q" th:value="${q}" placeholder="Mã đơn / khách"></div>
         <div class="col">
             <select class="form-select" name="shop">
-                <option value="">Mọi shop</option>
+                <option value="" th:text="${currentUser.role.name() == 'ADMIN' ? 'Mọi shop' : 'Mọi shop được phân công'}">Mọi shop</option>
                 <option th:each="s : ${shops}" th:value="${s.id}" th:text="${s.name}" th:selected="${s.id == selectedShop}"></option>
             </select>
         </div>
@@ -25,59 +24,122 @@
                         th:selected="${s == selectedStatus}"></option>
             </select>
         </div>
+        <div class="col-auto d-flex align-items-center"><label class="form-check-label small fw-semibold"><input class="form-check-input me-1" type="checkbox" name="pending" value="true" th:checked="${pending}"> Cần xử lý</label></div>
         <div class="col-auto"><button class="btn btn-primary">Lọc</button></div>
     </form>
-    <div class="card table-responsive">
-        <table class="table align-middle">
+    <p class="small text-muted mb-3" th:if="${currentUser.role.name() == 'MANAGER'}"
+       th:text="${#lists.isEmpty(shops) ? 'Bạn chưa được phân công cửa hàng. Vui lòng liên hệ Admin.' : 'Bạn chỉ xem đơn của các shop được Admin phân công. Shop mới sẽ xuất hiện tại đây sau khi được phân công.'}"></p>
+    <p class="small text-muted" th:text="|${orders.totalElements} đơn hàng ${pending ? 'cần xử lý' : 'phù hợp'} trong phạm vi được phép|">0 đơn hàng</p>
+    <div class="card management-orders-card">
+      <div class="table-responsive management-orders-scroll">
+        <table class="table align-middle management-orders-table">
+            <colgroup>
+                <col class="management-order-col-code">
+                <col class="management-order-col-customer">
+                <col class="management-order-col-finance">
+                <col class="management-order-col-status">
+                <col class="management-order-col-shipper">
+                <col class="management-order-col-update">
+            </colgroup>
             <thead><tr><th>Mã / Shop</th><th>Khách</th><th>Đối soát</th><th>Trạng thái</th><th>Phân shipper</th><th>Cập nhật</th></tr></thead>
             <tbody>
             <tr th:each="o : ${orders.content}">
-                <td><strong th:text="${o.code}"></strong><div th:text="${o.shop.name}"></div></td>
-                <td th:text="${o.receiverName}"></td>
                 <td>
+                    <strong class="management-order-code" th:text="${o.code}"></strong>
+                    <div th:text="${o.shop.name}"></div>
+                </td>
+                <td th:text="${o.receiverName}"></td>
+                <td class="management-order-finance">
                     <strong th:text="${#numbers.formatDecimal(o.totalAmount,0,'COMMA',0,'POINT')} + ' ₫'"></strong>
-                    <div class="text-muted small" th:text="${'Phí ship: ' + #numbers.formatDecimal(o.finalShippingFee,0,'COMMA',0,'POINT') + ' ₫'}"></div>
-                    <div class="text-danger small" th:if="${o.commissionRate != null}" th:text="${'Chiết khấu app: ' + o.commissionRate + '%'}"></div>
+                    <div class="management-order-finance-line text-muted" th:text="${'Hàng ròng: ' + #numbers.formatDecimal(o.commissionBase,0,'COMMA',0,'POINT') + ' ₫'}"></div>
+                    <div class="management-order-finance-line text-muted" th:text="${'Ship: ' + #numbers.formatDecimal(o.finalShippingFee,0,'COMMA',0,'POINT') + ' ₫'}"></div>
+                    <div class="management-order-finance-line text-danger">
+                        <span th:text="${'App: ' + #numbers.formatDecimal(o.platformRevenue,0,'COMMA',0,'POINT') + ' ₫'}"></span>
+                        <span th:text="${'(' + o.commissionRate + '% tiền hàng)'}"></span>
+                    </div>
+                    <div class="management-order-finance-line text-success" th:text="${'Shop: ' + #numbers.formatDecimal(o.sellerRevenue,0,'COMMA',0,'POINT') + ' ₫'}"></div>
                 </td>
                 <td>
-                    <span th:text="${o.status.label}"></span>
+                    <span th:text="${o.displayStatusLabel}"></span>
                     <div class="text-danger small mt-1" th:if="${o.status.name() == 'DELIVERY_FAILED'}" th:text="${o.failureReason}"></div>
                     <a class="small" target="_blank" rel="noopener" th:if="${o.status.name() == 'DELIVERY_FAILED' and o.deliveryProofUrl != null}"
                        th:href="@{/private-media/orders/{id}/delivery-proof(id=${o.id})}"><i class="bi bi-image"></i> Bằng chứng</a>
                 </td>
                 <td>
-                    <form class="d-flex" th:if="${assignableOrders[o.id]}" th:action="@{/management/orders/{id}/assign(id=${o.id})}" method="post">
-                        <select class="form-select form-select-sm" name="shipperId" required>
-                            <option th:each="s : ${shippers}" th:value="${s.id}" th:text="${s.fullName}"
-                                    th:selected="${o.shipper != null and o.shipper.id == s.id}"></option>
+                    <form class="d-flex gap-2 management-shipper-form" th:if="${assignableOrders[o.id] and o.shipper == null}" th:action="@{/management/orders/{id}/assign(id=${o.id})}" method="post">
+                        <select class="form-select form-select-sm" name="shipperId" aria-label="Chọn shipper" required>
+                            <option value="" selected disabled>Chọn shipper</option>
+                            <option th:each="s : ${shippers}" th:value="${s.id}" th:text="${s.fullName}"></option>
                         </select>
-                        <button class="btn btn-sm btn-primary">Giao</button>
+                        <button class="btn btn-sm btn-primary text-nowrap">Phân công</button>
                     </form>
-                    <form class="d-flex gap-1" th:if="${o.status.name() == 'DELIVERY_FAILED'}"
+                    <div class="small text-danger mt-1" th:if="${o.shipper == null and o.shipperAssignmentStatus != null and o.shipperAssignmentStatus.name() == 'REJECTED'}"
+                         th:text="${'Shipper đã từ chối: ' + o.shipperRejectionReason}"></div>
+                    <div class="small text-warning mt-1" th:if="${o.shipper == null and o.shipperAssignmentStatus != null and o.shipperAssignmentStatus.name() == 'EXPIRED'}"
+                         th:text="${o.shipperRejectionReason}"></div>
+                    <div th:if="${assignableOrders[o.id] and o.shipper != null}">
+                        <span class="badge" th:classappend="${o.shipperAssignmentStatus == null or o.shipperAssignmentStatus.name() == 'PENDING' ? 'text-bg-warning' : 'text-bg-success'}"
+                              th:text="${o.shipperAssignmentStatus == null or o.shipperAssignmentStatus.name() == 'PENDING' ? 'Chờ shipper chấp nhận' : 'Shipper đã chấp nhận'}"></span>
+                        <div class="small fw-semibold mt-1" th:text="${o.shipper.fullName}"></div>
+                        <details class="management-reassign mt-2"
+                                 th:if="${o.shipperAssignmentStatus == null or o.shipperAssignmentStatus.name() == 'PENDING'}">
+                            <summary class="small fw-semibold text-primary">Đổi shipper</summary>
+                            <form class="d-flex gap-2 management-shipper-form mt-2" th:action="@{/management/orders/{id}/assign(id=${o.id})}" method="post">
+                                <select class="form-select form-select-sm" name="shipperId" aria-label="Chọn shipper khác" required>
+                                    <option value="" selected disabled>Chọn shipper khác</option>
+                                    <option th:each="s : ${shippers}" th:value="${s.id}" th:text="${s.fullName}"
+                                            th:disabled="${o.shipper.id == s.id}"></option>
+                                </select>
+                                <button class="btn btn-sm btn-primary text-nowrap">Lưu</button>
+                            </form>
+                        </details>
+                    </div>
+                    <form class="d-flex gap-2 management-shipper-form" th:if="${o.status.name() == 'DELIVERY_FAILED'}"
                           th:action="@{/management/orders/{id}/retry-delivery(id=${o.id})}" method="post">
                         <select class="form-select form-select-sm" name="shipperId" required>
-                            <option value="">Chọn shipper mới</option>
-                            <option th:each="s : ${shippers}" th:value="${s.id}" th:text="${s.fullName}"
-                                    th:disabled="${o.shipper != null and o.shipper.id == s.id}"></option>
+                            <option value="">Chọn shipper giao lại</option>
+                            <option th:each="s : ${shippers}" th:value="${s.id}"
+                                    th:disabled="${o.returnedToShopAt == null and (o.shipper == null or o.shipper.id != s.id)}"
+                                    th:text="${s.fullName + (o.shipper != null and o.shipper.id == s.id ? ' (shipper trước)' : '')}"></option>
                         </select>
-                        <button class="btn btn-sm btn-warning text-nowrap"><i class="bi bi-arrow-repeat"></i> Giao lại</button>
+                        <button class="btn btn-sm btn-warning"><i class="bi bi-arrow-repeat"></i> Điều phối giao lại</button>
                     </form>
-                    <span class="small text-muted" th:if="${!assignableOrders[o.id] and o.status.name() != 'DELIVERY_FAILED'}"
-                          th:text="${o.shipper == null ? 'Không thể phân công ở trạng thái này' : 'Đã khóa: ' + o.shipper.fullName}"></span>
+                    <form class="mt-2" th:if="${o.status.name() == 'DELIVERY_FAILED' and o.returnedToShopAt == null}"
+                          th:action="@{/management/orders/{id}/return-to-shop(id=${o.id})}" method="post">
+                        <button class="btn btn-sm btn-outline-primary">Xác nhận hàng đã về shop</button>
+                    </form>
+                    <form class="mt-2" th:if="${o.status.name() == 'PICKED_UP' and o.shipperAssignmentStatus != null and (o.shipperAssignmentStatus.name() == 'PENDING' or o.shipperAssignmentStatus.name() == 'EXPIRED')}"
+                          th:action="@{/management/orders/{id}/return-to-shop(id=${o.id})}" method="post">
+                        <button class="btn btn-sm btn-outline-primary">Xác nhận hàng giao lại đã về shop</button>
+                    </form>
+                    <div class="small text-muted mt-1" th:if="${o.status.name() == 'DELIVERY_FAILED' and o.returnedToShopAt == null}">Trước khi hàng về shop, chỉ có thể giao lại bằng shipper đang giữ hàng.</div>
+                    <div class="small text-success mt-1" th:if="${o.status.name() == 'DELIVERY_FAILED' and o.returnedToShopAt != null}">Hàng đã về shop; có thể chọn shipper bất kỳ để giao lại.</div>
+                    <div th:if="${!assignableOrders[o.id] and o.status.name() != 'DELIVERY_FAILED'}">
+                        <span class="badge text-bg-success" th:if="${o.shipper != null}"
+                              th:text="${o.status.name() == 'CANCELLED' ? 'Phân công đã hủy' : o.shipperAssignmentStatus != null and o.shipperAssignmentStatus.name() == 'EXPIRED' ? 'Quá hạn, chờ hàng về shop' : o.shipperAssignmentStatus != null and o.shipperAssignmentStatus.name() == 'PENDING' ? 'Chưa chấp nhận phân công' : 'Shipper đã chấp nhận'}"></span>
+                        <div class="small fw-semibold mt-1" th:if="${o.shipper != null}" th:text="${o.shipper.fullName}"></div>
+                        <span class="small text-muted" th:if="${o.shipper == null}">Không thể phân công ở trạng thái này</span>
+                    </div>
                 </td>
                 <td>
-                    <form th:if="${o.status.name() == 'DELIVERY_FAILED' and (o.paymentMethod.name() != 'VNPAY' or o.paymentStatus.name() != 'PAID')}"
+                    <a class="btn btn-sm btn-outline-warning mb-2"
+                       th:if="${currentUser.role.name() == 'ADMIN' and returnRequests[o.id] != null}"
+                       th:href="@{/vendor/returns/{id}(id=${returnRequests[o.id].id})}">
+                        <i class="bi bi-arrow-counterclockwise"></i> Xử lý hoàn trả
+                    </a>
+                    <form th:if="${o.status.name() == 'DELIVERY_FAILED' and o.returnedToShopAt != null and (o.paymentMethod.name() == 'COD' or o.paymentStatus.name() != 'PAID')}"
                           th:action="@{/management/orders/{id}/status(id=${o.id})}" method="post"
-                          onsubmit="return confirm('Hủy đơn giao thất bại và hoàn lại tồn kho?')">
+                          class="confirm-form" data-confirm="Hủy đơn giao thất bại và hoàn lại tồn kho?">
                         <input type="hidden" name="status" value="CANCELLED">
                         <button class="btn btn-sm btn-outline-danger"><i class="bi bi-x-circle"></i> Hủy đơn</button>
                     </form>
-                    <span class="small text-warning" th:if="${o.status.name() == 'DELIVERY_FAILED' and o.paymentMethod.name() == 'VNPAY' and o.paymentStatus.name() == 'PAID'}">
-                        <i class="bi bi-exclamation-triangle"></i> Cần hoàn tiền VNPay trước khi hủy
+                    <span class="small text-muted" th:if="${o.status.name() == 'DELIVERY_FAILED' and o.returnedToShopAt == null}">Cần xác nhận hàng về shop trước khi hủy và hoàn tồn kho.</span>
+                    <span class="small text-warning" th:if="${o.status.name() == 'DELIVERY_FAILED' and o.paymentMethod.name() != 'COD' and o.paymentStatus.name() == 'PAID'}">
+                        <i class="bi bi-exclamation-triangle"></i> Cần xử lý hoàn tiền trực tuyến trước khi hủy
                     </span>
-                    <form class="d-flex" th:if="${o.status.name() != 'DELIVERY_FAILED' and !#lists.isEmpty(allowedTransitions[o.id])}" th:action="@{/management/orders/{id}/status(id=${o.id})}" method="post">
-                        <select class="form-select form-select-sm" name="status" required>
-                            <option value="">Bước tiếp theo</option>
+                    <form class="management-order-status-form" th:if="${o.status.name() != 'DELIVERY_FAILED' and !#lists.isEmpty(allowedTransitions[o.id])}" th:action="@{/management/orders/{id}/status(id=${o.id})}" method="post">
+                        <select class="form-select form-select-sm" name="status" aria-label="Trạng thái tiếp theo" required>
+                            <option value="">Xử lý ngoại lệ</option>
                             <option th:each="s : ${allowedTransitions[o.id]}" th:value="${s}" th:text="${s.label}"></option>
                         </select>
                         <button class="btn btn-sm btn-outline-primary">Lưu</button>
@@ -87,14 +149,15 @@
             </tr>
             </tbody>
         </table>
+      </div>
     </div>
-    <nav class="mt-3" th:if="${orders.totalPages > 1}">
-      <ul class="pagination justify-content-center">
-        <li class="page-item" th:classappend="${orders.first} ? 'disabled'"><a class="page-link" th:href="@{/management/orders(page=${orders.number - 1},pending=${pending},q=${q},shop=${selectedShop},status=${selectedStatus})}">Trước</a></li>
-        <li class="page-item" th:each="i : ${#numbers.sequence(0,orders.totalPages - 1)}" th:classappend="${i == orders.number} ? 'active'"><a class="page-link" th:href="@{/management/orders(page=${i},pending=${pending},q=${q},shop=${selectedShop},status=${selectedStatus})}" th:text="${i + 1}"></a></li>
-        <li class="page-item" th:classappend="${orders.last} ? 'disabled'"><a class="page-link" th:href="@{/management/orders(page=${orders.number + 1},pending=${pending},q=${q},shop=${selectedShop},status=${selectedStatus})}">Sau</a></li>
-      </ul>
+    <nav class="dashboard-table-pagination" th:if="${orders.totalPages > 1}" aria-label="Phân trang đơn điều phối">
+        <a class="btn btn-sm btn-light" th:if="${!orders.first}" th:href="@{/management/orders(q=${q},shop=${selectedShop},status=${selectedStatus},pending=${pending},page=${orders.number - 1})}">Trước</a>
+        <span th:text="|Trang ${orders.number + 1}/${orders.totalPages}|">Trang 1/2</span>
+        <a class="btn btn-sm btn-light" th:if="${!orders.last}" th:href="@{/management/orders(q=${q},shop=${selectedShop},status=${selectedStatus},pending=${pending},page=${orders.number + 1})}">Sau</a>
     </nav>
+        </div>
+    </div>
 </main>
 <footer th:replace="~{fragments/layout :: footer}"></footer>
 <th:block th:replace="~{fragments/layout :: scripts}"></th:block>

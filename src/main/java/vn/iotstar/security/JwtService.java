@@ -33,10 +33,6 @@ public class JwtService {
         this.expirationSeconds = expirationMinutes * 60;
     }
 
-    public long getExpirationMinutes() {
-        return expirationSeconds / 60;
-    }
-
     public String generateToken(UserDetails user) {
         try {
             String header = B64.encodeToString(mapper.writeValueAsBytes(Map.of("alg", "HS256", "typ", "JWT")));

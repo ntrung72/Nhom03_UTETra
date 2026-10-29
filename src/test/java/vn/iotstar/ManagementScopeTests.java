@@ -1,17 +1,24 @@
 package vn.iotstar;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.WebApplicationContext;
 import vn.iotstar.entity.Category;
 import vn.iotstar.entity.ManagerShop;
 import vn.iotstar.entity.Product;
@@ -32,6 +39,7 @@ import vn.iotstar.service.CatalogService;
 @SpringBootTest
 @Transactional
 class ManagementScopeTests {
+    @Autowired private WebApplicationContext context;
     @Autowired private UserRepository userRepository;
     @Autowired private ShopRepository shopRepository;
     @Autowired private CategoryRepository categoryRepository;
@@ -39,6 +47,38 @@ class ManagementScopeTests {
     @Autowired private ManagerShopRepository managerShopRepository;
     @Autowired private ManagementService managementService;
     @Autowired private CatalogService catalogService;
+
+    @Test
+    void orderShopFilterReflectsAdminScopeAndNewManagerAssignments() throws Exception {
+        User admin = saveUser("filter-admin", Role.ADMIN);
+        User manager = saveUser("filter-manager", Role.MANAGER);
+        Shop first = saveShop("filter-shop-a", saveUser("filter-vendor-a", Role.VENDOR));
+        managementService.assignManagerShops(admin, manager.getId(), List.of(first.getId()));
+        Shop second = saveShop("filter-shop-new", saveUser("filter-vendor-new", Role.VENDOR));
+        var mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
+
+        mvc.perform(get("/management/orders").with(user(admin.getUsername()).roles("ADMIN")))
+            .andExpect(status().isOk())
+            .andExpect(content().string(containsString(second.getName())));
+        mvc.perform(get("/management/orders").with(user(manager.getUsername()).roles("MANAGER")))
+            .andExpect(status().isOk())
+            .andExpect(content().string(containsString("Mọi shop được phân công")))
+            .andExpect(content().string(containsString(first.getName())))
+            .andExpect(content().string(not(containsString(second.getName()))));
+
+        managementService.assignManagerShops(admin, manager.getId(), List.of(first.getId(), second.getId()));
+        mvc.perform(get("/management/orders").with(user(manager.getUsername()).roles("MANAGER")))
+            .andExpect(status().isOk())
+            .andExpect(content().string(containsString(second.getName())));
+        mvc.perform(get("/management/products").with(user(manager.getUsername()).roles("MANAGER")))
+            .andExpect(status().isOk())
+            .andExpect(content().string(containsString("Mọi shop được phân công")))
+            .andExpect(content().string(containsString(second.getName())));
+        mvc.perform(get("/management/promotions").with(user(manager.getUsername()).roles("MANAGER")))
+            .andExpect(status().isOk())
+            .andExpect(content().string(containsString("Mọi shop được phân công")))
+            .andExpect(content().string(containsString(second.getName())));
+    }
 
     @Test
     void inactiveCategoryHidesProductsFromEveryPublicEntryPoint() {
@@ -56,7 +96,7 @@ class ManagementScopeTests {
                 .map(Product::getId).toList());
         assertEquals(List.of(visibleProduct.getId()),
             catalogService.homeBestSellers().stream().map(Product::getId).toList());
-        assertThrows(ResponseStatusException.class,
+        assertThrows(IllegalArgumentException.class,
             () -> catalogService.getPublicProduct(hiddenProduct.getId()));
     }
 
@@ -82,9 +122,9 @@ class ManagementScopeTests {
 
         managementService.toggleProduct(manager, assignedProduct.getId());
         assertEquals(ProductStatus.HIDDEN, assignedProduct.getStatus());
-        assertThrows(AccessDeniedException.class,
+        assertThrows(IllegalArgumentException.class,
             () -> managementService.toggleProduct(manager, otherProduct.getId()));
-        assertThrows(AccessDeniedException.class,
+        assertThrows(IllegalArgumentException.class,
             () -> managementService.updateShop(manager, otherShop.getId(), ShopStatus.SUSPENDED, BigDecimal.TEN));
     }
 
@@ -97,9 +137,15 @@ class ManagementScopeTests {
 
         managementService.assignManagerShops(admin, manager.getId(), List.of(first.getId(), second.getId()));
         assertEquals(2, managerShopRepository.findShopIdsByManagerId(manager.getId()).size());
+        Shop newlyCreated = saveShop("assign-shop-new", saveUser("assign-vendor-new", Role.VENDOR));
+        assertEquals(3, managementService.accessibleShops(admin).size());
+        assertEquals(2, managementService.accessibleShops(manager).size());
+        managementService.assignManagerShops(admin, manager.getId(),
+            List.of(first.getId(), second.getId(), newlyCreated.getId()));
+        assertEquals(3, managementService.accessibleShops(manager).size());
         managementService.assignManagerShops(admin, manager.getId(), List.of(first.getId()));
         assertEquals(List.of(first.getId()), managerShopRepository.findShopIdsByManagerId(manager.getId()));
-        assertThrows(AccessDeniedException.class,
+        assertThrows(IllegalArgumentException.class,
             () -> managementService.assignManagerShops(manager, manager.getId(), List.of(first.getId())));
     }
 

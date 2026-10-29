@@ -11,15 +11,12 @@ public final class SlugUtils {
         if (value == null || value.isBlank()) {
             return "item";
         }
-
         String normalized = Normalizer.normalize(value, Normalizer.Form.NFD)
             .replaceAll("\\p{M}+", "")
-            .replace('đ', 'd')
-            .replace('Đ', 'D')
+            .replace('đ', 'd').replace('Đ', 'D')
             .toLowerCase(Locale.ROOT)
             .replaceAll("[^a-z0-9]+", "-")
             .replaceAll("(^-|-$)", "");
-
         return normalized.isBlank() ? "item" : normalized;
     }
 

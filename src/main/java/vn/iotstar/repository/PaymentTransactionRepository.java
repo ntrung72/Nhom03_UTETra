@@ -1,63 +1,56 @@
 package vn.iotstar.repository;
-import java.time.LocalDateTime;
+
+import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
-import vn.iotstar.entity.DomainEnums.PaymentTransactionStatus;
-import org.springframework.data.jpa.repository.*;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import jakarta.persistence.LockModeType;
 import vn.iotstar.entity.PaymentTransaction;
+import vn.iotstar.entity.DomainEnums.PaymentTransactionStatus;
+
 public interface PaymentTransactionRepository extends JpaRepository<PaymentTransaction, Long> {
-    boolean existsByOrderIdAndReconciliationRequiredTrue(Long orderId);
-    Optional<PaymentTransaction> findFirstByTransactionCodeOrderByIdAsc(String code);
-    Optional<PaymentTransaction> findFirstByCheckoutReferenceOrderByIdDesc(String reference);
-    Optional<PaymentTransaction> findFirstByOrderIdOrderByCreatedAtDescIdDesc(Long orderId);
-    List<PaymentTransaction> findByTransactionCodeOrderByIdAsc(String transactionCode);
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select t from PaymentTransaction t where t.id = :id")
+    Optional<PaymentTransaction> findByIdForUpdate(@Param("id") Long id);
+
+    @Query("select t from PaymentTransaction t where t.status in :statuses and t.gatewayTransactionId like 'https://pay.payos.vn/web/%'")
+    List<PaymentTransaction> findRecheckablePayOs(@Param("statuses") List<PaymentTransactionStatus> statuses);
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select t from PaymentTransaction t where t.transactionCode = :code order by t.id")
     List<PaymentTransaction> findByCodeForUpdate(@Param("code") String code);
-    @Query("""
-        select distinct t.checkoutReference from PaymentTransaction t
-        where t.expiresAt <= :now and t.order.status = :orderStatus
-          and t.order.paymentStatus = :paymentStatus
-        """)
-    List<String> findExpiredCheckoutReferences(@Param("now") LocalDateTime now,
-        @Param("orderStatus") vn.iotstar.entity.DomainEnums.OrderStatus orderStatus,
-        @Param("paymentStatus") vn.iotstar.entity.DomainEnums.PaymentStatus paymentStatus, Pageable pageable);
-    @Query("select t from PaymentTransaction t where t.checkoutReference = :reference order by t.id")
-    List<PaymentTransaction> findForCheckout(@Param("reference") String reference);
 
-    /** Read-only Management search; never update payment transaction or VNPay signature. */
+    List<PaymentTransaction> findByTransactionCodeOrderByIdAsc(String transactionCode);
+
+    List<PaymentTransaction> findByGatewayTransactionId(String gatewayTransactionId);
+
+    Optional<PaymentTransaction> findFirstByOrderIdOrderByCreatedAtDescIdDesc(Long orderId);
+
+    Optional<PaymentTransaction> findFirstByOrderIdAndStatusOrderByPaidAtDescIdDesc(
+        Long orderId, PaymentTransactionStatus status);
+
+    long countByOrderIdAndStatus(Long orderId, PaymentTransactionStatus status);
+
+    @Query("select t.order.id from PaymentTransaction t where t.order.id in :orderIds "
+        + "and t.status = :status group by t.order.id having count(t.id) > 1")
+    List<Long> findOrderIdsWithMultipleTransactionsInStatus(@Param("orderIds") List<Long> orderIds,
+                                                             @Param("status") PaymentTransactionStatus status);
+
     @EntityGraph(attributePaths = {"order", "order.user", "order.shop"})
     @Query("""
-        select t from PaymentTransaction t
-        where (:q is null or lower(t.transactionCode) like lower(concat('%', :q, '%'))
-            or lower(t.order.code) like lower(concat('%', :q, '%'))
-            or lower(t.order.user.username) like lower(concat('%', :q, '%'))
-            or lower(t.order.user.email) like lower(concat('%', :q, '%')))
-          and (:status is null or t.status = :status)
-          and (:shopId is null or t.order.shop.id = :shopId)
+        select transaction from PaymentTransaction transaction
+        where (:q is null
+          or lower(transaction.transactionCode) like lower(concat('%', :q, '%'))
+          or lower(transaction.order.code) like lower(concat('%', :q, '%'))
+          or lower(transaction.order.user.username) like lower(concat('%', :q, '%'))
+          or lower(transaction.order.user.email) like lower(concat('%', :q, '%')))
+          and (:status is null or transaction.status = :status)
         """)
     Page<PaymentTransaction> searchManagement(@Param("q") String q,
-        @Param("status") PaymentTransactionStatus status,
-        @Param("shopId") Long shopId, Pageable pageable);
-
-    @EntityGraph(attributePaths = {"order", "order.user", "order.shop"})
-    @Query("""
-        select t from PaymentTransaction t
-        where (:q is null or lower(t.transactionCode) like lower(concat('%', :q, '%'))
-            or lower(t.order.code) like lower(concat('%', :q, '%'))
-            or lower(t.order.user.username) like lower(concat('%', :q, '%'))
-            or lower(t.order.user.email) like lower(concat('%', :q, '%')))
-          and (:status is null or t.status = :status)
-          and (:shopId is null or t.order.shop.id = :shopId)
-          and t.order.shop.id in :shopIds
-        """)
-    Page<PaymentTransaction> searchAssigned(@Param("q") String q,
-        @Param("status") PaymentTransactionStatus status,
-        @Param("shopId") Long shopId, @Param("shopIds") List<Long> shopIds,
-        Pageable pageable);
+                                              @Param("status") PaymentTransactionStatus status,
+                                              Pageable pageable);
 }

@@ -1,8 +1,8 @@
 package vn.iotstar.service;
 
-import java.util.Map;
-import java.util.List;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,11 +18,10 @@ import vn.iotstar.entity.OrderStatusHistory;
 import vn.iotstar.entity.User;
 import vn.iotstar.repository.NotificationRepository;
 
-/** Notification persistence and per-user realtime delivery, shared with TV1 in step 23. */
 @Service
 @RequiredArgsConstructor
 public class NotificationService {
-    private static final Logger LOG = LoggerFactory.getLogger(NotificationService.class);
+    private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
     private static final DateTimeFormatter PREVIEW_TIME = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
     private final NotificationRepository notificationRepository;
     private final SimpMessagingTemplate messagingTemplate;
@@ -35,16 +34,18 @@ public class NotificationService {
         notification.setMessage(message);
         notification.setLink(link);
         notificationRepository.save(notification);
-        Long id = notification.getId();
-        publishAfterCommit(user.getUsername(), "/queue/notifications", () -> Map.of(
-            "id", id, "title", title, "message", message,
-            "link", safeLink(link),
-            "unreadCount", notificationRepository.countByUserIdAndReadFalse(user.getId())));
+        Long notificationId = notification.getId();
+        Long userId = user.getId();
+        String username = user.getUsername();
+        publishAfterCommit(() -> messagingTemplate.convertAndSendToUser(username, "/queue/notifications",
+            Map.of("id", notificationId, "title", title, "message", message,
+                "link", link == null ? "" : link,
+                "unreadCount", notificationRepository.countByUserIdAndReadFalse(userId))));
     }
 
     public void sendOrderStatus(User user, OrderStatusHistory history) {
-        // Copy fields while entities are still attached to a persistence context.
-        var payload = Map.of(
+        String username = user.getUsername();
+        Map<String, Object> payload = Map.of(
             "orderId", history.getOrder().getId(),
             "status", history.getNewStatus().name(),
             "label", history.getDisplayLabel(),
@@ -52,55 +53,53 @@ public class NotificationService {
             "changedBy", history.getChangedBy().getFullName(),
             "note", history.getNote() == null ? "" : history.getNote()
         );
-        publishAfterCommit(user.getUsername(), "/queue/order-status", () -> payload);
+        publishAfterCommit(() -> messagingTemplate.convertAndSendToUser(username, "/queue/order-status", payload));
     }
 
-    private void publishAfterCommit(String username, String destination,
-                                    java.util.function.Supplier<Object> payload) {
-        Runnable publish = () -> {
+    private void publishAfterCommit(Runnable publish) {
+        Runnable safePublish = () -> {
             try {
-                messagingTemplate.convertAndSendToUser(username, destination, payload.get());
+                publish.run();
             } catch (RuntimeException ex) {
-                // A realtime transport failure must not roll back an already committed order.
-                LOG.warn("WebSocket delivery failed for {}", username, ex);
+                log.warn("Không thể phát thông báo realtime sau khi dữ liệu đã commit.", ex);
             }
         };
         if (TransactionSynchronizationManager.isActualTransactionActive()
-                && TransactionSynchronizationManager.isSynchronizationActive()) {
+            && TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override public void afterCommit() { publish.run(); }
+                @Override
+                public void afterCommit() {
+                    safePublish.run();
+                }
             });
         } else {
-            publish.run();
+            safePublish.run();
         }
     }
 
-    @Transactional(readOnly = true)
     public Page<Notification> list(User user, int page) {
-        return notificationRepository.findByUserIdOrderByCreatedAtDesc(
-            user.getId(), PageRequest.of(Math.max(0, page), 20,
-                org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "id")));
+        return notificationRepository.findByUserIdOrderByCreatedAtDesc(user.getId(), PageRequest.of(Math.max(0, page), 20));
     }
 
     @Transactional(readOnly = true)
     public List<NotificationPreview> recent(User user) {
         return notificationRepository.findByUserIdOrderByCreatedAtDesc(user.getId(), PageRequest.of(0, 5))
             .getContent().stream()
-            .map(n -> new NotificationPreview(n.getId(), n.getTitle(), n.getMessage(),
-                safeLink(n.getLink()), n.getCreatedAt().format(PREVIEW_TIME), n.isRead()))
+            .map(notification -> new NotificationPreview(notification.getId(), notification.getTitle(),
+                notification.getMessage(), safeLink(notification.getLink()),
+                notification.getCreatedAt().format(PREVIEW_TIME), notification.isRead()))
             .toList();
     }
 
     private String safeLink(String link) {
         return link != null && link.startsWith("/") && !link.startsWith("//")
             && !link.contains("\\") && !link.contains("\r") && !link.contains("\n")
-            ? link : "/user/notifications";
+            ? link : "/notifications";
     }
 
-    public record NotificationPreview(Long id, String title, String message,
-                                      String link, String createdAt, boolean read) {}
+    public record NotificationPreview(Long id, String title, String message, String link,
+                                      String createdAt, boolean read) {}
 
-    @Transactional(readOnly = true)
     public long unreadCount(User user) {
         return notificationRepository.countByUserIdAndReadFalse(user.getId());
     }

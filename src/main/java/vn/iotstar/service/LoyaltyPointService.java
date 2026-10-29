@@ -23,21 +23,9 @@ public class LoyaltyPointService {
 
     @Value("${app.loyalty.vnd-per-point:10000}")
     private long vndPerPoint;
-    @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager entityManager;
-
-    @jakarta.annotation.PostConstruct
-    void validatePolicy() {
-        if (vndPerPoint <= 0) throw new IllegalStateException("Số tiền quy đổi điểm phải lớn hơn 0.");
-    }
-
-    private CustomerOrder lock(CustomerOrder order) {
-        if (order == null || order.getId() == null) throw new IllegalArgumentException("Đơn hàng không hợp lệ.");
-        return entityManager.find(CustomerOrder.class, order.getId(), jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
-    }
 
     @Transactional
-    public void awardForDeliveredOrder(CustomerOrder input) {
-        CustomerOrder order = lock(input);
+    public void awardForDeliveredOrder(CustomerOrder order) {
         if (order.getStatus() != OrderStatus.DELIVERED || order.getPaymentStatus() != PaymentStatus.PAID
             || transactionRepository.existsByOrderIdAndType(order.getId(), LoyaltyPointType.EARN)) return;
 
@@ -55,8 +43,7 @@ public class LoyaltyPointService {
     }
 
     @Transactional
-    public void reverseForRefundedOrder(CustomerOrder input) {
-        CustomerOrder order = lock(input);
+    public void reverseForRefundedOrder(CustomerOrder order) {
         if (order.getStatus() != OrderStatus.RETURNED_REFUNDED || order.getPaymentStatus() != PaymentStatus.REFUNDED
             || transactionRepository.existsByOrderIdAndType(order.getId(), LoyaltyPointType.REFUND_REVERSAL)) return;
 

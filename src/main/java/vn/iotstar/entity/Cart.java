@@ -1,5 +1,6 @@
 package vn.iotstar.entity;
 
+import vn.iotstar.util.VietnamTime;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -28,7 +29,7 @@ public class Cart {
     private List<CartItem> items = new ArrayList<>();
 
     @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt = LocalDateTime.now();
+    private LocalDateTime updatedAt = VietnamTime.now();
 
     public int getTotalQuantity() {
         return items.stream().mapToInt(CartItem::getQuantity).sum();

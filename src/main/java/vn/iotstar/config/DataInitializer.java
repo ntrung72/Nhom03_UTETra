@@ -1,8 +1,7 @@
 package vn.iotstar.config;
 
+import vn.iotstar.util.VietnamTime;
 import java.math.BigDecimal;
-import jakarta.persistence.EntityManager;
-import java.util.Optional;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
@@ -12,8 +11,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
 import vn.iotstar.entity.*;
 import vn.iotstar.entity.DomainEnums.*;
 import vn.iotstar.repository.*;
@@ -79,8 +76,6 @@ public class DataInitializer {
         "Mận đỏ chua ngọt đậm đà, màu ruby bắt mắt và hậu vị tươi mát."
     };
 
-    private final EntityManager entityManager;
-    private final PlatformTransactionManager transactionManager;
     private final UserRepository userRepository;
     private final ShopRepository shopRepository;
     private final CategoryRepository categoryRepository;
@@ -95,11 +90,12 @@ public class DataInitializer {
     @Bean
     @ConditionalOnProperty(name = "app.seed-data", havingValue = "true")
     CommandLineRunner seedUTETra() {
-        return args -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
-            // Dữ liệu demo chỉ được tạo khi DB thật sự trống. Không chỉnh sửa
-            // tài khoản/sản phẩm của TV1-TV2 hoặc dữ liệu kinh doanh hiện có.
-            if (userRepository.count() > 0 || shopRepository.count() > 0
-                || categoryRepository.count() > 0 || productRepository.count() > 0) {
+        return args -> {
+            if (userRepository.count() > 0) {
+                refreshSeedProductContent();
+                refreshSeedShopProfiles();
+                ensureSeedToppingProducts();
+                productOptionService.configureAllProducts();
                 return;
             }
 
@@ -143,6 +139,7 @@ public class DataInitializer {
                 product.setPrice(BigDecimal.valueOf(25000 + (i % 7) * 5000L));
                 product.setStock(60 + i);
                 product.setSoldCount(12 + (names.length - i) * 3L);
+                product.setViewCount(100 + i * 17L);
                 product.setFavoriteCount(8 + i * 2L);
                 product.setAverageRating(new BigDecimal("4.50"));
                 product.setReviewCount(5 + i);
@@ -165,10 +162,10 @@ public class DataInitializer {
             promotion.setDiscountValue(new BigDecimal("10"));
             promotion.setShop(shop1);
             promotion.setCreatedBy(vendor);
-            promotion.setStartsAt(LocalDateTime.now().minusDays(1));
-            promotion.setEndsAt(LocalDateTime.now().plusDays(30));
+            promotion.setStartsAt(VietnamTime.now().minusDays(1));
+            promotion.setEndsAt(VietnamTime.now().plusDays(30));
             promotionRepository.save(promotion);
-        });
+        };
     }
 
     private void refreshSeedProductContent() {
@@ -176,7 +173,7 @@ public class DataInitializer {
             String sku = "UTE-" + String.format("%03d", i + 1);
             String imageUrl = SEEDED_PRODUCT_IMAGES[i];
             String description = SEEDED_PRODUCT_DESCRIPTIONS[i];
-            seedProduct(sku)
+            productRepository.findBySkuIgnoreCase(sku)
                 .ifPresent(product -> {
                     boolean changed = false;
                     if (product.getImageUrl() == null || product.getImageUrl().isBlank()
@@ -218,7 +215,7 @@ public class DataInitializer {
 
         for (int i = 0; i < names.length; i++) {
             String sku = "UTE-" + String.format("%03d", i + 26);
-            Product product = seedProduct(sku).orElseGet(Product::new);
+            Product product = productRepository.findBySkuIgnoreCase(sku).orElseGet(Product::new);
             boolean isNew = product.getId() == null;
             if (isNew) {
                 product.setShop(i % 2 == 0 ? shop1 : shop2);
@@ -229,6 +226,7 @@ public class DataInitializer {
                 product.setPrice(BigDecimal.valueOf(prices[i]));
                 product.setStock(100 + i * 10);
                 product.setSoldCount(28 + (names.length - i) * 4L);
+                product.setViewCount(80 + i * 13L);
                 product.setFavoriteCount(6 + i * 2L);
                 product.setAverageRating(new BigDecimal("4.50"));
                 product.setReviewCount(3 + i);
@@ -237,12 +235,6 @@ public class DataInitializer {
             product.setImageUrl(images[i]);
             productRepository.save(product);
         }
-    }
-
-    private Optional<Product> seedProduct(String sku) {
-        return entityManager.createQuery(
-            "select p from Product p where upper(p.sku) = upper(:sku)", Product.class)
-            .setParameter("sku", sku).getResultList().stream().findFirst();
     }
 
     private User user(String username, String email, String fullName, String password, Role role) {
@@ -328,8 +320,8 @@ public class DataInitializer {
         voucher.setMaxDiscount(new BigDecimal(max));
         voucher.setQuantity(100);
         voucher.setMaxUsesPerUser(1);
-        voucher.setStartsAt(LocalDateTime.now().minusDays(1));
-        voucher.setEndsAt(LocalDateTime.now().plusMonths(6));
+        voucher.setStartsAt(VietnamTime.now().minusDays(1));
+        voucher.setEndsAt(VietnamTime.now().plusMonths(6));
         return voucher;
     }
 }

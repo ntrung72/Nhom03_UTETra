@@ -34,7 +34,6 @@ public class SavedRecipeService {
     private final ProductSizeRepository sizeRepository;
     private final ProductToppingRepository toppingRepository;
     private final CartService cartService;
-    private final ProductPricingService pricingService;
 
     @Transactional
     public SavedRecipe save(User user, Long productId, String name, Long sizeId,
@@ -79,6 +78,22 @@ public class SavedRecipeService {
             });
     }
 
+    @Transactional(readOnly = true)
+    public List<RecipePreset> presetsForProduct(User user, Long productId) {
+        return recipeRepository.findByUserIdAndProductIdOrderByUpdatedAtDescIdDesc(user.getId(), productId)
+            .stream().map(recipe -> {
+                try {
+                    CurrentOptions options = currentOptions(recipe);
+                    return new RecipePreset(recipe.getName(), options.sizeId(),
+                        recipe.getSizeCode(), recipe.getSugarLevel().name(), recipe.getIceLevel().name(),
+                        recipe.getSugarLevel().getLabel(), recipe.getIceLevel().getLabel(),
+                        recipe.getToppingIds(), options.toppingNames());
+                } catch (IllegalArgumentException ex) {
+                    return null;
+                }
+            }).filter(java.util.Objects::nonNull).limit(6).toList();
+    }
+
     @Transactional
     public void addToCart(User user, Long recipeId, int quantity) {
         SavedRecipe recipe = owned(user, recipeId);
@@ -92,7 +107,6 @@ public class SavedRecipeService {
             throw new IllegalArgumentException("Không đủ tồn kho cho " + product.getName()
                 + "; hiện còn " + product.getStock() + " ly.");
         }
-        // CartService rechecks option availability and snapshots the current product/option prices.
         cartService.add(user, product.getId(), quantity, options.sizeId(), recipe.getSugarLevel(),
             recipe.getIceLevel(), options.toppingIds());
     }
@@ -128,7 +142,7 @@ public class SavedRecipeService {
         BigDecimal extras = toppings.stream().map(link -> link.getTopping().getPrice())
             .reduce(size.getExtraPrice(), BigDecimal::add);
         return new CurrentOptions(size.getId(), toppings.stream().map(link -> link.getTopping().getId()).toList(),
-            pricingService.price(product).salePrice().add(extras), names(toppings));
+            product.getPrice().add(extras), names(toppings));
     }
 
     private List<ProductTopping> validateToppings(Long productId, List<Long> toppingIds) {
@@ -180,6 +194,10 @@ public class SavedRecipeService {
                                 String toppingNames) {
         public boolean isAvailable() { return issue == null; }
     }
+
+    public record RecipePreset(String name, Long sizeId, String sizeCode, String sugarLevel,
+                               String iceLevel, String sugarLabel, String iceLabel,
+                               String toppingIds, String toppingNames) {}
 
     private record CurrentOptions(Long sizeId, List<Long> toppingIds, BigDecimal unitPrice,
                                   String toppingNames) {}

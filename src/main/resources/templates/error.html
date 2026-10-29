@@ -1,11 +1,14 @@
 <!doctype html>
 <html lang="vi" xmlns:th="http://www.thymeleaf.org">
-<head th:replace="~{fragments/layout :: head('Thông báo hệ thống')}"></head>
-<body><header th:replace="~{fragments/layout :: header}"></header>
-<main class="container py-5 text-center" style="min-height:50vh">
-<h1 class="h3">Không thể xử lý yêu cầu</h1>
-<p class="text-muted">Đã xảy ra lỗi. Vui lòng quay lại trang chủ hoặc thử lại sau.</p>
-<a class="btn btn-primary" th:href="@{/}">Về trang chủ</a>
+<head th:replace="~{fragments/layout :: head('Có lỗi xảy ra')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="container py-5 text-center">
+    <h1 class="display-5">Rất tiếc, có lỗi xảy ra</h1>
+    <p class="text-muted" th:text="${message ?: 'Yêu cầu không thể xử lý.'}"></p>
+    <a class="btn btn-primary" th:href="@{/}">Về trang chủ</a>
 </main>
 <footer th:replace="~{fragments/layout :: footer}"></footer>
-<th:block th:replace="~{fragments/layout :: scripts}"></th:block></body></html>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

@@ -31,11 +31,8 @@ public class CartItem {
     @Column(nullable = false)
     private int quantity;
 
-    @Column(name = "option_key", nullable = false, length = 500)
+    @Column(name = "option_key", length = 500)
     private String optionKey;
-
-    @Column(name = "size_id")
-    private Long sizeId;
 
     @Column(name = "size_code", length = 10)
     private String size;
@@ -54,13 +51,13 @@ public class CartItem {
     @Column(name = "toppings", length = 1000)
     private String toppings;
 
-    @Column(name = "base_price", nullable = false, precision = 14, scale = 2)
+    @Column(name = "base_price", precision = 14, scale = 2)
     private BigDecimal basePrice;
 
-    @Column(name = "option_price", nullable = false, precision = 14, scale = 2)
+    @Column(name = "option_price", precision = 14, scale = 2)
     private BigDecimal optionPrice;
 
-    @Column(name = "unit_price", nullable = false, precision = 14, scale = 2)
+    @Column(name = "unit_price", precision = 14, scale = 2)
     private BigDecimal unitPrice;
 
     public BigDecimal getEffectiveUnitPrice() {

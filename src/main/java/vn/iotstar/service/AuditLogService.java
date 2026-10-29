@@ -12,15 +12,11 @@ import vn.iotstar.entity.DomainEnums.AuditAction;
 import vn.iotstar.entity.DomainEnums.Role;
 import vn.iotstar.entity.User;
 import vn.iotstar.repository.AuditLogRepository;
-import vn.iotstar.repository.ManagerShopRepository;
-import org.springframework.security.access.AccessDeniedException;
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class AuditLogService {
     private final AuditLogRepository repository;
-    private final ManagerShopRepository managerShopRepository;
 
     @Transactional(propagation = Propagation.MANDATORY)
     public void record(AuditAction action, User actor, String targetType, Long targetId,
@@ -39,28 +35,17 @@ public class AuditLogService {
         log.setOldValue(limit(oldValue, 500));
         log.setNewValue(limit(newValue, 500));
         log.setNote(limit(note, 500));
-        log.setDescription(limit(action.getLabel() + ": " + (targetLabel == null ? targetType : targetLabel), 500));
-        String beforeAfter = (oldValue == null ? "" : "before=" + oldValue)
-            + (newValue == null ? "" : "; after=" + newValue);
-        log.setMetadata(beforeAfter.isBlank() ? null : limit(beforeAfter, 1000));
         repository.save(log);
     }
 
     @Transactional(readOnly = true)
     public Page<AuditLog> search(User actor, String q, AuditAction action, int page) {
-        if (actor == null || (actor.getRole() != Role.ADMIN && actor.getRole() != Role.MANAGER)) {
-            throw new AccessDeniedException("Chỉ Admin/Manager được xem nhật ký thao tác.");
+        if (actor == null || actor.getRole() != Role.ADMIN) {
+            throw new IllegalArgumentException("Chỉ Admin được xem nhật ký thao tác.");
         }
         String query = q == null || q.isBlank() ? null : q.trim();
-        var pageable = PageRequest.of(Math.max(0, page), 20,
-            Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
-        if (actor.getRole() == Role.ADMIN) {
-            return repository.search(query, action, pageable);
-        }
-        List<Long> shopIds = managerShopRepository.findShopIdsByManagerId(actor.getId());
-        if (shopIds.isEmpty()) return Page.empty(pageable);
-        return repository.searchAssigned(query, action, shopIds,
-            List.of(AuditAction.USER_LOCKED, AuditAction.USER_UNLOCKED), pageable);
+        return repository.search(query, action,
+            PageRequest.of(Math.max(0, page), 20, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))));
     }
 
     private String limit(String value, int maxLength) {

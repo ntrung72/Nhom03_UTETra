@@ -3,8 +3,10 @@
 <head th:replace="~{fragments/layout :: head('Người dùng')}"></head>
 <body>
 <header th:replace="~{fragments/layout :: header}"></header>
-<main class="container py-4">
-    <div th:replace="~{fragments/management-nav :: nav}"></div>
+<main class="container py-4 management-page">
+    <div class="admin-dashboard-shell">
+        <div th:replace="~{fragments/management-nav :: nav}"></div>
+        <div class="admin-dashboard-content">
     <div th:replace="~{fragments/layout :: flash}"></div>
     <h1 class="h3">Quản lý người dùng</h1>
     <form class="mb-3" method="get">
@@ -51,6 +53,8 @@
             <li class="page-item" th:classappend="${users.last} ? 'disabled'"><a class="page-link" th:href="@{/management/users(page=${users.number + 1},q=${q})}">Sau</a></li>
         </ul>
     </nav>
+        </div>
+    </div>
 </main>
 <footer th:replace="~{fragments/layout :: footer}"></footer>
 <th:block th:replace="~{fragments/layout :: scripts}"></th:block>

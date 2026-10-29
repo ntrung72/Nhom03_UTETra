@@ -1,359 +1,393 @@
 package vn.iotstar;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
-import java.util.Arrays;
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
+import vn.iotstar.dto.WebForms.CheckoutForm;
 import vn.iotstar.dto.WebForms.ProductForm;
+import vn.iotstar.dto.WebForms.PromotionForm;
+import vn.iotstar.entity.Address;
+import vn.iotstar.entity.Carrier;
 import vn.iotstar.entity.Category;
-import vn.iotstar.entity.DomainEnums.ProductStatus;
+import vn.iotstar.entity.CustomerOrder;
+import vn.iotstar.entity.DomainEnums.IceLevel;
+import vn.iotstar.entity.DomainEnums.AuditAction;
+import vn.iotstar.entity.DomainEnums.OrderStatus;
+import vn.iotstar.entity.DomainEnums.PaymentMethod;
+import vn.iotstar.entity.DomainEnums.PaymentStatus;
+import vn.iotstar.entity.DomainEnums.PromotionType;
 import vn.iotstar.entity.DomainEnums.Role;
 import vn.iotstar.entity.DomainEnums.ShopStatus;
-import vn.iotstar.entity.ProductSize;
+import vn.iotstar.entity.DomainEnums.SugarLevel;
+import vn.iotstar.entity.Product;
 import vn.iotstar.entity.Shop;
-import vn.iotstar.entity.Topping;
+import vn.iotstar.entity.User;
+import vn.iotstar.repository.AddressRepository;
+import vn.iotstar.repository.AuditLogRepository;
+import vn.iotstar.repository.CarrierRepository;
+import vn.iotstar.repository.CategoryRepository;
+import vn.iotstar.repository.ProductRepository;
 import vn.iotstar.repository.ProductSizeRepository;
 import vn.iotstar.repository.ProductToppingRepository;
+import vn.iotstar.repository.OrderStatusHistoryRepository;
+import vn.iotstar.repository.OrderRepository;
 import vn.iotstar.repository.ToppingRepository;
+import vn.iotstar.repository.UserRepository;
+import vn.iotstar.repository.ShopRepository;
+import vn.iotstar.service.CartService;
+import vn.iotstar.service.DashboardService;
+import vn.iotstar.service.OrderService;
 import vn.iotstar.service.ProductOptionService;
-import vn.iotstar.service.ProductPricingService;
 import vn.iotstar.service.VendorService;
 
-@SpringBootTest
 @ActiveProfiles("test")
+@SpringBootTest
 @Transactional
-class ProductOptionsTests extends CustomerTestFixtures {
+class ProductOptionsTests {
+    @Autowired private UserRepository userRepository;
+    @Autowired private ShopRepository shopRepository;
+    @Autowired private CategoryRepository categoryRepository;
+    @Autowired private ProductRepository productRepository;
+    @Autowired private AddressRepository addressRepository;
+    @Autowired private CarrierRepository carrierRepository;
+    @Autowired private ProductSizeRepository productSizeRepository;
+    @Autowired private ProductToppingRepository productToppingRepository;
+    @Autowired private OrderStatusHistoryRepository orderStatusHistoryRepository;
+    @Autowired private OrderRepository orderRepository;
+    @Autowired private ToppingRepository toppingRepository;
+    @Autowired private ProductOptionService productOptionService;
+    @Autowired private CartService cartService;
+    @Autowired private DashboardService dashboardService;
+    @Autowired private OrderService orderService;
+    @Autowired private VendorService vendorService;
+    @Autowired private AuditLogRepository auditLogRepository;
 
-	@Autowired
-	ProductOptionService options;
-	@Autowired
-	ProductPricingService pricing;
-	@Autowired
-	ProductSizeRepository sizes;
-	@Autowired
-	ProductToppingRepository links;
-	@Autowired
-	ToppingRepository toppings;
-	@Autowired
-	VendorService vendors;
-	@Autowired
-	EntityManager entityManager;
+    @Test
+    void separatesVendorAndShipperTransitionsAndLocksInvalidAssignments() {
+        assertEquals(List.of(OrderStatus.CONFIRMED, OrderStatus.CANCELLED),
+            orderService.vendorTransitions(OrderStatus.NEW));
+        assertEquals(List.of(OrderStatus.PREPARING, OrderStatus.CANCELLED),
+            orderService.vendorTransitions(OrderStatus.CONFIRMED));
+        assertEquals(List.of(OrderStatus.READY_FOR_PICKUP, OrderStatus.CANCELLED),
+            orderService.vendorTransitions(OrderStatus.PREPARING));
+        assertTrue(orderService.vendorTransitions(OrderStatus.READY_FOR_PICKUP).isEmpty());
+        assertEquals(List.of(OrderStatus.PICKED_UP),
+            orderService.shipperTransitions(OrderStatus.READY_FOR_PICKUP));
+        assertEquals(List.of(OrderStatus.DELIVERED, OrderStatus.DELIVERY_FAILED),
+            orderService.shipperTransitions(OrderStatus.SHIPPING));
+        assertEquals(List.of(OrderStatus.CANCELLED),
+            orderService.managementTransitions(OrderStatus.DELIVERY_FAILED));
+        for (OrderStatus stage : List.of(OrderStatus.NEW, OrderStatus.CONFIRMED,
+                OrderStatus.PREPARING)) {
+            assertEquals(List.of(OrderStatus.CANCELLED), orderService.managementTransitions(stage));
+        }
+        assertTrue(orderService.managementTransitions(OrderStatus.READY_FOR_PICKUP).isEmpty());
+        assertTrue(orderService.shipperTransitions(OrderStatus.CONFIRMED).isEmpty());
+        assertTrue(orderService.canAssignShipper(OrderStatus.CONFIRMED));
+        assertTrue(orderService.canAssignShipper(OrderStatus.PREPARING));
+        assertTrue(orderService.canAssignShipper(OrderStatus.READY_FOR_PICKUP));
+        assertEquals(false, orderService.canAssignShipper(OrderStatus.PICKED_UP));
+        assertEquals(false, orderService.canAssignShipper(OrderStatus.DELIVERED));
+        assertEquals(false, orderService.canAssignShipper(OrderStatus.DELIVERY_FAILED));
+        assertEquals(false, orderService.canAssignShipper(OrderStatus.CANCELLED));
+        assertEquals(false, orderService.canAssignShipper(OrderStatus.RETURNED_REFUNDED));
+    }
 
-	@Test
-	void defaultsCreateThreeSizesAndActiveToppingsOnlyOnce() {
-		options.configureDefaults(tea);
-		List<Long> originalSizeIds = allSizes().stream().map(ProductSize::getId).toList();
-		List<Long> originalToppingIds = selectedToppingIds();
+    @Test
+    void vendorShippingPromotionCannotTargetSingleProduct() {
+        PromotionForm form = new PromotionForm();
+        form.setType(PromotionType.SHIPPING_DISCOUNT);
+        form.setDiscountValue(new BigDecimal("15000"));
+        form.setProductId(99L);
+        form.setStartsAt(LocalDateTime.now());
+        form.setEndsAt(LocalDateTime.now().plusDays(1));
 
-		options.configureDefaults(tea);
-		entityManager.flush();
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+            () -> vendorService.validatePromotion(form));
+        assertEquals("Khuyến mãi phí vận chuyển không áp dụng riêng cho sản phẩm.", error.getMessage());
 
-		assertThat(allSizes()).extracting(ProductSize::getCode).containsExactly("M", "L", "XL");
-		assertThat(size("M").getExtraPrice()).isEqualByComparingTo("0");
-		assertThat(size("L").getExtraPrice()).isEqualByComparingTo("7000");
-		assertThat(size("XL").getExtraPrice()).isEqualByComparingTo("12000");
-		assertThat(allSizes()).allMatch(ProductSize::isActive);
-		assertThat(allSizes()).extracting(ProductSize::getId).containsExactlyElementsOf(originalSizeIds);
-		assertThat(selectedToppingIds()).containsExactlyElementsOf(originalToppingIds);
-		assertThat(selectedToppingIds())
-				.containsExactlyInAnyOrderElementsOf(options.availableToppings().stream().map(Topping::getId).toList());
-		assertThat(options.availableToppings()).extracting(Topping::getName).contains("Trân châu đen",
-				"Trân châu trắng", "Pudding trứng", "Kem cheese", "Thạch dừa");
-	}
+        form.setProductId(null);
+        vendorService.validatePromotion(form);
+    }
 
-	@Test
-	void defaultsPreserveTheVendorsExistingConfiguration() {
-		Topping selected = topping("8500", true);
-		ProductForm form = new ProductForm();
-		form.setSizeLActive(false);
-		form.setSizeLExtraPrice(new BigDecimal("9500.50"));
-		form.setSizeXlExtraPrice(new BigDecimal("16000"));
-		form.setToppingIds(List.of(selected.getId()));
-		options.saveConfiguration(tea, form);
+    @Test
+    void commissionUsesNetMerchandiseAndExcludesShippingFee() {
+        CustomerOrder order = new CustomerOrder();
+        order.setSubtotal(new BigDecimal("100000"));
+        order.setProductDiscount(new BigDecimal("10000"));
+        order.setVoucherDiscount(new BigDecimal("5000"));
+        order.setFinalShippingFee(new BigDecimal("20000"));
+        order.setTotalAmount(new BigDecimal("105000"));
 
-		options.configureDefaults(tea);
+        order.snapshotCommission(new BigDecimal("10"));
 
-		assertThat(size("L").isActive()).isFalse();
-		assertThat(size("L").getExtraPrice()).isEqualByComparingTo("9500.50");
-		assertThat(size("XL").getExtraPrice()).isEqualByComparingTo("16000");
-		assertThat(selectedToppingIds()).containsExactly(selected.getId());
-	}
+        assertEquals(0, new BigDecimal("85000.00").compareTo(order.getCommissionBase()));
+        assertEquals(0, new BigDecimal("8500.00").compareTo(order.getCommissionAmount()));
+        assertEquals(0, new BigDecimal("76500.00").compareTo(order.getSellerRevenue()));
+        assertEquals(0, new BigDecimal("8500.00").compareTo(order.getPlatformRevenue()));
+    }
 
-	@Test
-	void editingSizesKeepsTheirIdsAndPersistsPricesAndAvailability() {
-		options.saveConfiguration(tea, new ProductForm());
-		List<Long> ids = allSizes().stream().map(ProductSize::getId).toList();
-		ProductForm edited = new ProductForm();
-		edited.setSizeMActive(false);
-		edited.setSizeMExtraPrice(new BigDecimal("1000.25"));
-		edited.setSizeLExtraPrice(new BigDecimal("8000.50"));
-		edited.setSizeXlExtraPrice(new BigDecimal("15000.75"));
+    @Test
+    void cartSeparatesConfigurationsAndOrderKeepsTheirPriceSnapshots() {
+        User customer = saveUser("option-customer", "option-customer@utetra.test", Role.USER);
+        User vendor = saveUser("option-vendor", "option-vendor@utetra.test", Role.VENDOR);
+        User shipper = saveUser("option-shipper", "option-shipper@utetra.test", Role.SHIPPER);
+        User retryShipper = saveUser("option-retry-shipper", "option-retry-shipper@utetra.test", Role.SHIPPER);
+        User admin = saveUser("option-admin", "option-admin@utetra.test", Role.ADMIN);
 
-		options.saveConfiguration(tea, edited);
-		entityManager.flush();
-		entityManager.clear();
+        Shop shop = new Shop();
+        shop.setOwner(vendor);
+        shop.setName("UTETra Options Test");
+        shop.setSlug("utetra-options-test");
+        shop.setStatus(ShopStatus.APPROVED);
+        shop = shopRepository.save(shop);
 
-		assertThat(allSizes()).extracting(ProductSize::getId).containsExactlyElementsOf(ids);
-		assertThat(size("M").getExtraPrice()).isEqualByComparingTo("1000.25");
-		assertThat(size("L").getExtraPrice()).isEqualByComparingTo("8000.50");
-		assertThat(size("XL").getExtraPrice()).isEqualByComparingTo("15000.75");
-		assertThat(options.availableSizes(tea)).extracting(ProductSize::getCode).containsExactly("L", "XL");
-	}
+        Category category = new Category();
+        category.setName("Trà sữa kiểm thử");
+        category.setSlug("tra-sua-kiem-thu-options");
+        category = categoryRepository.save(category);
 
-	@Test
-	void loadingConfigurationRestoresInactiveSizesAndOnlyActiveToppings() {
-		Topping active = topping("8000", true);
-		Topping retired = topping("9000", true);
-		ProductForm saved = new ProductForm();
-		saved.setSizeMActive(false);
-		saved.setSizeMExtraPrice(new BigDecimal("1500.50"));
-		saved.setSizeXlActive(false);
-		saved.setToppingIds(List.of(active.getId(), retired.getId()));
-		options.saveConfiguration(tea, saved);
-		retired.setActive(false);
-		entityManager.flush();
-		entityManager.clear();
+        Product product = new Product();
+        product.setShop(shop);
+        product.setCategory(category);
+        product.setName("Trà sữa Matcha");
+        product.setSlug("tra-sua-matcha-options-test");
+        product.setSku("OPTIONS-TEST-001");
+        product.setDescription("Sản phẩm dùng để kiểm thử tùy chọn.");
+        product.setPrice(new BigDecimal("30000"));
+        product.setStock(20);
+        product = productRepository.save(product);
+        productOptionService.configureDefaults(product);
 
-		ProductForm loaded = new ProductForm();
-		options.loadConfiguration(tea, loaded);
+        var sizes = productSizeRepository.findByProductIdAndActiveTrueOrderByDisplayOrderAscIdAsc(product.getId());
+        var sizeM = sizes.stream().filter(size -> size.getCode().equals("M")).findFirst().orElseThrow();
+        var sizeL = sizes.stream().filter(size -> size.getCode().equals("L")).findFirst().orElseThrow();
+        var whitePearl = toppingRepository.findByNameIgnoreCase("Trân châu trắng").orElseThrow();
+        var cheese = toppingRepository.findByNameIgnoreCase("Kem cheese").orElseThrow();
 
-		assertThat(loaded.isSizeMActive()).isFalse();
-		assertThat(loaded.getSizeMExtraPrice()).isEqualByComparingTo("1500.50");
-		assertThat(loaded.isSizeLActive()).isTrue();
-		assertThat(loaded.getSizeLExtraPrice()).isEqualByComparingTo("7000");
-		assertThat(loaded.isSizeXlActive()).isFalse();
-		assertThat(loaded.getSizeXlExtraPrice()).isEqualByComparingTo("12000");
-		assertThat(loaded.getToppingIds()).containsExactly(active.getId());
-	}
+        cartService.add(customer, product.getId(), 1, sizeL.getId(), SugarLevel.PERCENT_50,
+            IceLevel.LESS_ICE, List.of(whitePearl.getId(), cheese.getId()));
+        cartService.add(customer, product.getId(), 1, sizeM.getId(), SugarLevel.PERCENT_100,
+            IceLevel.NORMAL, List.of());
 
-	@Test
-	void savingToppingsDeduplicatesIdsAndReplacesOldLinks() {
-		Topping first = topping("8000", true);
-		Topping second = topping("10000", true);
-		ProductForm form = new ProductForm();
-		form.setToppingIds(List.of(first.getId(), first.getId(), second.getId()));
-		options.saveConfiguration(tea, form);
-		assertThat(selectedToppingIds()).containsExactlyInAnyOrder(first.getId(), second.getId());
+        var cart = cartService.get(customer);
+        assertEquals(2, cart.getItems().size());
+        assertNotEquals(cart.getItems().get(0).getOptionKey(), cart.getItems().get(1).getOptionKey());
+        var configuredLine = cart.getItems().stream().filter(item -> "L".equals(item.getSize())).findFirst().orElseThrow();
+        assertEquals(0, new BigDecimal("32000").compareTo(configuredLine.getOptionPrice()));
+        assertEquals(0, new BigDecimal("62000").compareTo(configuredLine.getUnitPrice()));
+        assertTrue(configuredLine.getToppings().contains("Trân châu trắng"));
+        assertTrue(configuredLine.getToppings().contains("Kem cheese"));
 
-		form.setToppingIds(List.of(second.getId(), second.getId()));
-		options.saveConfiguration(tea, form);
-		entityManager.flush();
-		entityManager.clear();
+        Address address = new Address();
+        address.setUser(customer);
+        address.setReceiverName("Khách kiểm thử");
+        address.setPhone("0901234567");
+        address.setProvince("TP. Hồ Chí Minh");
+        address.setDistrict("TP. Thủ Đức");
+        address.setWard("Linh Trung");
+        address.setDetail("Số 1 Võ Văn Ngân");
+        address = addressRepository.save(address);
 
-		assertThat(selectedToppingIds()).containsExactly(second.getId());
-		assertThat(links.existsByProductIdAndToppingId(tea.getId(), first.getId())).isFalse();
-		assertThat(toppings.existsById(first.getId())).isTrue();
-	}
+        Carrier carrier = new Carrier();
+        carrier.setName("Nhà vận chuyển kiểm thử options");
+        carrier.setShippingFee(new BigDecimal("15000"));
+        carrier = carrierRepository.save(carrier);
 
-	@Test
-	void nullToppingSelectionClearsLinksWithoutRemovingSizes() {
-		Topping selected = topping("8000", true);
-		ProductForm form = new ProductForm();
-		form.setToppingIds(List.of(selected.getId()));
-		options.saveConfiguration(tea, form);
-		form.setToppingIds(null);
+        CheckoutForm form = new CheckoutForm();
+        form.setAddressId(address.getId());
+        form.setCarrierId(carrier.getId());
+        var order = orderService.checkout(customer, form).getFirst();
 
-		options.saveConfiguration(tea, form);
-		entityManager.flush();
+        assertEquals(2, order.getItems().size());
+        var snapshot = order.getItems().stream().filter(item -> "L".equals(item.getSize())).findFirst().orElseThrow();
+        assertEquals(SugarLevel.PERCENT_50, snapshot.getSugarLevel());
+        assertEquals(IceLevel.LESS_ICE, snapshot.getIceLevel());
+        assertEquals(0, new BigDecimal("30000").compareTo(snapshot.getBasePrice()));
+        assertEquals(0, new BigDecimal("32000").compareTo(snapshot.getOptionPrice()));
+        assertEquals(0, new BigDecimal("62000").compareTo(snapshot.getUnitPrice()));
+        assertEquals(0, new BigDecimal("92000").compareTo(order.getSubtotal()));
+        assertEquals(0, new BigDecimal("107000").compareTo(order.getTotalAmount()));
+        assertEquals(0, order.getProductDiscount().compareTo(BigDecimal.ZERO));
+        assertEquals(0, order.getVoucherDiscount().compareTo(BigDecimal.ZERO));
+        assertEquals(0, order.getShippingDiscount().compareTo(BigDecimal.ZERO));
+        assertEquals(0, new BigDecimal("15000").compareTo(order.getFinalShippingFee()));
+        assertEquals(0, new BigDecimal("5.00").compareTo(order.getCommissionRate()));
+        assertEquals(0, new BigDecimal("92000.00").compareTo(order.getCommissionBase()));
+        assertEquals(0, new BigDecimal("4600.00").compareTo(order.getCommissionAmount()));
+        assertEquals(0, new BigDecimal("4600.00").compareTo(order.getPlatformRevenue()));
+        assertEquals(0, new BigDecimal("87400.00").compareTo(order.getSellerRevenue()));
 
-		assertThat(links.existsByProductId(tea.getId())).isFalse();
-		assertThat(allSizes()).hasSize(3);
-		assertThat(toppings.existsById(selected.getId())).isTrue();
-	}
+        order.setPaymentMethod(PaymentMethod.BANK_TRANSFER);
+        order.setPaymentStatus(PaymentStatus.PAID);
+        var paidButNotDelivered = orderService.revenueSummary(shop);
+        assertEquals(0, paidButNotDelivered.grossRevenue().compareTo(BigDecimal.ZERO));
+        assertEquals(0, paidButNotDelivered.sellerRevenue().compareTo(BigDecimal.ZERO));
+        assertEquals(0, dashboardService.forVendor(shop).revenue30Days().compareTo(BigDecimal.ZERO));
 
-	@Test
-	void drinkWithoutAnyActiveSizeIsRejectedBeforeCreatingOptions() {
-		ProductForm form = new ProductForm();
-		form.setSizeMActive(false);
-		form.setSizeLActive(false);
-		form.setSizeXlActive(false);
+        var history = orderStatusHistoryRepository.findByOrderIdOrderByChangedAtAscIdAsc(order.getId());
+        assertEquals(1, history.size());
+        assertEquals(null, history.getFirst().getOldStatus());
+        assertEquals(OrderStatus.NEW, history.getFirst().getNewStatus());
+        assertEquals(customer.getId(), history.getFirst().getChangedBy().getId());
 
-		assertThatThrownBy(() -> options.saveConfiguration(tea, form)).isInstanceOf(IllegalArgumentException.class);
+        orderService.vendorUpdate(vendor, order.getId(), OrderStatus.CONFIRMED);
+        history = orderStatusHistoryRepository.findByOrderIdOrderByChangedAtAscIdAsc(order.getId());
+        assertEquals(2, history.size());
+        assertEquals(OrderStatus.NEW, history.getLast().getOldStatus());
+        assertEquals(OrderStatus.CONFIRMED, history.getLast().getNewStatus());
+        assertEquals(vendor.getId(), history.getLast().getChangedBy().getId());
 
-		assertThat(allSizes()).isEmpty();
-		assertThat(links.existsByProductId(tea.getId())).isFalse();
-	}
+        orderService.assignShipper(admin, order.getId(), shipper.getId());
+        assertEquals("Shipper này đã được phân công cho đơn hàng.",
+            assertThrows(IllegalArgumentException.class,
+                () -> orderService.assignShipper(admin, order.getId(), shipper.getId())).getMessage());
+        shop.setCommissionRate(new BigDecimal("10.00"));
+        orderService.vendorUpdate(vendor, order.getId(), OrderStatus.PREPARING);
+        assertThrows(IllegalArgumentException.class,
+            () -> orderService.vendorUpdate(vendor, order.getId(), OrderStatus.PICKED_UP));
+        orderService.vendorUpdate(vendor, order.getId(), OrderStatus.READY_FOR_PICKUP);
+        assertThrows(IllegalArgumentException.class,
+            () -> orderService.shipperUpdate(shipper, order.getId(), OrderStatus.PICKED_UP));
+        orderService.respondToShipperAssignment(shipper, order.getId(), true, null);
+        orderService.shipperUpdate(shipper, order.getId(), OrderStatus.PICKED_UP);
+        assertNotNull(order.getPickedUpAt());
+        orderService.shipperUpdate(shipper, order.getId(), OrderStatus.SHIPPING);
+        assertThrows(IllegalArgumentException.class,
+            () -> orderService.shipperUpdate(shipper, order.getId(), OrderStatus.DELIVERED, null, null));
+        orderService.shipperUpdate(shipper, order.getId(), OrderStatus.DELIVERED, null,
+            proof("delivered.png"));
+        assertNotNull(order.getDeliveredAt());
+        assertEquals(null, order.getCodCollectedAt());
+        assertTrue(order.getDeliveryProofUrl().contains("delivery-proofs"));
+        assertTrue(auditLogRepository.findAll().stream().anyMatch(log ->
+            log.getAction() == AuditAction.SHIPPER_ASSIGNED && log.getTargetId().equals(order.getId())
+                && shipper.getUsername().equals(log.getNewValue())));
+        assertTrue(auditLogRepository.findAll().stream().anyMatch(log ->
+            log.getAction() == AuditAction.SHIPPER_ORDER_STATUS && log.getTargetId().equals(order.getId())
+                && "Đã giao".equals(log.getNewValue()) && shipper.getUsername().equals(log.getActorUsername())));
+        assertThrows(IllegalArgumentException.class,
+            () -> orderService.assignShipper(admin, order.getId(), shipper.getId()));
+        assertEquals(0, new BigDecimal("5.00").compareTo(order.getCommissionRate()));
+        assertEquals(0, new BigDecimal("4600.00").compareTo(order.getCommissionAmount()));
+        var revenue = orderService.revenueSummary(shop);
+        assertEquals(0, new BigDecimal("107000.00").compareTo(revenue.grossRevenue()));
+        assertEquals(0, new BigDecimal("4600.00").compareTo(revenue.platformRevenue()));
+        assertEquals(0, new BigDecimal("87400.00").compareTo(revenue.sellerRevenue()));
+        assertEquals(0, new BigDecimal("87400.00").compareTo(dashboardService.forVendor(shop).revenue30Days()));
 
-	@Test
-	void invalidSurchargesAreRejectedForEachSizeBeforeWritingOptions() {
-		for (String code : List.of("M", "L", "XL")) {
-			for (BigDecimal invalid : Arrays.asList(null, new BigDecimal("-0.01"), new BigDecimal("1000000000000.00"),
-					new BigDecimal("0.001"))) {
-				ProductForm form = new ProductForm();
-				switch (code) {
-				case "M" -> form.setSizeMExtraPrice(invalid);
-				case "L" -> form.setSizeLExtraPrice(invalid);
-				case "XL" -> form.setSizeXlExtraPrice(invalid);
-				default -> throw new AssertionError(code);
-				}
+        CustomerOrder failedOrder = new CustomerOrder();
+        failedOrder.setCode("FAILED-DELIVERY-TEST");
+        failedOrder.setUser(customer);
+        failedOrder.setShop(shop);
+        failedOrder.setCarrier(carrier);
+        failedOrder.setShipper(shipper);
+        failedOrder.setStatus(OrderStatus.SHIPPING);
+        failedOrder.setReceiverName("Khách kiểm thử");
+        failedOrder.setReceiverPhone("0901234567");
+        failedOrder.setShippingAddress("Số 1 Võ Văn Ngân");
+        failedOrder.setSubtotal(new BigDecimal("30000"));
+        failedOrder.setTotalAmount(new BigDecimal("30000"));
+        failedOrder.snapshotCommission(shop.getCommissionRate());
+        failedOrder = orderRepository.save(failedOrder);
 
-				assertThatThrownBy(() -> options.saveConfiguration(tea, form))
-						.as("Reject surcharge %s for size %s", invalid, code)
-						.isInstanceOf(IllegalArgumentException.class);
-			}
-		}
-		assertThat(allSizes()).isEmpty();
-		assertThat(links.existsByProductId(tea.getId())).isFalse();
-	}
+        Long failedOrderId = failedOrder.getId();
+        assertThrows(IllegalArgumentException.class, () -> orderService.shipperUpdate(
+            shipper, failedOrderId, OrderStatus.DELIVERY_FAILED, "Sai", null));
+        orderService.shipperUpdate(shipper, failedOrderId, OrderStatus.DELIVERY_FAILED,
+            "Khách không nghe máy sau nhiều lần liên hệ", proof("failed.png"));
+        assertEquals(OrderStatus.DELIVERY_FAILED, failedOrder.getStatus());
+        assertEquals("Khách không nghe máy sau nhiều lần liên hệ", failedOrder.getFailureReason());
+        assertNotNull(failedOrder.getDeliveryProofUrl());
+        assertEquals(null, failedOrder.getDeliveredAt());
 
-	@Test
-	void zeroAndMaximumTwoDecimalSurchargesCanBePersisted() {
-		ProductForm form = new ProductForm();
-		form.setSizeMExtraPrice(BigDecimal.ZERO);
-		form.setSizeLExtraPrice(new BigDecimal("999999999999.99"));
-		form.setSizeXlExtraPrice(new BigDecimal("0.01"));
+        CustomerOrder failedOrderForRetry = failedOrder;
+        assertThrows(IllegalArgumentException.class,
+            () -> orderService.retryFailedDelivery(vendor, failedOrderForRetry.getId(), retryShipper.getId()));
+        orderService.retryFailedDelivery(admin, failedOrderForRetry.getId(), shipper.getId());
+        assertEquals(OrderStatus.PICKED_UP, failedOrder.getStatus());
+        assertEquals(shipper.getId(), failedOrder.getShipper().getId());
+        assertEquals(null, failedOrder.getFailureReason());
+        assertEquals(null, failedOrder.getDeliveryProofUrl());
+        assertTrue(orderStatusHistoryRepository.findByOrderIdOrderByChangedAtAscIdAsc(failedOrderId).stream()
+            .anyMatch(historyItem -> historyItem.getNewStatus() == OrderStatus.DELIVERY_FAILED
+                && historyItem.getDeliveryProofUrl() != null));
+        orderService.respondToShipperAssignment(shipper, failedOrder.getId(), true, null);
+        orderService.shipperUpdate(shipper, failedOrder.getId(), OrderStatus.SHIPPING);
+        orderService.shipperUpdate(shipper, failedOrder.getId(), OrderStatus.DELIVERY_FAILED,
+            "Khách vẫn chưa thể nhận hàng", null);
+        assertThrows(IllegalArgumentException.class,
+            () -> orderService.retryFailedDelivery(admin, failedOrderId, retryShipper.getId()));
+        orderService.confirmReturnedToShop(shipper, failedOrder.getId());
+        orderService.retryFailedDelivery(admin, failedOrder.getId(), retryShipper.getId());
+        assertEquals(OrderStatus.READY_FOR_PICKUP, failedOrder.getStatus());
+        assertEquals(retryShipper.getId(), failedOrder.getShipper().getId());
+        assertEquals(null, failedOrder.getPickedUpAt());
 
-		options.saveConfiguration(tea, form);
-		entityManager.flush();
-		entityManager.clear();
+        orderService.respondToShipperAssignment(retryShipper, failedOrder.getId(), true, null);
+        orderService.shipperUpdate(retryShipper, failedOrder.getId(), OrderStatus.PICKED_UP);
+        orderService.shipperUpdate(retryShipper, failedOrder.getId(), OrderStatus.SHIPPING);
+        orderService.shipperUpdate(retryShipper, failedOrder.getId(), OrderStatus.DELIVERY_FAILED,
+            "Khách vẫn không thể nhận hàng trong lần giao lại", null);
+        assertThrows(IllegalArgumentException.class,
+            () -> orderService.managementUpdate(admin, failedOrderId, OrderStatus.CANCELLED));
+        orderService.confirmReturnedToShop(retryShipper, failedOrder.getId());
+        orderService.managementUpdate(admin, failedOrder.getId(), OrderStatus.CANCELLED);
+        assertEquals(OrderStatus.CANCELLED, failedOrder.getStatus());
+        assertTrue(orderStatusHistoryRepository.findByOrderIdOrderByChangedAtAscIdAsc(failedOrder.getId()).stream()
+            .anyMatch(item -> item.getOldStatus() == OrderStatus.DELIVERY_FAILED
+                && item.getNewStatus() == OrderStatus.READY_FOR_PICKUP));
 
-		assertThat(size("M").getExtraPrice()).isEqualByComparingTo("0");
-		assertThat(size("L").getExtraPrice()).isEqualByComparingTo("999999999999.99");
-		assertThat(size("XL").getExtraPrice()).isEqualByComparingTo("0.01");
-	}
+        ProductForm optionConfig = new ProductForm();
+        optionConfig.setSizeMActive(true);
+        optionConfig.setSizeMExtraPrice(BigDecimal.ZERO);
+        optionConfig.setSizeLActive(false);
+        optionConfig.setSizeLExtraPrice(new BigDecimal("9000"));
+        optionConfig.setSizeXlActive(true);
+        optionConfig.setSizeXlExtraPrice(new BigDecimal("15000"));
+        optionConfig.setToppingIds(List.of(whitePearl.getId()));
+        productOptionService.saveConfiguration(product, optionConfig);
+        productOptionService.configureAllProducts();
 
-	@Test
-	void nullZeroAndNegativeToppingIdsAreRejectedBeforeWritingOptions() {
-		for (Long invalid : Arrays.asList(null, 0L, -1L)) {
-			ProductForm form = new ProductForm();
-			form.setToppingIds(Arrays.asList(invalid));
+        var configuredSizes = productSizeRepository.findByProductIdOrderByDisplayOrderAscIdAsc(product.getId());
+        var configuredL = configuredSizes.stream().filter(size -> "L".equals(size.getCode())).findFirst().orElseThrow();
+        assertEquals(false, configuredL.isActive());
+        assertEquals(0, new BigDecimal("9000").compareTo(configuredL.getExtraPrice()));
+        var configuredToppings = productToppingRepository
+            .findByProductIdAndToppingActiveTrueOrderByToppingNameAsc(product.getId());
+        assertEquals(1, configuredToppings.size());
+        assertEquals(whitePearl.getId(), configuredToppings.getFirst().getTopping().getId());
+        Long configuredProductId = product.getId();
+        assertThrows(IllegalArgumentException.class, () -> cartService.add(customer, configuredProductId, 1,
+            sizeL.getId(), SugarLevel.PERCENT_50, IceLevel.LESS_ICE, List.of()));
+        assertThrows(IllegalArgumentException.class, () -> cartService.add(customer, configuredProductId, 1,
+            sizeM.getId(), SugarLevel.PERCENT_50, IceLevel.LESS_ICE, List.of(cheese.getId())));
+    }
 
-			assertThatThrownBy(() -> options.saveConfiguration(tea, form)).isInstanceOf(IllegalArgumentException.class);
-		}
-		assertThat(allSizes()).isEmpty();
-		assertThat(links.existsByProductId(tea.getId())).isFalse();
-	}
+    private MockMultipartFile proof(String filename) {
+        return new MockMultipartFile("deliveryProof", filename, "image/png", new byte[] {1, 2, 3});
+    }
 
-	@Test
-	void nonexistentToppingIsRejectedBeforeWritingOptions() {
-		ProductForm form = new ProductForm();
-		form.setToppingIds(List.of(Long.MAX_VALUE));
-
-		assertThatThrownBy(() -> options.saveConfiguration(tea, form)).isInstanceOf(IllegalArgumentException.class);
-
-		assertThat(allSizes()).isEmpty();
-		assertThat(links.existsByProductId(tea.getId())).isFalse();
-	}
-
-	@Test
-	void inactiveToppingCannotBeSelectedEvenAlongsideAnActiveOne() {
-		Topping active = topping("8000", true);
-		Topping inactive = topping("9000", false);
-		ProductForm form = new ProductForm();
-		form.setToppingIds(List.of(active.getId(), inactive.getId()));
-
-		assertThatThrownBy(() -> options.saveConfiguration(tea, form)).isInstanceOf(IllegalArgumentException.class);
-
-		assertThat(allSizes()).isEmpty();
-		assertThat(links.existsByProductId(tea.getId())).isFalse();
-	}
-
-	@Test
-	void switchingToStandaloneToppingRemovesDrinkOptionsAndUsesBasePrice() {
-		Topping selected = topping("8000", true);
-		ProductForm form = new ProductForm();
-		form.setToppingIds(List.of(selected.getId()));
-		options.saveConfiguration(tea, form);
-
-		Category category = categories.findBySlugAndActiveTrue("topping").orElseGet(() -> {
-			Category created = new Category();
-			created.setName("Topping");
-			created.setSlug("topping");
-			created.setActive(true);
-			return categories.saveAndFlush(created);
-		});
-		tea.setCategory(category);
-
-		options.saveConfiguration(tea, new ProductForm());
-		entityManager.flush();
-
-		assertThat(allSizes()).isEmpty();
-		assertThat(links.existsByProductId(tea.getId())).isFalse();
-		assertThat(pricing.unitPrice(tea, null, List.of())).isEqualByComparingTo("35000");
-		assertThat(toppings.existsById(selected.getId())).isTrue();
-	}
-
-	@Test
-	void pricingUsesTheSavedSizeSurchargeAndSelectedToppingPrices() {
-		Topping first = topping("10000.50", true);
-		Topping second = topping("2000.25", true);
-		ProductForm form = new ProductForm();
-		form.setSizeLExtraPrice(new BigDecimal("7000.25"));
-		form.setToppingIds(List.of(first.getId(), second.getId()));
-		options.saveConfiguration(tea, form);
-		entityManager.flush();
-
-		assertThat(pricing.unitPrice(tea, size("L").getId(), List.of(first.getId(), second.getId(), first.getId())))
-				.isEqualByComparingTo("54001.00");
-	}
-
-	@Test
-	void anotherShopCannotReadOrOverwriteTheProductsOptionsThroughVendorService() {
-		other.setRole(Role.VENDOR);
-		customer.setRole(Role.VENDOR);
-		Shop foreignShop = new Shop();
-		foreignShop.setOwner(customer);
-		foreignShop.setName("Other vendor shop");
-		foreignShop.setSlug(UUID.randomUUID().toString());
-		foreignShop.setStatus(ShopStatus.APPROVED);
-		foreignShop.setEnabled(true);
-		shops.saveAndFlush(foreignShop);
-		Topping selected = topping("8000", true);
-		ProductForm original = new ProductForm();
-		original.setToppingIds(List.of(selected.getId()));
-		options.saveConfiguration(tea, original);
-
-		ProductForm forged = new ProductForm();
-		forged.setName("Tên bị sửa bởi shop khác");
-		forged.setSku(tea.getSku());
-		forged.setCategoryId(tea.getCategory().getId());
-		forged.setDescription("Mô tả sản phẩm được gửi từ một cửa hàng khác.");
-		forged.setPrice(new BigDecimal("1000"));
-		forged.setStock(1);
-		forged.setStatus(ProductStatus.ACTIVE);
-		forged.setVersion(tea.getVersion());
-		forged.setSizeLExtraPrice(BigDecimal.ZERO);
-		String originalName = tea.getName();
-
-		assertThat(vendors.productForEdit(other, tea.getId()).getId()).isEqualTo(tea.getId());
-		assertThatThrownBy(() -> vendors.productForEdit(customer, tea.getId()))
-				.isInstanceOf(IllegalArgumentException.class);
-		assertThatThrownBy(() -> vendors.saveProduct(customer, tea.getId(), forged))
-				.isInstanceOf(IllegalArgumentException.class);
-
-		assertThat(tea.getName()).isEqualTo(originalName);
-		assertThat(tea.getPrice()).isEqualByComparingTo("35000");
-		assertThat(tea.getStock()).isEqualTo(10);
-		assertThat(size("L").getExtraPrice()).isEqualByComparingTo("7000");
-		assertThat(selectedToppingIds()).containsExactly(selected.getId());
-	}
-
-	private Topping topping(String price, boolean active) {
-		Topping topping = new Topping();
-		topping.setName("Option test " + UUID.randomUUID());
-		topping.setPrice(new BigDecimal(price));
-		topping.setActive(active);
-		return toppings.saveAndFlush(topping);
-	}
-
-	private List<ProductSize> allSizes() {
-		return sizes.findByProductIdOrderByDisplayOrderAscIdAsc(tea.getId());
-	}
-
-	private ProductSize size(String code) {
-		return sizes.findByProductIdAndCodeIgnoreCase(tea.getId(), code).orElseThrow();
-	}
-
-	private List<Long> selectedToppingIds() {
-		return options.availableToppings(tea).stream().map(link -> link.getTopping().getId()).toList();
-	}
+    private User saveUser(String username, String email, Role role) {
+        User user = new User();
+        user.setUsername(username);
+        user.setEmail(email);
+        user.setPasswordHash("encoded-password-for-test");
+        user.setFullName(username);
+        user.setRole(role);
+        user.setEnabled(true);
+        return userRepository.save(user);
+    }
 }

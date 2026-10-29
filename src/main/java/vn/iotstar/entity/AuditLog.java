@@ -1,5 +1,6 @@
 package vn.iotstar.entity;
 
+import vn.iotstar.util.VietnamTime;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import lombok.Getter;
@@ -55,14 +56,6 @@ public class AuditLog {
     @Column(length = 500)
     private String note;
 
-    /** Human-readable action summary; never store tokens or payment signatures. */
-    @Column(length = 500)
-    private String description;
-
-    /** Safe business-state details (not raw HTTP/payment payloads). */
-    @Column(length = 1000)
-    private String metadata;
-
     @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
+    private LocalDateTime createdAt = VietnamTime.now();
 }

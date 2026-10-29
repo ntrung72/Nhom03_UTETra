@@ -1,5 +1,6 @@
 package vn.iotstar.entity;
 
+import vn.iotstar.util.VietnamTime;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -10,39 +11,18 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import vn.iotstar.entity.DomainEnums.ReturnReason;
 import vn.iotstar.entity.DomainEnums.ReturnStatus;
+import vn.iotstar.entity.DomainEnums.RefundVerification;
 
-@Getter
-@Setter
-@NoArgsConstructor
+@Getter @Setter @NoArgsConstructor
 @Entity
-@Table(
-    name = "return_requests",
-    uniqueConstraints = {
-        @UniqueConstraint(
-            name = "uk_return_request_order",
-            columnNames = "order_id"
-        )
-    },
-    indexes = {
-        @Index(
-            name = "idx_return_shop_status",
-            columnList = "shop_id,status"
-        ),
-        @Index(
-            name = "idx_return_user",
-            columnList = "user_id"
-        )
-    }
-)
+@Table(name = "return_requests", uniqueConstraints =
+    @UniqueConstraint(name = "uk_return_request_order", columnNames = "order_id"), indexes = {
+    @Index(name = "idx_return_shop_status", columnList = "shop_id,status"),
+    @Index(name = "idx_return_user", columnList = "user_id")
+})
 public class ReturnRequest {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @Version
-    @Column(nullable = false)
-    private long version;
 
     @OneToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "order_id", nullable = false)
@@ -63,13 +43,20 @@ public class ReturnRequest {
     @Column(nullable = false, length = 2000)
     private String description;
 
-    @Column(
-        name = "refund_amount",
-        nullable = false,
-        precision = 14,
-        scale = 2
-    )
+    @Column(name = "refund_amount", nullable = false, precision = 14, scale = 2)
     private BigDecimal refundAmount;
+
+    @Column(name = "refund_bank_name", length = 120)
+    private String refundBankName;
+
+    @Column(name = "refund_account_name", length = 120)
+    private String refundAccountName;
+
+    @Column(name = "refund_account_number", length = 24)
+    private String refundAccountNumber;
+
+    @Column(name = "return_required")
+    private Boolean returnRequired;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -99,59 +86,21 @@ public class ReturnRequest {
     private LocalDateTime refundedAt;
 
     @Column(name = "requested_at", nullable = false)
-    private LocalDateTime requestedAt = LocalDateTime.now();
+    private LocalDateTime requestedAt = VietnamTime.now();
 
     @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt = LocalDateTime.now();
+    private LocalDateTime updatedAt = VietnamTime.now();
 
-    @OneToMany(
-        mappedBy = "returnRequest",
-        cascade = {
-            CascadeType.PERSIST,
-            CascadeType.MERGE,
-            CascadeType.REMOVE,
-            CascadeType.DETACH
-        },
-        orphanRemoval = true
-    )
+    @OneToMany(mappedBy = "returnRequest", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("id ASC")
     private List<ReturnRequestMedia> media = new ArrayList<>();
 
-    @OneToMany(mappedBy = "returnRequest")
-    @OrderBy("changedAt ASC, id ASC")
-    private List<ReturnStatusHistory> statusHistory = new ArrayList<>();
+    @PreUpdate
+    void touch() { updatedAt = VietnamTime.now(); }
 
     public RefundVerification getRefundVerification() {
-        if (refundVerification != null) {
-            return refundVerification;
-        }
-
+        if (refundVerification != null) return refundVerification;
         return status == ReturnStatus.REFUNDED
-            ? RefundVerification.MANUAL_CONFIRMED
-            : RefundVerification.PENDING;
-    }
-
-    @PreUpdate
-    void touch() {
-        updatedAt = LocalDateTime.now();
-    }
-
-    public enum RefundVerification {
-
-        PENDING("Chưa xác nhận hoàn tiền"),
-
-        MANUAL_CONFIRMED("Đã xác nhận hoàn tiền thủ công"),
-
-        GATEWAY_CONFIRMED("Cổng thanh toán đã xác nhận hoàn tiền");
-
-        private final String label;
-
-        RefundVerification(String label) {
-            this.label = label;
-        }
-
-        public String getLabel() {
-            return label;
-        }
+            ? RefundVerification.LEGACY_UNKNOWN : RefundVerification.PENDING;
     }
 }

@@ -1,5 +1,6 @@
 package vn.iotstar.entity;
 
+import vn.iotstar.util.VietnamTime;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import lombok.Getter;
@@ -36,10 +37,27 @@ public class OrderStatusHistory {
     private User changedBy;
 
     @Column(name = "changed_at", nullable = false)
-    private LocalDateTime changedAt = LocalDateTime.now();
+    private LocalDateTime changedAt = VietnamTime.now();
 
     @Column(length = 500)
     private String note;
 
-    public String getDisplayLabel() { return newStatus.getLabel(); }
+    @Column(name = "delivery_proof_url", length = 500)
+    private String deliveryProofUrl;
+
+    public String getDisplayLabel() {
+        return switch (newStatus) {
+            case NEW -> "Đặt hàng";
+            case CONFIRMED -> "Shop đã xác nhận";
+            case PREPARING -> "Shop đang chuẩn bị hàng";
+            case READY_FOR_PICKUP -> "Đơn sẵn sàng để shipper lấy";
+            case PICKED_UP -> "Shipper đã lấy hàng";
+            case SHIPPING -> "Đang giao hàng";
+            case DELIVERED -> "Giao thành công";
+            case DELIVERY_FAILED -> "Giao hàng thất bại";
+            case CANCELLED -> "Đã hủy đơn";
+            case RETURN_REQUESTED -> "Đã yêu cầu trả hàng";
+            case RETURNED_REFUNDED -> "Đã hoàn tiền thủ công";
+        };
+    }
 }

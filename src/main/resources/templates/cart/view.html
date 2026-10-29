@@ -3,18 +3,20 @@
 <head th:replace="~{fragments/layout :: head('Giỏ hàng')}"></head>
 <body>
 <header th:replace="~{fragments/layout :: header}"></header>
-<main class="container py-4 py-lg-5">
+<main class="container pt-3 pt-lg-4 pb-4 pb-lg-5">
     <div th:replace="~{fragments/layout :: flash}"></div>
+    <div class="alert alert-warning" th:if="${reorderWarnings != null}">
+        <strong>Món chưa thể mua lại:</strong>
+        <ul class="mb-0 mt-1"><li th:each="warning : ${reorderWarnings}" th:text="${warning}"></li></ul>
+    </div>
     <div class="mb-4">
-        <span class="page-kicker"><i class="bi bi-cart3"></i> Mua sắm</span>
         <h1 class="h3 mb-1">Giỏ hàng của bạn</h1>
-        <p class="text-muted mb-0">Chọn một hoặc nhiều sản phẩm. Các sản phẩm khác vẫn được giữ trong giỏ.</p>
+        <p class="text-muted mb-0">Chọn sản phẩm cần thanh toán. Những sản phẩm chưa chọn vẫn được giữ lại trong giỏ.</p>
     </div>
 
-    <div class="alert alert-info" th:if="${pricesChanged}">Giá sản phẩm hoặc tùy chọn đã thay đổi. Giỏ hàng đã cập nhật theo giá hiện tại.</div>
-    <div class="alert alert-warning" th:each="warning : ${cartWarnings}" th:text="${warning}"></div>
     <div th:if="${!cart.items.empty}">
-        <form id="cart-selection-form" th:action="@{/cart/selection}" method="post">
+        <form id="checkout-selection-form" th:action="@{/checkout}" method="get">
+            <input type="hidden" name="selectionSubmitted" value="true">
         </form>
 
         <div class="cart-select-toolbar">
@@ -22,7 +24,7 @@
                 <input class="form-check-input mt-0" type="checkbox" data-cart-select-all checked>
                 <span class="fw-semibold">Chọn tất cả</span>
             </label>
-            <span class="text-muted small" th:text="${cart.totalQuantity + ' sản phẩm trong giỏ'}"></span>
+            <span class="text-muted small" th:text="${cart.items.size() + ' món trong giỏ · Số lượng: ' + cart.totalQuantity}"></span>
         </div>
 
         <section class="cart-shop-card" th:each="group : ${cartGroups}" th:attr="data-cart-shop=${group.key.id}">
@@ -41,14 +43,14 @@
                 </a>
             </header>
 
-            <article class="cart-line" th:each="i : ${group.value}">
+            <article class="cart-line" th:each="i : ${group.value}" th:id="|cart-item-${i.id}|">
                 <div class="cart-line-check">
                     <input class="form-check-input" type="checkbox" name="itemIds" th:value="${i.id}"
-                           form="cart-selection-form" th:checked="${selectedIds.contains(i.id)}" th:disabled="${invalidItemIds.contains(i.id)}" aria-label="Chọn sản phẩm" data-cart-item
+                           form="checkout-selection-form" checked data-cart-item
                            th:attr="data-shop-id=${group.key.id},data-line-total=${i.lineTotal}">
                 </div>
                 <a class="cart-line-image-wrap" th:href="@{/products/{id}(id=${i.product.id})}">
-                    <img class="cart-product-image" th:src="${#strings.isEmpty(i.product.imageUrl) ? '/images/logo.svg' : i.product.imageUrl}" th:alt="${i.product.name}">
+                    <img class="cart-product-image" th:src="${i.product.imageUrl}" th:alt="${i.product.name}">
                 </a>
                 <div class="cart-line-info">
                     <a class="cart-line-name" th:href="@{/products/{id}(id=${i.product.id})}" th:text="${i.product.name}"></a>
@@ -63,6 +65,8 @@
                         <small th:if="${i.optionPrice != null and i.optionPrice.signum() > 0}"
                                th:text="${'Đã gồm tùy chọn +' + #numbers.formatDecimal(i.optionPrice,0,'COMMA',0,'POINT') + ' ₫'}"></small>
                     </div>
+                    <small class="cart-stock-warning" th:if="${i.quantity > i.product.stock}"
+                           th:text="${'Chỉ còn ' + i.product.stock + ' ly. Hãy giảm số lượng trước khi thanh toán.'}"></small>
                 </div>
                 <form class="cart-quantity-form" th:action="@{/cart/items/{id}(id=${i.id})}" method="post">
                     <label class="small text-muted" th:for="${'quantity-' + i.id}">Số lượng</label>
@@ -76,7 +80,7 @@
                     <small>Thành tiền</small>
                     <strong th:text="${#numbers.formatDecimal(i.lineTotal,0,'COMMA',0,'POINT') + ' ₫'}"></strong>
                 </div>
-                <form class="confirm-form cart-remove-form" th:action="@{/cart/items/{id}/delete(id=${i.id})}" method="post">
+                <form class="confirm-form cart-remove-form" data-confirm="Xóa món này khỏi giỏ hàng?" th:action="@{/cart/items/{id}/delete(id=${i.id})}" method="post">
                     <button class="btn btn-sm btn-outline-danger" aria-label="Xóa sản phẩm"><i class="bi bi-trash"></i></button>
                 </form>
             </article>
@@ -88,10 +92,11 @@
                 <div>
                     <span class="text-muted small" data-cart-selected-count></span>
                     <div class="price fs-3" data-cart-selected-total
-                         th:text="${#numbers.formatDecimal(selectedSubtotal,0,'COMMA',0,'POINT') + ' ₫'}"></div>
+                         th:text="${#numbers.formatDecimal(cart.subtotal,0,'COMMA',0,'POINT') + ' ₫'}"></div>
+                    <small class="text-muted">Tạm tính; giá và khuyến mãi được kiểm tra lại ở bước thanh toán.</small>
                 </div>
-                <button class="btn btn-primary btn-lg" type="submit" form="cart-selection-form" th:formaction="@{/checkout}" formmethod="get" data-cart-save-selection>
-                    Thanh toán <i class="bi bi-arrow-right ms-1"></i>
+                <button class="btn btn-primary btn-lg" type="submit" form="checkout-selection-form" data-cart-checkout>
+                    Thanh toán sản phẩm đã chọn <i class="bi bi-arrow-right ms-1"></i>
                 </button>
             </div>
         </div>

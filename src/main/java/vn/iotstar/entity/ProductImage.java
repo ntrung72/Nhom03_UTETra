@@ -9,17 +9,10 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(
-    name = "product_images",
-    indexes = {
-        @Index(
-            name = "idx_product_image_order",
-            columnList = "product_id,sort_order,id"
-        )
-    }
-)
+@Table(name = "product_images", indexes = {
+    @Index(name = "idx_product_image_order", columnList = "product_id,sort_order,id")
+})
 public class ProductImage {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

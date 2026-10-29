@@ -1,19 +1,38 @@
 <!doctype html>
 <html lang="vi" xmlns:th="http://www.thymeleaf.org">
 <body>
-<nav th:fragment="nav" class="nav nav-pills gap-2 mb-4 p-2 bg-white border rounded-4">
-  <a class="nav-link" th:href="@{/management}"><i class="bi bi-grid me-1"></i> Tổng quan</a>
-  <a class="nav-link" th:href="@{/management/users}"><i class="bi bi-people me-1"></i> Người dùng</a>
-  <a class="nav-link" th:href="@{/management/shops}"><i class="bi bi-shop me-1"></i> Cửa hàng</a>
-  <a class="nav-link" th:href="@{/management/categories}"><i class="bi bi-tags me-1"></i> Danh mục</a>
-  <a class="nav-link" th:href="@{/management/products}"><i class="bi bi-cup-straw me-1"></i> Sản phẩm</a>
-  <a class="nav-link" th:href="@{/management/toppings}"><i class="bi bi-plus-circle me-1"></i> Topping</a>
-  <a class="nav-link" th:href="@{/management/promotions}"><i class="bi bi-percent me-1"></i> Khuyến mãi</a>
-  <a class="nav-link" th:href="@{/management/orders}"><i class="bi bi-box-seam me-1"></i> Điều phối đơn</a>
-  <a class="nav-link" th:href="@{/management/payments}"><i class="bi bi-credit-card me-1"></i> Giao dịch VNPay</a>
-  <a class="nav-link" th:href="@{/management/audit-logs}"><i class="bi bi-shield-check me-1"></i> Nhật ký quản trị</a>
-  <a class="nav-link" th:href="@{/management/carriers}"><i class="bi bi-truck me-1"></i> Nhà vận chuyển</a>
-  <a class="nav-link" th:if="${currentUser.role == T(vn.iotstar.entity.DomainEnums.Role).ADMIN}" th:href="@{/management/vouchers}"><i class="bi bi-ticket-perforated me-1"></i> Mã giảm giá</a>
-  <a class="nav-link" th:if="${currentUser.role == T(vn.iotstar.entity.DomainEnums.Role).ADMIN}" th:href="@{/management/managers}"><i class="bi bi-person-gear me-1"></i> Phân công Manager</a>
+<nav class="side-nav dashboard-side-nav management-side-nav" th:fragment="nav" aria-label="Điều hướng quản trị">
+    <div class="management-nav-title px-3 py-2 fw-bold text-primary"
+         th:text="${currentUser.role == T(vn.iotstar.entity.DomainEnums.Role).ADMIN ? 'QUẢN TRỊ HỆ THỐNG' : 'QUẢN LÝ CỬA HÀNG'}">
+        QUẢN TRỊ UTETRA
+    </div>
+    <button class="management-nav-toggle" type="button" aria-expanded="false" aria-label="Mở menu quản trị">
+        <span><i class="bi bi-list" aria-hidden="true"></i> Menu quản trị</span>
+        <i class="bi bi-chevron-down" aria-hidden="true"></i>
+    </button>
+    <a th:href="@{/management}"><i class="bi bi-grid me-2"></i>Tổng quan</a>
+    <a th:href="@{/management/shops}"><i class="bi bi-shop me-2"></i>Cửa hàng</a>
+    <a th:href="@{/management/products}"><i class="bi bi-cup-straw me-2"></i>Sản phẩm</a>
+    <a th:href="@{/management/promotions}"><i class="bi bi-tags me-2"></i>Khuyến mãi</a>
+    <a th:href="@{/management/orders}"><i class="bi bi-receipt me-2"></i>Đơn hàng</a>
+    <details class="management-nav-group">
+        <summary><span><i class="bi bi-three-dots me-2" aria-hidden="true"></i>Quản lý khác</span><i class="bi bi-chevron-down" aria-hidden="true"></i></summary>
+        <div class="management-nav-submenu">
+            <a th:href="@{/management/users}"><i class="bi bi-people me-2"></i>Người dùng</a>
+            <a th:href="@{/management/categories}"><i class="bi bi-folder me-2"></i>Danh mục</a>
+            <a th:href="@{/management/toppings}"><i class="bi bi-plus-circle me-2"></i>Topping</a>
+            <a th:href="@{/management/carriers}"><i class="bi bi-truck me-2"></i>Vận chuyển</a>
+        </div>
+    </details>
+    <details class="management-nav-group" th:if="${currentUser.role == T(vn.iotstar.entity.DomainEnums.Role).ADMIN}">
+        <summary><span><i class="bi bi-shield-lock me-2" aria-hidden="true"></i>Hệ thống</span><i class="bi bi-chevron-down" aria-hidden="true"></i></summary>
+        <div class="management-nav-submenu">
+            <a th:href="@{/management/managers}"><i class="bi bi-person-gear me-2"></i>Phân công Manager</a>
+            <a th:href="@{/management/vouchers}"><i class="bi bi-ticket-perforated me-2"></i>Mã giảm giá</a>
+            <a th:href="@{/management/payments}"><i class="bi bi-credit-card-2-front me-2"></i>Thanh toán</a>
+            <a th:href="@{/management/audit-logs}"><i class="bi bi-shield-check me-2"></i>Nhật ký thao tác</a>
+        </div>
+    </details>
 </nav>
-</body></html>
+</body>
+</html>

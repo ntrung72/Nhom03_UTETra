@@ -6,15 +6,11 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import vn.iotstar.entity.DomainEnums.MediaType;
 
-@Getter
-@Setter
-@NoArgsConstructor
+@Getter @Setter @NoArgsConstructor
 @Entity
 @Table(name = "return_request_media")
 public class ReturnRequestMedia {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)

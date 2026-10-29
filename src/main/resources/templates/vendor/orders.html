@@ -1,600 +1,101 @@
 <!doctype html>
 <html lang="vi" xmlns:th="http://www.thymeleaf.org">
-<head th:replace="~{fragments/layout :: head('Đơn hàng cửa hàng')}"></head>
+<head th:replace="~{fragments/layout :: head('Đơn hàng shop')}"></head>
 <body>
 <header th:replace="~{fragments/layout :: header}"></header>
-
 <main class="container py-4">
+    <div class="admin-dashboard-shell">
     <div th:replace="~{fragments/vendor-nav :: nav}"></div>
+    <div class="admin-dashboard-content">
     <div th:replace="~{fragments/layout :: flash}"></div>
+    <h1 class="h3">Quản lý đơn hàng</h1>
 
-    <div class="mb-4">
-        <h1 class="h3">Quản lý đơn hàng</h1>
-        <p class="text-muted mb-0" th:text="${shop.name}">
-            Cửa hàng
-        </p>
-    </div>
-
-    <!-- Số lượng đơn của shop, không phụ thuộc bộ lọc hiện tại -->
-    <div class="row g-3 mb-4">
-        <div class="col-6 col-lg-3">
-            <a class="card h-100 text-decoration-none"
-               th:href="@{/vendor/orders(status='NEW')}">
-                <div class="card-body">
-                    <div class="text-muted">Đơn mới</div>
-                    <strong class="fs-3 text-primary"
-                            th:text="${orderStats.newOrders()}">0</strong>
-                </div>
-            </a>
-        </div>
-
-        <div class="col-6 col-lg-3">
-            <a class="card h-100 text-decoration-none"
-               th:href="@{/vendor/orders(status='CONFIRMED')}">
-                <div class="card-body">
-                    <div class="text-muted">Đã xác nhận</div>
-                    <strong class="fs-3 text-primary"
-                            th:text="${orderStats.confirmedOrders()}">0</strong>
-                </div>
-            </a>
-        </div>
-
-        <div class="col-6 col-lg-3">
-            <a class="card h-100 text-decoration-none"
-               th:href="@{/vendor/orders(status='PREPARING')}">
-                <div class="card-body">
-                    <div class="text-muted">Đang chuẩn bị</div>
-                    <strong class="fs-3 text-primary"
-                            th:text="${orderStats.preparingOrders()}">0</strong>
-                </div>
-            </a>
-        </div>
-
-        <div class="col-6 col-lg-3">
-            <a class="card h-100 text-decoration-none"
-               th:href="@{/vendor/orders(status='READY_FOR_PICKUP')}">
-                <div class="card-body">
-                    <div class="text-muted">Sẵn sàng bàn giao</div>
-                    <strong class="fs-3 text-primary"
-                            th:text="${orderStats.readyOrders()}">0</strong>
-                </div>
-            </a>
-        </div>
-    </div>
-
-    <!-- Bộ lọc -->
-    <form class="row g-2 align-items-end mb-4"
-          th:action="@{/vendor/orders}"
-          method="get">
-        <div class="col-sm-8 col-lg-5">
-            <label for="order-status-filter" class="form-label">
-                Trạng thái đơn hàng
-            </label>
-
-            <select id="order-status-filter"
-                    name="status"
-                    class="form-select">
-                <option value="" th:selected="${selectedStatus == null}">
-                    Tất cả trạng thái
-                </option>
-                <option th:each="s : ${statuses}"
-                        th:value="${s.name()}"
-                        th:text="${s.label}"
-                        th:selected="${selectedStatus == s}">
-                    Trạng thái
-                </option>
-            </select>
-        </div>
-
-        <div class="col-sm-4 col-lg-auto d-flex gap-2">
-            <button type="submit" class="btn btn-primary">
-                <i class="bi bi-funnel me-1"></i>Lọc
-            </button>
-            <a class="btn btn-outline-secondary"
-               th:href="@{/vendor/orders}">
-                Đặt lại
-            </a>
-        </div>
+    <form class="d-flex flex-wrap gap-2 my-3" method="get" th:action="@{/vendor/orders}">
+        <input class="form-control" style="max-width: 320px" type="search" name="q" th:value="${q}"
+               placeholder="Tìm mã đơn hoặc tên người nhận" aria-label="Tìm đơn hàng">
+        <input type="hidden" name="status" th:if="${selectedStatus != null}" th:value="${selectedStatus}">
+        <input type="hidden" name="pending" th:if="${pending}" value="true">
+        <button class="btn btn-primary" type="submit"><i class="bi bi-search me-1"></i>Tìm kiếm</button>
     </form>
 
-    <!-- Danh sách đơn -->
-    <div class="card">
-        <div class="card-header bg-white d-flex flex-wrap
-                    justify-content-between align-items-center gap-2">
-            <strong>Danh sách đơn hàng</strong>
-            <span class="text-muted small"
-                  th:text="${'Tổng: ' + orders.totalElements + ' đơn'}">
-                Tổng: 0 đơn
-            </span>
-        </div>
-
-        <div class="table-responsive">
-            <table class="table align-middle mb-0">
-                <thead>
-                <tr>
-                    <th scope="col">Mã đơn</th>
-                    <th scope="col">Thời gian</th>
-                    <th scope="col">Người nhận</th>
-                    <th scope="col">Thanh toán</th>
-                    <th scope="col">Trạng thái</th>
-                    <th scope="col">Thao tác</th>
-                </tr>
-                </thead>
-
-                <tbody>
-                <tr th:each="o : ${orders.content}"
-                    th:with="nextStatuses=${allowedTransitions[o.id]}">
-                    <td class="text-break">
-                        <a class="fw-semibold text-decoration-none"
-                           th:href="@{/vendor/orders(
-                               status=${selectedStatus},
-                               page=${orders.number},
-                               orderId=${o.id}
-                           )}"
-                           th:text="${o.code}">
-                            Mã đơn
-                        </a>
-                    </td>
-
-                    <td class="text-nowrap small"
-                        th:text="${#temporals.format(
-                            o.createdAt, 'dd/MM/yyyy HH:mm'
-                        )}">
-                        Thời gian
-                    </td>
-
-                    <td>
-                        <div th:text="${o.receiverName}">Người nhận</div>
-                        <div class="small text-muted"
-                             th:text="${o.receiverPhone}">
-                            Số điện thoại
-                        </div>
-                    </td>
-
-                    <td class="text-nowrap">
-                        <strong th:text="${#numbers.formatDecimal(
-                            o.totalAmount, 0, 'COMMA', 0, 'POINT'
-                        ) + ' ₫'}">
-                            0 ₫
-                        </strong>
-                        <div class="small text-muted"
-                             th:text="${o.paymentMethod.label
-                                 + ' · ' + o.paymentStatus.label}">
-                            Thanh toán
-                        </div>
-                    </td>
-
-                    <td>
-                        <span class="badge text-bg-primary"
-                              th:text="${o.status.label}">
-                            Trạng thái
-                        </span>
-                    </td>
-
-                    <td>
-                        <div class="d-flex flex-wrap gap-2">
-                            <a class="btn btn-sm btn-outline-primary"
-                               th:href="@{/vendor/orders(
-                                   status=${selectedStatus},
-                                   page=${orders.number},
-                                   orderId=${o.id}
-                               )}">
-                                Xem chi tiết
-                            </a>
-
-                            <form th:if="${!#lists.isEmpty(nextStatuses)}"
-                                  th:action="@{/vendor/orders/{id}/status(
-                                      id=${o.id}
-                                  )}"
-                                  method="post">
-                                <input type="hidden"
-                                       name="status"
-                                       th:value="${nextStatuses[0].name()}">
-
-                                <input type="hidden"
-                                       name="filterStatus"
-                                       th:if="${selectedStatus != null}"
-                                       th:value="${selectedStatus.name()}">
-
-                                <input type="hidden"
-                                       name="page"
-                                       th:value="${orders.number}">
-
-                                <button type="submit"
-                                        class="btn btn-sm btn-primary"
-                                        th:text="${nextStatuses[0].label}">
-                                    Cập nhật
-                                </button>
-                            </form>
-                        </div>
-                    </td>
-                </tr>
-
-                <tr th:if="${orders.empty}">
-                    <td colspan="6"
-                        class="text-center text-muted py-4">
-                        Chưa có đơn hàng ở trạng thái này.
-                    </td>
-                </tr>
-                </tbody>
-            </table>
-        </div>
+    <div class="d-flex flex-wrap gap-2 my-3">
+        <a class="btn btn-sm" th:classappend="${selectedStatus == null and !pending} ? 'btn-primary' : 'btn-outline-primary'"
+           th:href="@{/vendor/orders(q=${q})}">Tất cả</a>
+        <a class="btn btn-sm" th:classappend="${pending} ? 'btn-primary' : 'btn-outline-primary'"
+           th:href="@{/vendor/orders(pending=true,q=${q})}">Cần xử lý</a>
+        <a class="btn btn-sm" th:each="s : ${statuses}"
+           th:classappend="${selectedStatus == s and !pending} ? 'btn-primary' : 'btn-outline-primary'"
+           th:href="@{/vendor/orders(status=${s},q=${q})}" th:text="${s.label}"></a>
     </div>
 
-    <!-- Phân trang -->
-    <nav class="mt-3"
-         th:if="${orders.totalPages > 1}"
-         aria-label="Phân trang đơn hàng">
+    <div class="card table-responsive">
+        <table class="table vendor-orders-table align-middle mb-0">
+            <colgroup>
+                <col class="vendor-order-col-code"><col class="vendor-order-col-customer"><col class="vendor-order-col-finance">
+                <col class="vendor-order-col-shipper"><col class="vendor-order-col-status"><col class="vendor-order-col-update">
+            </colgroup>
+            <thead><tr><th>Mã</th><th>Khách</th><th>Tài chính</th><th>Shipper</th><th>Trạng thái</th><th>Cập nhật</th></tr></thead>
+            <tbody>
+            <tr th:each="o : ${orders.content}">
+                <td class="vendor-order-summary">
+                    <a class="fw-bold text-break" th:href="@{/vendor/orders/{id}(id=${o.id})}" th:text="${o.code}"></a>
+                    <div class="small text-muted mt-1" th:if="${!#lists.isEmpty(itemsByOrder[o.id])}">
+                        <span th:each="item, itemStat : ${itemsByOrder[o.id]}">
+                            <span th:text="${item.productName + ' ×' + item.quantity}"></span><span th:if="${!itemStat.last}">, </span>
+                        </span>
+                    </div>
+                    <a class="small d-inline-block mt-1" th:href="@{/vendor/orders/{id}(id=${o.id})}">Xem món và tùy chọn</a>
+                </td>
+                <td th:text="${o.receiverName}"></td>
+                <td class="vendor-order-finance">
+                    <strong th:text="${#numbers.formatDecimal(o.sellerRevenue,0,'COMMA',0,'POINT')} + ' ₫ thực nhận'"></strong>
+                    <div class="vendor-order-finance-line text-muted small">
+                        <span th:text="${'Hàng sau giảm ' + #numbers.formatDecimal(o.commissionBase,0,'COMMA',0,'POINT') + ' ₫'}"></span>
+                        <span th:text="${'Ship ' + #numbers.formatDecimal(o.finalShippingFee,0,'COMMA',0,'POINT') + ' ₫'}"></span>
+                    </div>
+                    <div class="vendor-order-finance-line text-muted small">
+                        <span th:text="${'Khách trả ' + #numbers.formatDecimal(o.totalAmount,0,'COMMA',0,'POINT') + ' ₫'}"></span>
+                        <span th:text="${'Phí app ' + #numbers.formatDecimal(o.commissionAmount,0,'COMMA',0,'POINT') + ' ₫ (' + o.commissionRate + '% tiền hàng)'}"></span>
+                    </div>
+                </td>
+                <td th:text="${o.shipper?.fullName ?: 'Chưa phân công'}"></td>
+                <td><span class="badge" th:classappend="${o.status.name() == 'DELIVERED'} ? ' text-bg-success' : (${o.status.name() == 'CANCELLED' or o.status.name() == 'DELIVERY_FAILED'} ? ' text-bg-danger' : ' text-bg-primary')" th:text="${o.displayStatusLabel}"></span></td>
+                <td>
+                    <a class="btn btn-sm btn-warning mb-1" th:if="${returnRequests[o.id] != null}"
+                       th:href="@{/vendor/returns/{id}(id=${returnRequests[o.id].id})}"><i class="bi bi-arrow-counterclockwise"></i> Hoàn trả</a>
+                    <form class="vendor-order-status-form" th:if="${!#lists.isEmpty(allowedTransitions[o.id])}"
+                          th:action="@{/vendor/orders/{id}/status(id=${o.id})}" method="post">
+                        <select class="form-select form-select-sm" name="status" required>
+                            <option value="">Chọn trạng thái</option>
+                            <option th:each="s : ${allowedTransitions[o.id]}" th:value="${s}" th:text="${s.label}"></option>
+                        </select>
+                        <button class="btn btn-sm btn-primary">Lưu</button>
+                    </form>
+                    <span class="text-muted" th:if="${#lists.isEmpty(allowedTransitions[o.id]) and returnRequests[o.id] == null}">Không có thao tác</span>
+                </td>
+            </tr>
+            <tr th:if="${orders.empty}"><td colspan="6" class="text-center text-muted py-4">Chưa có đơn hàng ở trạng thái này.</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <nav class="mt-3" th:if="${orders.totalPages > 1}" aria-label="Phân trang đơn hàng">
         <ul class="pagination justify-content-center">
-            <li class="page-item"
-                th:classappend="${orders.first} ? 'disabled' : ''">
-                <a class="page-link"
-                   th:href="@{/vendor/orders(
-                       page=${orders.number - 1},
-                       status=${selectedStatus}
-                   )}">
-                    Trước
-                </a>
+            <li class="page-item" th:classappend="${orders.first} ? 'disabled'">
+                <a class="page-link" th:href="@{/vendor/orders(page=${orders.number - 1},status=${selectedStatus},pending=${pending},q=${q})}">Trước</a>
             </li>
-
-            <li class="page-item disabled">
-                <span class="page-link"
-                      th:text="${'Trang ' + (orders.number + 1)
-                          + ' / ' + orders.totalPages}">
-                    Trang
-                </span>
+            <li class="page-item" th:each="i : ${#numbers.sequence(0, orders.totalPages - 1)}"
+                th:classappend="${i == orders.number} ? 'active'">
+                <a class="page-link" th:href="@{/vendor/orders(page=${i},status=${selectedStatus},pending=${pending},q=${q})}" th:text="${i + 1}"></a>
             </li>
-
-            <li class="page-item"
-                th:classappend="${orders.last} ? 'disabled' : ''">
-                <a class="page-link"
-                   th:href="@{/vendor/orders(
-                       page=${orders.number + 1},
-                       status=${selectedStatus}
-                   )}">
-                    Sau
-                </a>
+            <li class="page-item" th:classappend="${orders.last} ? 'disabled'">
+                <a class="page-link" th:href="@{/vendor/orders(page=${orders.number + 1},status=${selectedStatus},pending=${pending},q=${q})}">Sau</a>
             </li>
         </ul>
     </nav>
-
-    <!-- Chi tiết đơn đã chọn -->
-    <section class="mt-5"
-             th:if="${selectedOrder != null}"
-             th:with="o=${selectedOrder}">
-        <div class="d-flex flex-wrap justify-content-between
-                    align-items-start gap-3 mb-4">
-            <div>
-                <h2 class="h4 text-break"
-                    th:text="${'Chi tiết đơn ' + o.code}">
-                    Chi tiết đơn
-                </h2>
-                <p class="text-muted mb-0"
-                   th:text="${'Đặt lúc '
-                       + #temporals.format(
-                           o.createdAt, 'dd/MM/yyyy HH:mm'
-                       )}">
-                    Thời gian đặt
-                </p>
-            </div>
-
-            <a class="btn btn-outline-secondary btn-sm"
-               th:href="@{/vendor/orders(
-                   status=${selectedStatus},
-                   page=${orders.number}
-               )}">
-                Đóng chi tiết
-            </a>
-        </div>
-
-        <div class="row g-4">
-            <div class="col-lg-7">
-                <div class="card mb-4">
-                    <div class="card-header bg-white">
-                        <strong>Sản phẩm cần chuẩn bị</strong>
-                    </div>
-
-                    <div class="card-body">
-                        <article class="d-flex gap-3 border-bottom py-3"
-                                 th:each="item : ${o.items}">
-                            <img width="72"
-                                 height="72"
-                                 class="rounded object-fit-cover flex-shrink-0"
-                                 th:src="${#strings.isEmpty(item.imageUrl)
-                                     ? '/images/product-placeholder.svg'
-                                     : item.imageUrl}"
-                                 th:alt="${item.productName}">
-
-                            <div class="flex-grow-1">
-                                <strong th:text="${item.productName}">
-                                    Tên sản phẩm
-                                </strong>
-
-                                <div class="small text-muted">
-                                    <span class="me-2"
-                                          th:if="${item.size != null}"
-                                          th:text="${'Size ' + item.size}">
-                                        Size
-                                    </span>
-                                    <span class="me-2"
-                                          th:if="${item.sugarLevel != null}"
-                                          th:text="${item.sugarLevel.label}">
-                                        Đường
-                                    </span>
-                                    <span th:if="${item.iceLevel != null}"
-                                          th:text="${item.iceLevel.label}">
-                                        Đá
-                                    </span>
-                                </div>
-
-                                <div class="small text-muted"
-                                     th:if="${!#strings.isEmpty(item.toppings)}"
-                                     th:text="${'Topping: ' + item.toppings}">
-                                    Topping
-                                </div>
-
-                                <div class="mt-1"
-                                     th:text="${item.quantity + ' × '
-                                         + #numbers.formatDecimal(
-                                             item.unitPrice,
-                                             0, 'COMMA', 0, 'POINT'
-                                         ) + ' ₫'}">
-                                    Số lượng và đơn giá
-                                </div>
-
-                                <strong th:text="${#numbers.formatDecimal(
-                                    item.lineTotal,
-                                    0, 'COMMA', 0, 'POINT'
-                                ) + ' ₫'}">
-                                    Thành tiền
-                                </strong>
-                            </div>
-                        </article>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <div class="card-header bg-white">
-                        <strong>Lịch sử xử lý đơn</strong>
-                    </div>
-
-                    <div class="card-body">
-                        <ol class="list-unstyled mb-0">
-                            <li class="border-start border-primary ps-3 py-2"
-                                th:each="h : ${orderHistory}">
-                                <div class="fw-semibold">
-                                    <span th:if="${h.oldStatus == null}">
-                                        Tạo đơn
-                                    </span>
-                                    <span th:if="${h.oldStatus != null}"
-                                          th:text="${h.oldStatus.label}">
-                                        Trạng thái trước
-                                    </span>
-                                    <span class="mx-1">→</span>
-                                    <span th:text="${h.newStatus.label}">
-                                        Trạng thái sau
-                                    </span>
-                                </div>
-
-                                <div class="small text-muted"
-                                     th:text="${#temporals.format(
-                                         h.changedAt,
-                                         'dd/MM/yyyy HH:mm:ss'
-                                     ) + ' · ' + h.changedBy.fullName}">
-                                    Thời gian và người thực hiện
-                                </div>
-
-                                <div class="small"
-                                     th:if="${!#strings.isEmpty(h.note)}"
-                                     th:text="${h.note}">
-                                    Ghi chú xử lý
-                                </div>
-                            </li>
-                        </ol>
-
-                        <p class="text-muted mb-0"
-                           th:if="${#lists.isEmpty(orderHistory)}">
-                            Chưa có lịch sử xử lý.
-                        </p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-lg-5">
-                <div class="card mb-4">
-                    <div class="card-header bg-white">
-                        <strong>Thông tin giao hàng</strong>
-                    </div>
-
-                    <div class="card-body">
-                        <p class="fw-semibold mb-1"
-                           th:text="${o.receiverName}">
-                            Người nhận
-                        </p>
-                        <p class="mb-2" th:text="${o.receiverPhone}">
-                            Số điện thoại
-                        </p>
-                        <p th:text="${o.shippingAddress}">
-                            Địa chỉ
-                        </p>
-
-                        <p th:if="${o.carrier != null}">
-                            <strong>Nhà vận chuyển: </strong>
-                            <span th:text="${o.carrier.name}">
-                                Nhà vận chuyển
-                            </span>
-                        </p>
-
-                        <div th:if="${!#strings.isEmpty(o.note)}">
-                            <strong>Ghi chú của khách:</strong>
-                            <p class="text-break mb-0" th:text="${o.note}">
-                                Ghi chú
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card mb-4">
-                    <div class="card-header bg-white">
-                        <strong>Thanh toán</strong>
-                    </div>
-
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between gap-3 mb-2">
-                            <span>Phương thức</span>
-                            <strong th:text="${o.paymentMethod.label}">
-                                Phương thức
-                            </strong>
-                        </div>
-
-                        <div class="d-flex justify-content-between gap-3 mb-3">
-                            <span>Trạng thái thanh toán</span>
-                            <strong th:text="${o.paymentStatus.label}">
-                                Trạng thái
-                            </strong>
-                        </div>
-
-                        <dl class="row small mb-0">
-                            <dt class="col-7">Tiền hàng trước giảm</dt>
-                            <dd class="col-5 text-end"
-                                th:text="${#numbers.formatDecimal(
-                                    o.subtotal, 0, 'COMMA', 0, 'POINT'
-                                ) + ' ₫'}">0 ₫</dd>
-
-                            <dt class="col-7">Khuyến mãi sản phẩm</dt>
-                            <dd class="col-5 text-end"
-                                th:text="${'-' + #numbers.formatDecimal(
-                                    o.productDiscount,
-                                    0, 'COMMA', 0, 'POINT'
-                                ) + ' ₫'}">0 ₫</dd>
-
-                            <dt class="col-7">Mã giảm tiền hàng</dt>
-                            <dd class="col-5 text-end"
-                                th:text="${'-' + #numbers.formatDecimal(
-                                    o.voucherDiscount,
-                                    0, 'COMMA', 0, 'POINT'
-                                ) + ' ₫'}">0 ₫</dd>
-
-                            <dt class="col-7">Phí giao hàng</dt>
-                            <dd class="col-5 text-end"
-                                th:text="${#numbers.formatDecimal(
-                                    o.shippingFee, 0, 'COMMA', 0, 'POINT'
-                                ) + ' ₫'}">0 ₫</dd>
-
-                            <dt class="col-7">Giảm phí giao hàng</dt>
-                            <dd class="col-5 text-end"
-                                th:text="${'-' + #numbers.formatDecimal(
-                                    o.shippingDiscount,
-                                    0, 'COMMA', 0, 'POINT'
-                                ) + ' ₫'}">0 ₫</dd>
-
-                            <dt class="col-7">Phí giao còn lại</dt>
-                            <dd class="col-5 text-end"
-                                th:text="${#numbers.formatDecimal(
-                                    o.finalShippingFee,
-                                    0, 'COMMA', 0, 'POINT'
-                                ) + ' ₫'}">0 ₫</dd>
-                        </dl>
-
-                        <div class="d-flex justify-content-between
-                                    border-top pt-3 mt-2 gap-3">
-                            <strong>Tổng khách thanh toán</strong>
-                            <strong class="text-primary"
-                                    th:text="${#numbers.formatDecimal(
-                                        o.totalAmount,
-                                        0, 'COMMA', 0, 'POINT'
-                                    ) + ' ₫'}">
-                                0 ₫
-                            </strong>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <div class="card-header bg-white">
-                        <strong>Xử lý đơn hàng</strong>
-                    </div>
-
-                    <div class="card-body">
-                        <p>
-                            Trạng thái hiện tại:
-                            <span class="badge text-bg-primary"
-                                  th:text="${o.status.label}">
-                                Trạng thái
-                            </span>
-                        </p>
-
-                        <form th:if="${!#lists.isEmpty(selectedTransitions)}"
-                              th:action="@{/vendor/orders/{id}/status(
-                                  id=${o.id}
-                              )}"
-                              method="post">
-                            <input type="hidden"
-                                   name="filterStatus"
-                                   th:if="${selectedStatus != null}"
-                                   th:value="${selectedStatus.name()}">
-
-                            <input type="hidden"
-                                   name="page"
-                                   th:value="${orders.number}">
-
-                            <input type="hidden"
-                                   name="showDetail"
-                                   value="true">
-
-                            <div class="mb-3">
-                                <label for="next-order-status"
-                                       class="form-label">
-                                    Chuyển sang trạng thái
-                                </label>
-                                <select id="next-order-status"
-                                        name="status"
-                                        class="form-select"
-                                        required>
-                                    <option th:each="s : ${selectedTransitions}"
-                                            th:value="${s.name()}"
-                                            th:text="${s.label}">
-                                        Trạng thái tiếp theo
-                                    </option>
-                                </select>
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="order-processing-note"
-                                       class="form-label">
-                                    Ghi chú xử lý
-                                </label>
-                                <textarea id="order-processing-note"
-                                          name="note"
-                                          class="form-control"
-                                          rows="3"
-                                          maxlength="500"
-                                          placeholder="Ghi chú nếu cần"></textarea>
-                                <div class="form-text">
-                                    Tối đa 500 ký tự.
-                                </div>
-                            </div>
-
-                            <button type="submit"
-                                    class="btn btn-primary w-100">
-                                Cập nhật trạng thái
-                            </button>
-                        </form>
-
-                        <p class="text-muted mb-0"
-                           th:if="${#lists.isEmpty(selectedTransitions)}"
-                           th:text="${o.status.name() == 'READY_FOR_PICKUP'
-                               ? 'Đơn đã sẵn sàng để bàn giao cho người giao hàng.'
-                               : 'Đơn hiện không có thao tác xử lý dành cho người bán.'}">
-                            Thông tin xử lý
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
+    </div>
+    </div>
 </main>
-
 <footer th:replace="~{fragments/layout :: footer}"></footer>
 <th:block th:replace="~{fragments/layout :: scripts}"></th:block>
 </body>

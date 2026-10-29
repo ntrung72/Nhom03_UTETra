@@ -3,16 +3,18 @@
 <head th:replace="~{fragments/layout :: head('Sản phẩm hệ thống')}"></head>
 <body>
 <header th:replace="~{fragments/layout :: header}"></header>
-<main class="container py-4">
-    <div th:replace="~{fragments/management-nav :: nav}"></div>
+<main class="container py-4 management-page">
+    <div class="admin-dashboard-shell">
+        <div th:replace="~{fragments/management-nav :: nav}"></div>
+        <div class="admin-dashboard-content">
     <div th:replace="~{fragments/layout :: flash}"></div>
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
-        <div><span class="page-kicker"><i class="bi bi-cup-straw"></i> DANH MỤC BÁN HÀNG</span><h1 class="h3 mb-1">Sản phẩm theo từng cửa hàng</h1><p class="text-muted mb-0">Xem, tạo và chỉnh sửa sản phẩm trong phạm vi cửa hàng được phép quản lý.</p></div>
+        <div><h1 class="h3 mb-1">Sản phẩm theo từng cửa hàng</h1><p class="text-muted mb-0">Xem, tạo và chỉnh sửa sản phẩm trong phạm vi cửa hàng được phép quản lý.</p></div>
         <a class="btn btn-primary" th:if="${!#lists.isEmpty(shops)}" th:href="@{/management/products/new}"><i class="bi bi-plus-lg me-1"></i>Thêm sản phẩm</a>
     </div>
     <form class="row g-2 mb-3" method="get">
         <div class="col-md"><input class="form-control" name="q" th:value="${q}" placeholder="Tên hoặc SKU"></div>
-        <div class="col-md"><select class="form-select" name="shop"><option value="">Mọi shop</option><option th:each="s : ${shops}" th:value="${s.id}" th:text="${s.name}" th:selected="${s.id == selectedShop}"></option></select></div>
+        <div class="col-md"><select class="form-select" name="shop"><option value="" th:text="${currentUser.role.name() == 'ADMIN' ? 'Mọi shop' : 'Mọi shop được phân công'}">Mọi shop</option><option th:each="s : ${shops}" th:value="${s.id}" th:text="${s.name}" th:selected="${s.id == selectedShop}"></option></select></div>
         <div class="col-md"><select class="form-select" name="category"><option value="">Mọi danh mục</option><option th:each="c : ${categories}" th:value="${c.id}" th:text="${c.name}" th:selected="${c.id == selectedCategory}"></option></select></div>
         <div class="col-auto"><button class="btn btn-primary">Lọc</button></div>
     </form>
@@ -29,7 +31,7 @@
                 <td class="text-nowrap">
                     <a class="btn btn-sm btn-outline-secondary" th:href="@{/management/products/{id}(id=${p.id})}"><i class="bi bi-eye"></i> Xem</a>
                     <a class="btn btn-sm btn-outline-primary" th:href="@{/management/products/{id}/edit(id=${p.id})}"><i class="bi bi-pencil"></i> Sửa</a>
-                    <form class="d-inline" th:action="@{/management/products/{id}/toggle(id=${p.id})}" method="post"><button class="btn btn-sm btn-outline-warning" th:text="${p.status.name() == 'HIDDEN' ? 'Bật bán' : 'Ẩn'}"></button></form>
+                    <form class="d-inline" th:action="@{/management/products/{id}/toggle(id=${p.id})}" method="post"><button class="btn btn-sm btn-outline-warning" th:text="${p.status.name() == 'HIDDEN' ? 'Bỏ ẩn' : 'Ẩn'}"></button></form>
                 </td>
             </tr>
             <tr th:if="${products.empty}"><td colspan="6" class="text-center text-muted py-4">Không tìm thấy sản phẩm.</td></tr>
@@ -43,6 +45,8 @@
             <li class="page-item" th:classappend="${products.last} ? 'disabled'"><a class="page-link" th:href="@{/management/products(page=${products.number + 1},q=${q},shop=${selectedShop},category=${selectedCategory})}">Sau</a></li>
         </ul>
     </nav>
+        </div>
+    </div>
 </main>
 <footer th:replace="~{fragments/layout :: footer}"></footer>
 <th:block th:replace="~{fragments/layout :: scripts}"></th:block>

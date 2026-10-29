@@ -3,22 +3,26 @@
 <head th:replace="~{fragments/layout :: head('Nhà vận chuyển')}"></head>
 <body>
 <header th:replace="~{fragments/layout :: header}"></header>
-<main class="container py-4">
-    <div th:replace="~{fragments/management-nav :: nav}"></div>
+<main class="container py-4 management-page">
+    <div class="admin-dashboard-shell">
+        <div th:replace="~{fragments/management-nav :: nav}"></div>
+        <div class="admin-dashboard-content">
+    <div th:replace="~{fragments/layout :: flash}"></div>
     <div class="card p-4">
         <h1 class="h3" th:text="${carrier == null ? 'Thêm nhà vận chuyển' : 'Sửa nhà vận chuyển'}"></h1>
         <form th:action="@{/management/carriers/save}" th:object="${carrierForm}" method="post">
-            <div th:if="${#fields.hasGlobalErrors()}" class="alert alert-danger" th:each="error : ${#fields.globalErrors()}" th:text="${error}"></div>
             <input type="hidden" name="id" th:value="${carrier?.id}">
             <label class="form-label">Tên nhà vận chuyển</label>
-            <input class="form-control" th:field="*{name}" required minlength="2" maxlength="150">
+            <input class="form-control" th:field="*{name}">
             <div class="text-danger mb-3" th:errors="*{name}"></div>
             <label class="form-label">Phí vận chuyển</label>
-            <div class="input-group"><input class="form-control" type="number" min="0" step="0.01" required th:field="*{shippingFee}"><span class="input-group-text">₫</span></div>
+            <div class="input-group"><input class="form-control" type="number" min="0" step="1000" th:field="*{shippingFee}"><span class="input-group-text">₫</span></div>
             <div class="text-danger mb-3" th:errors="*{shippingFee}"></div>
             <div class="form-check"><input class="form-check-input" type="checkbox" th:field="*{active}"><label class="form-check-label">Hoạt động</label></div>
             <button class="btn btn-primary mt-3">Lưu nhà vận chuyển</button>
         </form>
+    </div>
+        </div>
     </div>
 </main>
 <footer th:replace="~{fragments/layout :: footer}"></footer>

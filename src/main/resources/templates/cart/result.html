@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Kết quả đặt hàng')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="container pt-3 pt-lg-4 pb-4 pb-lg-5">
+    <div th:replace="~{fragments/layout :: flash}"></div>
+    <section class="checkout-result panel mx-auto">
+        <div class="checkout-result-icon" th:classappend="${orders.empty} ? ' is-warning' : ''">
+            <i class="bi" th:classappend="${orders.empty} ? ' bi-exclamation-circle' : ' bi-bag-check'" aria-hidden="true"></i>
+        </div>
+        <h1 th:text="${orders.empty} ? 'Không tìm thấy đơn hàng' : 'Đơn hàng của bạn đã được tạo'">Đơn hàng đã được tạo</h1>
+        <p th:if="${orders.empty}">Không có đơn hàng nào của bạn khớp với kết quả này. Bạn có thể xem lịch sử mua hàng để kiểm tra lại.</p>
+        <p th:unless="${orders.empty}">Theo dõi trạng thái thanh toán và giao hàng trong chi tiết từng đơn. Nếu thanh toán trực tuyến chưa thành công, bạn có thể thử lại từ trang đơn hàng.</p>
+
+        <div class="checkout-result-orders" th:if="${!orders.empty}">
+            <article class="checkout-result-order" th:each="order : ${orders}">
+                <div>
+                    <small th:text="${order.shop.name}">UTETra</small>
+                    <strong th:text="${order.code}">UTE0001</strong>
+                    <span th:text="${order.paymentMethod.label + ' · ' + order.paymentStatus.label}">COD · Chưa thanh toán</span>
+                </div>
+                <div class="checkout-result-order-actions">
+                    <strong th:text="${#numbers.formatDecimal(order.totalAmount,0,'COMMA',0,'POINT') + ' ₫'}">0 ₫</strong>
+                    <a class="btn btn-sm btn-outline-primary" th:href="@{/orders/{id}(id=${order.id})}">Xem đơn hàng</a>
+                </div>
+            </article>
+        </div>
+
+        <div class="checkout-result-actions">
+            <a class="btn btn-primary" th:href="@{/products}"><i class="bi bi-cup-straw me-1" aria-hidden="true"></i> Tiếp tục mua sắm</a>
+            <a class="btn btn-light" th:href="@{/orders}">Xem lịch sử đơn hàng</a>
+        </div>
+    </section>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

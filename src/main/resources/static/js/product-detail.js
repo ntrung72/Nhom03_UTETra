@@ -1,233 +1,155 @@
-(() => {
-    'use strict';
-
-    const wholeNumber = new Intl.NumberFormat('vi-VN', {
-        maximumFractionDigits: 0
+document.addEventListener('DOMContentLoaded',()=>{
+  const galleryMain=document.getElementById('productGalleryMain');
+  const thumbnails=[...document.querySelectorAll('.product-gallery-thumb')];
+  thumbnails.forEach(button=>button.addEventListener('click',()=>{
+    const image=button.querySelector('img');
+    if(!galleryMain||!image)return;
+    galleryMain.src=image.src;
+    galleryMain.alt=image.alt;
+    thumbnails.forEach(item=>{
+      const selected=item===button;
+      item.classList.toggle('active',selected);
+      item.setAttribute('aria-pressed',String(selected));
     });
+  }));
 
-    // Dùng số nguyên theo đơn vị 0,01 đồng để tránh sai số cộng số thực.
-    function toCents(raw) {
-        const value = String(raw ?? '').trim();
-
-        if (value.length > 32 || !/^\d+(?:\.\d{1,2})?$/.test(value)) {
-            return null;
-        }
-
-        const [whole, fraction = ''] = value.split('.');
-
-        return BigInt(whole) * 100n
-            + BigInt(fraction.padEnd(2, '0'));
-    }
-
-    function formatMoney(cents) {
-        const whole = cents / 100n;
-        const fraction = cents % 100n;
-
-        const suffix = fraction === 0n
-            ? ''
-            : ',' + fraction.toString().padStart(2, '0');
-
-        return wholeNumber.format(whole) + suffix + ' ₫';
-    }
-
-    function initializeOptions(form) {
-        if (form.dataset.productDetailReady === 'true') {
-            return;
-        }
-
-        form.dataset.productDetailReady = 'true';
-
-        const preview = form.querySelector('[data-unit-preview]');
-
-        if (!preview) {
-            return;
-        }
-
-        function refresh() {
-            const basePrice = toCents(form.dataset.basePrice);
-
-            if (basePrice === null) {
-                preview.textContent = 'Chưa thể tính giá';
-                return;
-            }
-
-            const selectedSize = form.querySelector(
-                'input[name="sizeId"]:checked:not(:disabled)'
-            );
-
-            if (form.dataset.requiresSize === 'true' && !selectedSize) {
-                preview.textContent = 'Vui lòng chọn size';
-                return;
-            }
-
-            let price = basePrice;
-
-            if (selectedSize) {
-                const extraPrice = toCents(
-                    selectedSize.dataset.extraPrice
-                );
-
-                if (extraPrice === null) {
-                    preview.textContent = 'Chưa thể tính giá';
-                    return;
-                }
-
-                price += extraPrice;
-            }
-
-            const selectedToppings = new Set();
-
-            const inputs = form.querySelectorAll(
-                'input[name="toppingIds"]:checked:not(:disabled)'
-            );
-
-            for (const input of inputs) {
-                // Backend cũng chỉ tính mỗi topping được chọn một lần.
-                if (selectedToppings.has(input.value)) {
-                    continue;
-                }
-
-                selectedToppings.add(input.value);
-
-                const extraPrice = toCents(input.dataset.extraPrice);
-
-                if (extraPrice === null) {
-                    preview.textContent = 'Chưa thể tính giá';
-                    return;
-                }
-
-                price += extraPrice;
-            }
-
-            // Đây là đơn giá; số lượng không làm đổi giá của một sản phẩm.
-            preview.textContent = formatMoney(price);
-        }
-
-        form.addEventListener('change', refresh);
-        window.addEventListener('pageshow', refresh);
-
-        refresh();
-    }
-
-    function initializeGallery(root) {
-        if (root.dataset.productGalleryReady === 'true') {
-            return;
-        }
-
-        root.dataset.productGalleryReady = 'true';
-
-        const main = root.querySelector('#productGalleryMain');
-
-        if (!main) {
-            return;
-        }
-
-        const placeholder = root.dataset.placeholderUrl;
-
-        const buttons = Array.from(
-            root.querySelectorAll('.product-gallery-thumb')
-        );
-
-        function selectButton(selectedButton) {
-            buttons.forEach(button => {
-                const selected =
-                    button === selectedButton && !button.disabled;
-
-                button.classList.toggle('active', selected);
-                button.classList.toggle('border-primary', selected);
-                button.setAttribute('aria-pressed', String(selected));
-            });
-        }
-
-        function usePlaceholder(image) {
-            // Chặn lặp vô hạn nếu chính ảnh placeholder cũng không tải được.
-            if (!placeholder || image.dataset.fallbackApplied === 'true') {
-                return;
-            }
-
-            image.dataset.fallbackApplied = 'true';
-            image.removeAttribute('srcset');
-            image.src = placeholder;
-        }
-
-        function watchImage(image, button) {
-            const onError = () => {
-                if (button) {
-                    button.disabled = true;
-
-                    button.classList.remove(
-                        'active', 'border-primary'
-                    );
-
-                    button.setAttribute('aria-pressed', 'false');
-
-                    button.setAttribute(
-                        'aria-label',
-                        'Ảnh sản phẩm không tải được'
-                    );
-                }
-
-                usePlaceholder(image);
-            };
-
-            image.addEventListener('error', onError);
-
-            // Ảnh trong cache có thể đã lỗi trước khi script được khởi tạo.
-            if (image.complete
-                && image.naturalWidth === 0
-                && image.getAttribute('src')) {
-                onError();
-            }
-        }
-
-        watchImage(main, null);
-
-        buttons.forEach(button => {
-            const thumbnail = button.querySelector('img');
-
-            if (!thumbnail) {
-                button.disabled = true;
-                return;
-            }
-
-            watchImage(thumbnail, button);
-
-            button.addEventListener('click', () => {
-                if (button.disabled) {
-                    return;
-                }
-
-                const source = thumbnail.currentSrc || thumbnail.src;
-
-                if (!source) {
-                    return;
-                }
-
-                main.dataset.fallbackApplied = 'false';
-                main.removeAttribute('srcset');
-                main.alt = thumbnail.alt;
-                main.src = source;
-
-                selectButton(button);
-            });
+  const favoriteForm=document.querySelector('[data-favorite-toggle-url]');
+  if(favoriteForm&&window.fetch){
+    const button=favoriteForm.querySelector('button');
+    const icon=button?.querySelector('i');
+    const label=favoriteForm.querySelector('[data-favorite-label]');
+    const count=favoriteForm.querySelector('[data-favorite-count]');
+    const feedback=favoriteForm.querySelector('[data-favorite-feedback]');
+    let feedbackTimer;
+    favoriteForm.addEventListener('submit',async event=>{
+      event.preventDefault();
+      if(!button||button.disabled)return;
+      button.disabled=true;
+      if(feedback)feedback.textContent='';
+      try{
+        const response=await fetch(favoriteForm.dataset.favoriteToggleUrl,{
+          method:'POST',body:new FormData(favoriteForm),credentials:'same-origin',
+          headers:{Accept:'application/json'}
         });
-    }
+        if(response.redirected&&new URL(response.url).pathname==='/login'){
+          window.location.assign(response.url);
+          return;
+        }
+        if(!response.ok)throw new Error('Không cập nhật được lượt thích.');
+        const result=await response.json();
+        const total=Number(result.count);
+        if(typeof result.liked!=='boolean'||!Number.isSafeInteger(total)||total<0)throw new Error('Dữ liệu lượt thích không hợp lệ.');
+        button.classList.toggle('is-favorite',result.liked);
+        button.setAttribute('aria-pressed',String(result.liked));
+        button.setAttribute('aria-label',`${result.liked?'Bỏ thích':'Thích'} sản phẩm, ${total} lượt thích`);
+        if(icon){icon.classList.toggle('bi-heart-fill',result.liked);icon.classList.toggle('bi-heart',!result.liked);}
+        if(label)label.textContent=result.liked?'Đã thích':'Thích';
+        if(count)count.textContent=new Intl.NumberFormat('vi-VN').format(total);
+        if(feedback){
+          feedback.textContent=result.liked?'Đã thêm vào yêu thích.':'Đã bỏ yêu thích.';
+          clearTimeout(feedbackTimer);
+          feedbackTimer=window.setTimeout(()=>{feedback.textContent='';},2200);
+        }
+      }catch{
+        if(feedback)feedback.textContent='Chưa thể cập nhật lượt thích. Vui lòng thử lại.';
+      }finally{button.disabled=false;}
+    });
+  }
 
-    function initialize() {
-        document.querySelectorAll('[data-product-gallery]')
-            .forEach(initializeGallery);
+  const form=document.querySelector('.detail-options');
+  if(form){
+    const base=Number(form.dataset.basePrice||0);
+    const saleBase=Number(form.dataset.saleBasePrice||base);
+    const stock=Math.max(1,Number(form.dataset.stock)||1);
+    const quantity=form.querySelector('input[name="quantity"]');
+    const money=value=>new Intl.NumberFormat('vi-VN',{maximumFractionDigits:0}).format(value)+' ₫';
+    const selectedQuantity=()=>Math.min(stock,Math.max(1,Math.trunc(Number(quantity?.value)||1)));
+    const refresh=()=>{
+      const count=selectedQuantity();
+      let optionPrice=0;
+      form.querySelectorAll('[data-extra-price]:checked').forEach(input=>{
+        optionPrice+=Number(input.dataset.extraPrice||0);
+      });
+      const unitPrice=saleBase+optionPrice;
+      const originalPrice=base+optionPrice;
+      const values={
+        configuredPrice:money(unitPrice),
+        configuredOriginalPrice:money(originalPrice),
+        detailUnitPrice:money(unitPrice),
+        detailEstimatedTotal:money(unitPrice*count),
+        detailQuantityLabel:String(count),
+        detailSavings:money(Math.max(0,base-saleBase)*count)
+      };
+      Object.entries(values).forEach(([id,value])=>{
+        const target=document.getElementById(id);
+        if(target)target.textContent=value;
+      });
+      const minus=form.querySelector('[data-quantity-minus]');
+      const plus=form.querySelector('[data-quantity-plus]');
+      if(minus)minus.disabled=count<=1;
+      if(plus)plus.disabled=count>=stock;
+    };
+    const presets=[...form.querySelectorAll('[data-product-preset]')];
+    const choose=(name,value)=>{
+      const option=[...form.querySelectorAll('input[type="radio"]')]
+        .find(input=>input.name===name&&input.value===value);
+      if(option)option.checked=true;
+    };
+    presets.forEach(button=>button.addEventListener('click',()=>{
+      const firstSize=form.querySelector('input[name="sizeId"]');
+      if(firstSize)firstSize.checked=true;
+      choose('sugarLevel',button.dataset.productPreset==='light'?'PERCENT_50':'PERCENT_100');
+      choose('iceLevel',button.dataset.productPreset==='light'?'LESS_ICE':'NORMAL');
+      form.querySelectorAll('input[name="toppingIds"]').forEach(input=>{input.checked=false;});
+      presets.forEach(item=>item.classList.toggle('active',item===button));
+      savedRecipes.forEach(item=>item.classList.remove('active'));
+      refresh();
+    }));
+    const savedRecipes=[...form.querySelectorAll('[data-saved-recipe]')];
+    savedRecipes.forEach(button=>button.addEventListener('click',()=>{
+      choose('sizeId',button.dataset.recipeSizeId);
+      choose('sugarLevel',button.dataset.recipeSugar);
+      choose('iceLevel',button.dataset.recipeIce);
+      const selectedToppings=new Set((button.dataset.recipeToppings||'').split(',').filter(Boolean));
+      form.querySelectorAll('input[name="toppingIds"]').forEach(input=>{
+        input.checked=selectedToppings.has(input.value);
+      });
+      presets.forEach(item=>item.classList.remove('active'));
+      savedRecipes.forEach(item=>item.classList.toggle('active',item===button));
+      refresh();
+    }));
+    form.addEventListener('change',event=>{
+      if(event.target.matches('input[type="radio"],input[type="checkbox"]')){
+        presets.forEach(button=>button.classList.remove('active'));
+        savedRecipes.forEach(button=>button.classList.remove('active'));
+      }
+      if(event.target===quantity)quantity.value=String(selectedQuantity());
+      refresh();
+    });
+    quantity?.addEventListener('input',refresh);
+    form.querySelector('[data-quantity-minus]')?.addEventListener('click',()=>{
+      quantity.value=String(Math.max(1,selectedQuantity()-1));
+      refresh();
+    });
+    form.querySelector('[data-quantity-plus]')?.addEventListener('click',()=>{
+      quantity.value=String(Math.min(stock,selectedQuantity()+1));
+      refresh();
+    });
+    form.addEventListener('submit',()=>{
+      quantity.value=String(selectedQuantity());
+    });
+    refresh();
+  }
 
-        document.querySelectorAll('[data-product-detail-options]')
-            .forEach(initializeOptions);
-    }
-
-    if (document.readyState === 'loading') {
-        document.addEventListener(
-            'DOMContentLoaded',
-            initialize,
-            { once: true }
-        );
-    } else {
-        initialize();
-    }
-})();
+  const lightbox=document.getElementById('reviewLightbox');
+  const enlarged=lightbox?.querySelector('img');
+  document.querySelectorAll('[data-review-lightbox]').forEach(button=>button.addEventListener('click',()=>{
+    if(!lightbox||!enlarged)return;
+    enlarged.src=button.dataset.imageUrl||'';
+    enlarged.alt=button.dataset.imageAlt||'Ảnh đánh giá phóng lớn';
+    if(typeof lightbox.showModal==='function')lightbox.showModal();
+  }));
+  lightbox?.querySelector('[data-review-lightbox-close]')?.addEventListener('click',()=>lightbox.close());
+  lightbox?.addEventListener('click',event=>{if(event.target===lightbox)lightbox.close();});
+  lightbox?.addEventListener('close',()=>{if(enlarged)enlarged.removeAttribute('src');});
+});

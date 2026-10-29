@@ -14,30 +14,20 @@
     </div>
     <div th:replace="~{fragments/dashboard-filter :: panel}"></div>
     <div class="dashboard-kpi-grid mb-4">
-        <a class="card stat-card stat-card-featured text-decoration-none" th:href="@{/management/orders(status=NEW,shop=${report.filter.shopId})}"><small>Đơn mới đang chờ</small><strong th:text="${dashboard.newCount}">0</strong><span class="stat-note">Trong phạm vi shop đã chọn</span><i class="bi bi-receipt"></i></a>
-        <a class="card stat-card text-decoration-none" th:href="@{/management/orders(pending=true,shop=${report.filter.shopId})}"><small>Đơn chờ xử lý</small><strong th:text="${dashboard.pendingCount}">0</strong><span class="stat-note">Đơn mở và yêu cầu cần theo dõi</span><i class="bi bi-hourglass-split"></i></a>
-        <a class="card stat-card text-decoration-none" th:href="@{/management(from=${dashboardRange.from},to=${dashboardRange.to},shopId=${report.filter.shopId},status=DELIVERED)} + '#revenue-report'"><small>Khách thanh toán trong kỳ</small><strong class="dashboard-kpi-money" th:text="${#numbers.formatDecimal(dashboard.periodGross,0,'COMMA',0,'POINT')} + ' ₫'">0 ₫</strong><span class="stat-note">Xem đối soát đơn đã giao</span><i class="bi bi-cash-stack"></i></a>
-        <a class="card stat-card text-decoration-none" th:href="@{/management(from=${dashboardRange.from},to=${dashboardRange.to},shopId=${report.filter.shopId},status=DELIVERED)} + '#revenue-report'"><small>Đã giao trong kỳ</small><strong th:text="${dashboard.deliveredPeriodCount}">0</strong><span class="stat-note">Xem theo ngày giao</span><i class="bi bi-check2-circle"></i></a>
-        <a class="card stat-card text-decoration-none" th:href="@{/management(from=${dashboardRange.from},to=${dashboardRange.to},shopId=${report.filter.shopId},status=CANCELLED)} + '#revenue-report'"><small>Đã hủy trong kỳ</small><strong th:text="${dashboard.cancelledPeriodCount}">0</strong><span class="stat-note">Xem theo ngày tạo</span><i class="bi bi-x-circle"></i></a>
+        <a class="card stat-card stat-card-featured text-decoration-none" th:href="@{/management/orders(status=NEW,shop=${report.filter.shopId})}"><small>Đơn mới đang chờ</small><strong th:text="${dashboard.newCount}">0</strong><span class="stat-note">Trong phạm vi shop đã chọn</span></a>
+        <a class="card stat-card text-decoration-none" th:href="@{/management/orders(pending=true,shop=${report.filter.shopId})}"><small>Đơn chờ xử lý</small><strong th:text="${dashboard.pendingCount}">0</strong><span class="stat-note">Đơn mở và yêu cầu cần theo dõi</span></a>
+        <a class="card stat-card text-decoration-none" th:href="@{/management(from=${dashboardRange.from},to=${dashboardRange.to},shopId=${report.filter.shopId},status=DELIVERED)} + '#revenue-report'"><small>Khách thanh toán trong kỳ</small><strong class="dashboard-kpi-money" th:text="${#numbers.formatDecimal(dashboard.periodGross,0,'COMMA',0,'POINT')} + ' ₫'">0 ₫</strong><span class="stat-note">Xem đối soát đơn đã giao</span></a>
+        <a class="card stat-card text-decoration-none" th:href="@{/management(from=${dashboardRange.from},to=${dashboardRange.to},shopId=${report.filter.shopId},status=DELIVERED)} + '#revenue-report'"><small>Đã giao trong kỳ</small><strong th:text="${dashboard.deliveredPeriodCount}">0</strong><span class="stat-note">Xem theo ngày giao</span></a>
+        <a class="card stat-card text-decoration-none" th:href="@{/management(from=${dashboardRange.from},to=${dashboardRange.to},shopId=${report.filter.shopId},status=CANCELLED)} + '#revenue-report'"><small>Đã hủy trong kỳ</small><strong th:text="${dashboard.cancelledPeriodCount}">0</strong><span class="stat-note">Xem theo ngày tạo</span></a>
     </div>
-    <section class="row g-2 mb-4" aria-label="Ba dòng tiền trong kỳ">
-      <div class="col-sm-6 col-lg-4"><div class="card h-100 p-3"><small class="text-muted">Gross · Khách đã thanh toán</small><strong class="h5 mb-1" th:text="${#numbers.formatDecimal(dashboard.periodGross,0,'COMMA',0,'POINT')} + ' ₫'">0 ₫</strong><small class="text-muted">Tổng tiền của đơn đã giao, đã thanh toán trong kỳ</small></div></div>
-      <div class="col-sm-6 col-lg-4"><div class="card h-100 p-3"><small class="text-muted">Seller · Shop thực nhận</small><strong class="h5 mb-1 text-success" th:text="${#numbers.formatDecimal(managementSellerRevenue,0,'COMMA',0,'POINT')} + ' ₫'">0 ₫</strong><small class="text-muted">Tổng doanh thu người bán theo snapshot đơn hàng</small></div></div>
-      <div class="col-sm-6 col-lg-4"><div class="card h-100 p-3"><small class="text-muted">Platform · Commission app</small><strong class="h5 mb-1 text-primary" th:text="${#numbers.formatDecimal(dashboard.periodCommission,0,'COMMA',0,'POINT')} + ' ₫'">0 ₫</strong><small class="text-muted">Chiết khấu nền tảng ghi nhận trong kỳ</small></div></div>
-    </section>
-    <div th:replace="~{fragments/dashboard-comparison :: panel(
-        comparison=${dashboard.revenueComparison},
-        period=${dashboardRange},
-        title='So sánh giá trị đơn giao thành công',
-        description='Tổng khách đã thanh toán trong kỳ và kỳ trước có cùng số ngày, chỉ trong phạm vi cửa hàng được phép xem.'
-    )}"></div>
+    <div th:replace="~{fragments/dashboard-comparison :: panel}"></div>
     <section class="dashboard-today card dashboard-panel mb-4">
         <div class="dashboard-today-copy"><span class="section-kicker">ƯU TIÊN HÔM NAY</span><h2 class="h5 mb-1">Việc cần xử lý</h2><p class="text-muted small mb-0">Hàng đợi hiện tại trong phạm vi quản lý, không giới hạn bởi bộ lọc thời gian.</p></div>
         <div class="dashboard-today-links">
-            <a th:href="@{/management/orders(status=NEW,shop=${report.filter.shopId})}"><b th:text="${dashboard.newCount}">0</b><span>Đơn mới</span><i class="bi bi-arrow-right"></i></a>
-            <a th:href="@{/management/orders(status=DELIVERY_FAILED,shop=${report.filter.shopId})}"><b th:text="${dashboard.failedCount}">0</b><span>Giao thất bại</span><i class="bi bi-arrow-right"></i></a>
-            <a th:href="@{/management/orders(status=RETURN_REQUESTED,shop=${report.filter.shopId})}"><b th:text="${dashboard.pendingReturnCount}">0</b><span>Yêu cầu trả hàng</span><i class="bi bi-arrow-right"></i></a>
-            <a th:href="@{/management/products(shop=${report.filter.shopId})}"><b th:text="${dashboard.lowStockCount}">0</b><span>Sắp hết hàng</span><i class="bi bi-arrow-right"></i></a>
+            <a th:href="@{/management/orders(status=NEW,shop=${report.filter.shopId})}"><b th:text="${dashboard.newCount}">0</b><span>Đơn mới</span></a>
+            <a th:href="@{/management/orders(status=DELIVERY_FAILED,shop=${report.filter.shopId})}"><b th:text="${dashboard.failedCount}">0</b><span>Giao thất bại</span></a>
+            <a th:href="@{/management/orders(status=RETURN_REQUESTED,shop=${report.filter.shopId})}"><b th:text="${dashboard.returnRequestedCount}">0</b><span>Yêu cầu trả hàng</span></a>
+            <a th:href="@{/management/products(shop=${report.filter.shopId})}"><b th:text="${dashboard.lowStockCount}">0</b><span>Sắp hết hàng</span></a>
         </div>
     </section>
     <section class="card dashboard-panel mb-4" th:if="${currentUser.role == T(vn.iotstar.entity.DomainEnums.Role).ADMIN}">
@@ -80,13 +70,12 @@
 <script th:inline="javascript">
 document.addEventListener('DOMContentLoaded',()=>{
   if(typeof Chart==='undefined')return;
-  const data={labels:/*[[${dashboard.dateLabels}]]*/[],gross:/*[[${dashboard.grossSeries}]]*/[],commission:/*[[${dashboard.commissionSeries}]]*/[],statusLabels:/*[[${dashboard.statusLabels}]]*/[],statusValues:/*[[${dashboard.statusValues}]]*/[],shopLabels:/*[[${dashboard.shopRevenues.![name]}]]*/[],shopGross:/*[[${dashboard.shopRevenues.![grossRevenue]}]]*/[],shopCommission:/*[[${dashboard.shopRevenues.![platformRevenue]}]]*/[]};
+  const data={labels:[[${dashboard.dateLabels}]],gross:[[${dashboard.grossSeries}]],commission:[[${dashboard.commissionSeries}]],statusLabels:[[${dashboard.statusLabels}]],statusValues:[[${dashboard.statusValues}]],shopLabels:[[${dashboard.shopRevenues.![name]}]],shopGross:[[${dashboard.shopRevenues.![grossRevenue]}]],shopCommission:[[${dashboard.shopRevenues.![platformRevenue]}]]};
   const compact=value=>new Intl.NumberFormat('vi-VN',{notation:'compact'}).format(value)+' ₫',money=value=>new Intl.NumberFormat('vi-VN').format(value)+' ₫';
   new Chart(document.getElementById('managementRevenueChart'),{type:'line',data:{labels:data.labels,datasets:[{label:'Khách thanh toán (đã giao)',data:data.gross,borderColor:'#1769d2',backgroundColor:'rgba(23,105,210,.1)',fill:true,tension:.35,pointRadius:2},{label:'Commission app',data:data.commission,borderColor:'#ef476f',backgroundColor:'rgba(239,71,111,.08)',fill:true,tension:.35,pointRadius:2}]},options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'bottom',labels:{usePointStyle:true,boxWidth:10}},tooltip:{callbacks:{label:context=>' '+context.dataset.label+': '+money(context.parsed.y)}}},scales:{x:{grid:{display:false},ticks:{autoSkip:true,maxTicksLimit:9}},y:{beginAtZero:true,ticks:{callback:compact}}}}});
   new Chart(document.getElementById('managementStatusChart'),{type:'doughnut',data:{labels:data.statusLabels,datasets:[{data:data.statusValues,backgroundColor:['#2563eb','#06b6d4','#f59e0b','#8b5cf6','#14b8a6','#3b82f6','#22c55e','#ef4444','#64748b','#f97316','#be123c'],borderWidth:0}]},options:{maintainAspectRatio:false,cutout:'68%',plugins:{legend:{position:'bottom',labels:{boxWidth:10,usePointStyle:true,padding:12}}}}});
   new Chart(document.getElementById('shopRevenueChart'),{type:'bar',data:{labels:data.shopLabels,datasets:[{label:'Khách thanh toán',data:data.shopGross,backgroundColor:'#2d7ddd',borderRadius:7},{label:'Commission app',data:data.shopCommission,backgroundColor:'#ef7190',borderRadius:7}]},options:{maintainAspectRatio:false,indexAxis:'y',plugins:{tooltip:{callbacks:{label:context=>' '+context.dataset.label+': '+money(context.parsed.x)}}},scales:{x:{beginAtZero:true,ticks:{callback:compact}},y:{grid:{display:false}}}}});
 });
 </script>
-<link rel="stylesheet" th:href="@{/css/step43-management-shipper.css}">
 </body>
 </html>

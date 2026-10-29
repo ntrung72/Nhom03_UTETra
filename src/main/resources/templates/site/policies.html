@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Chính sách và hỗ trợ')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="container pt-3 pt-lg-4 pb-4 pb-lg-5 policy-page">
+    <div th:replace="~{fragments/layout :: flash}"></div>
+    <div class="page-heading mb-4">
+        <h1 class="h3 mb-2">Chính sách và hướng dẫn</h1>
+        <p class="text-muted mb-0">Những thông tin cần biết trước và sau khi đặt trà sữa trên UTETra.</p>
+    </div>
+    <div class="row g-4">
+        <div class="col-lg-3">
+            <nav class="card p-3 policy-nav" aria-label="Nội dung chính sách">
+                <a href="#payment">Thanh toán</a>
+                <a href="#shipping">Giao hàng</a>
+                <a href="#returns">Trả hàng và hoàn tiền</a>
+                <a href="#privacy">Bảo vệ thông tin</a>
+                <a href="#contact">Liên hệ cửa hàng</a>
+            </nav>
+        </div>
+        <div class="col-lg-9">
+            <section id="payment" class="card policy-section p-4 mb-3">
+                <h2 class="h5"><i class="bi bi-credit-card"></i> Thanh toán</h2>
+                <p>UTETra hỗ trợ thanh toán khi nhận hàng (COD) hoặc chuyển khoản trước bằng mã QR. Trang thanh toán hiển thị tiền hàng, ưu đãi, phí vận chuyển và tổng cần trả trước khi bạn xác nhận đặt hàng.</p>
+                <p class="mb-0">Mỗi đơn chuyển khoản mới có link payOS với mã QR, đúng số tiền và mã đơn. Đơn được xử lý sau khi payOS xác nhận thanh toán. Giao dịch cũ chưa qua payOS vẫn được Admin kiểm tra thủ công và xem được trong lịch sử.</p>
+            </section>
+            <section id="shipping" class="card policy-section p-4 mb-3">
+                <h2 class="h5"><i class="bi bi-truck"></i> Giao hàng</h2>
+                <p class="mb-0">Phí giao hàng phụ thuộc đơn vị vận chuyển bạn chọn và được hiển thị trong bước thanh toán. Bạn có thể theo dõi tiến trình đơn, người giao hàng và trạng thái giao tại mục <a th:href="@{/orders}">Đơn mua</a>.</p>
+            </section>
+            <section id="returns" class="card policy-section p-4 mb-3">
+                <h2 class="h5"><i class="bi bi-arrow-counterclockwise"></i> Trả hàng và hoàn tiền</h2>
+                <p>Sau khi đơn được giao, bạn có thể mở chi tiết đơn để gửi yêu cầu trả hàng kèm lý do và bằng chứng. Cửa hàng sẽ xem xét và cập nhật tiến trình xử lý trong đơn hàng.</p>
+                <p class="mb-0">Với khoản đã chuyển trước, việc hoàn tiền cần được kiểm tra và xác nhận thủ công. Hãy xem chi tiết yêu cầu để biết tiến độ.</p>
+            </section>
+            <section id="privacy" class="card policy-section p-4 mb-3">
+                <h2 class="h5"><i class="bi bi-lock"></i> Bảo vệ thông tin</h2>
+                <p class="mb-0">Thông tin tài khoản, địa chỉ nhận hàng và bằng chứng giao/trả hàng chỉ phục vụ việc xử lý đơn. Ảnh bằng chứng của đơn được giới hạn cho các tài khoản có quyền liên quan; mật khẩu được lưu dưới dạng mã hóa.</p>
+            </section>
+            <section id="contact" class="card policy-section p-4">
+                <h2 class="h5"><i class="bi bi-geo-alt"></i> Liên hệ cửa hàng</h2>
+                <p class="mb-0">Mỗi cửa hàng có địa chỉ, giờ hoạt động và thông tin liên hệ riêng. <a th:href="@{/shops}">Xem danh sách cửa hàng</a> để chọn nơi phù hợp.</p>
+            </section>
+        </div>
+    </div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

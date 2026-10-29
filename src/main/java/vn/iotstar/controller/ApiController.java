@@ -1,25 +1,20 @@
 package vn.iotstar.controller;
 
+import java.math.BigDecimal;
 import java.util.Map;
-import java.nio.charset.StandardCharsets;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.media.Schema;
-import vn.iotstar.entity.DomainEnums.Role;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.http.HttpStatus;
-import org.springframework.security.core.AuthenticationException;
-import org.springframework.security.authentication.BadCredentialsException;
-import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
+import vn.iotstar.entity.Product;
 import vn.iotstar.security.CustomUserDetailsService;
 import vn.iotstar.security.JwtService;
+import vn.iotstar.service.CatalogService;
 import vn.iotstar.service.CurrentUserService;
 
 @RestController
@@ -29,40 +24,37 @@ public class ApiController {
     private final AuthenticationManager authenticationManager;
     private final CustomUserDetailsService userDetailsService;
     private final JwtService jwtService;
+    private final CatalogService catalogService;
     private final CurrentUserService currentUserService;
 
     @PostMapping("/auth/login")
-    @Operation(summary = "Đăng nhập để nhận Bearer JWT")
-    LoginResponse login(@Valid @RequestBody LoginRequest request) {
-        if (request.password().getBytes(StandardCharsets.UTF_8).length > 72) {
-            throw new BadCredentialsException("Invalid credentials");
-        }
+    @Operation(summary = "Đăng nhập để nhận JWT")
+    Map<String, Object> login(@RequestBody LoginRequest request) {
         Authentication auth = authenticationManager.authenticate(
             new UsernamePasswordAuthenticationToken(request.username(), request.password()));
         UserDetails details = userDetailsService.loadUserByUsername(auth.getName());
-        return new LoginResponse(jwtService.generateToken(details), "Bearer", jwtService.getExpirationMinutes());
+        return Map.of("token", jwtService.generateToken(details), "type", "Bearer", "expiresInMinutes", 1440);
+    }
+
+    @GetMapping("/products")
+    Page<ProductSummary> products(@RequestParam(required = false) String q,
+                                  @RequestParam(required = false) Long category,
+                                  @RequestParam(defaultValue = "0") int page) {
+        return catalogService.search(q, category, null, "bestselling", page).map(ProductSummary::from);
     }
 
     @GetMapping("/me")
-    @SecurityRequirement(name = "bearerAuth")
-    @Operation(summary = "Thông tin tài khoản trong JWT hiện tại")
-    MeResponse me() {
+    @Operation(summary = "Thông tin tài khoản hiện tại", security = @SecurityRequirement(name = "bearerAuth"))
+    Map<String, Object> me() {
         var user = currentUserService.require();
-        return new MeResponse(user.getId(), user.getUsername(), user.getEmail(), user.getRole());
+        return Map.of("id", user.getId(), "username", user.getUsername(), "email", user.getEmail(), "role", user.getRole().name());
     }
 
-    @ExceptionHandler(AuthenticationException.class)
-    @ResponseStatus(HttpStatus.UNAUTHORIZED)
-    Map<String, String> invalidCredentials() {
-        return Map.of("error", "Tài khoản hoặc mật khẩu không hợp lệ.");
+    public record LoginRequest(String username, String password) {}
+    public record ProductSummary(Long id, String name, BigDecimal price, String imageUrl, String shop, double rating, long sold) {
+        static ProductSummary from(Product p) {
+            return new ProductSummary(p.getId(), p.getName(), p.getPrice(), p.getImageUrl(), p.getShop().getName(),
+                p.getAverageRating().doubleValue(), p.getSoldCount());
+        }
     }
-
-    public record LoginResponse(@Schema(description = "JWT dùng trong Authorization: Bearer <token>") String token,
-                                @Schema(example = "Bearer") String type, long expiresInMinutes) {}
-    public record MeResponse(Long id, String username, String email, Role role) {}
-
-    public record LoginRequest(@NotBlank @Size(max = 160) String username,
-                               @Schema(format = "password", accessMode = Schema.AccessMode.WRITE_ONLY)
-                               @NotBlank @Size(max = 72) String password) {}
-
 }

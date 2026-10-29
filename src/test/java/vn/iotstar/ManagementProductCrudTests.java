@@ -37,6 +37,8 @@ import vn.iotstar.repository.ProductSizeRepository;
 import vn.iotstar.repository.ShopRepository;
 import vn.iotstar.repository.UserRepository;
 import vn.iotstar.service.ManagementProductService;
+import vn.iotstar.service.ManagementService;
+import vn.iotstar.service.VendorService;
 
 @ActiveProfiles("test")
 @SpringBootTest
@@ -44,6 +46,8 @@ import vn.iotstar.service.ManagementProductService;
 class ManagementProductCrudTests {
     @Autowired private WebApplicationContext context;
     @Autowired private ManagementProductService managementProductService;
+    @Autowired private ManagementService managementService;
+    @Autowired private VendorService vendorService;
     @Autowired private UserRepository userRepository;
     @Autowired private ShopRepository shopRepository;
     @Autowired private CategoryRepository categoryRepository;
@@ -80,6 +84,27 @@ class ManagementProductCrudTests {
     }
 
     @Test
+    void productSearchMatchesNameFragmentsIgnoringCaseAndAccentsWithinRoleScope() {
+        Product assigned = managementProductService.save(admin, null, assignedShop.getId(),
+            form("SEARCH-A-" + suffix, "Trà sữa khoai môn " + suffix, 10, "30000"),
+            null, null, null, null, null);
+        Product other = managementProductService.save(admin, null, otherShop.getId(),
+            form("SEARCH-B-" + suffix, "Trà sữa khoai môn " + suffix, 10, "30000"),
+            null, null, null, null, null);
+
+        assertThat(vendorService.products(assignedShop.getOwner(), "KHOAI", 0).getContent())
+            .extracting(Product::getId).contains(assigned.getId()).doesNotContain(other.getId());
+        assertThat(vendorService.products(assignedShop.getOwner(), "sUa KhOaI", 0).getContent())
+            .extracting(Product::getId).contains(assigned.getId());
+        assertThat(vendorService.products(assignedShop.getOwner(), assigned.getSku().toLowerCase(), 0).getContent())
+            .extracting(Product::getId).contains(assigned.getId());
+        assertThat(managementService.products(admin, "kHoAi", null, null, 0).getContent())
+            .extracting(Product::getId).contains(assigned.getId(), other.getId());
+        assertThat(managementService.products(manager, "KHOAI", null, null, 0).getContent())
+            .extracting(Product::getId).contains(assigned.getId()).doesNotContain(other.getId());
+    }
+
+    @Test
     void managerCreatesReadsAndUpdatesProductInsideAssignedShop() throws Exception {
         ProductForm create = form("MGR-" + suffix, "Trà sữa quản lý " + suffix, 12, "32000");
         Product product = managementProductService.save(manager, null, assignedShop.getId(), create,
@@ -89,38 +114,41 @@ class ManagementProductCrudTests {
         assertThat(product.getSku()).isEqualTo(("MGR-" + suffix).toUpperCase());
         assertThat(product.getImageUrl()).isEqualTo("/images/product-placeholder.svg");
         assertThat(productSizeRepository.findByProductIdOrderByDisplayOrderAscIdAsc(product.getId())).hasSize(3);
+        assertThat(inventoryTransactionRepository.findByProductIdOrderByCreatedAtAscIdAsc(product.getId())).hasSize(1);
 
         ProductForm update = form(product.getSku(), "Trà sữa đã cập nhật " + suffix, 20, "39000");
         update.setVersion(product.getVersion());
+        update.setStockNote("Nhập thêm tám sản phẩm");
         Product updated = managementProductService.save(manager, product.getId(), assignedShop.getId(), update,
             null, null, null, null, null);
         assertThat(updated.getName()).contains("đã cập nhật");
         assertThat(updated.getStock()).isEqualTo(20);
         assertThat(updated.getPrice()).isEqualByComparingTo("39000");
+        assertThat(inventoryTransactionRepository.findByProductIdOrderByCreatedAtAscIdAsc(product.getId())).hasSize(2);
 
         mockMvc.perform(get("/management/products/{id}", product.getId())
                 .with(user(manager.getUsername()).roles("MANAGER")))
             .andExpect(status().isOk()).andExpect(content().string(org.hamcrest.Matchers.containsString(product.getSku())));
         mockMvc.perform(get("/management/products/{id}/edit", product.getId())
                 .with(user(manager.getUsername()).roles("MANAGER")))
-            .andExpect(status().isOk());
+            .andExpect(status().isOk()).andExpect(content().string(org.hamcrest.Matchers.containsString("Không thể chuyển sản phẩm")));
     }
 
     @Test
     void managerCannotManageUnassignedShopButAdminCan() throws Exception {
         ProductForm blocked = form("BLOCK-" + suffix, "Sản phẩm ngoài phạm vi " + suffix, 5, "25000");
         assertThatThrownBy(() -> managementProductService.save(manager, null, otherShop.getId(), blocked,
-            null, null, null, null, null)).isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
+            null, null, null, null, null)).isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("không được quản lý");
 
         Product createdByAdmin = managementProductService.save(admin, null, otherShop.getId(), blocked,
             null, null, null, null, null);
         assertThat(productRepository.findById(createdByAdmin.getId())).isPresent();
         assertThatThrownBy(() -> managementProductService.get(manager, createdByAdmin.getId()))
-            .isInstanceOf(org.springframework.security.access.AccessDeniedException.class).hasMessageContaining("không được quản lý");
+            .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("không được quản lý");
         mockMvc.perform(get("/management/products/{id}/edit", createdByAdmin.getId())
                 .with(user(manager.getUsername()).roles("MANAGER")))
-            .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/management"));
+            .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/management/products"));
 
         mockMvc.perform(get("/management/products/new").with(user(manager.getUsername()).roles("MANAGER")))
             .andExpect(status().isOk()).andExpect(content().string(org.hamcrest.Matchers.containsString(assignedShop.getName())))

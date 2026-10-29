@@ -3,122 +3,35 @@
 <head th:replace="~{fragments/layout :: head('Khuyến mãi shop')}"></head>
 <body>
 <header th:replace="~{fragments/layout :: header}"></header>
-
 <main class="container py-4">
-    <nav th:replace="~{fragments/vendor-nav :: nav}"></nav>
+    <div class="admin-dashboard-shell">
+    <div th:replace="~{fragments/vendor-nav :: nav}"></div>
+    <div class="admin-dashboard-content">
     <div th:replace="~{fragments/layout :: flash}"></div>
-
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
-        <div>
-            <h1 class="h3 mb-1">Khuyến mãi</h1>
-            <p class="text-muted mb-0" th:text="${shop.name}">
-                Tên cửa hàng
-            </p>
-        </div>
-
-        <a class="btn btn-primary"
-           th:href="@{/vendor/promotions/new}">
-            <i class="bi bi-plus-circle me-1"></i>
-            Tạo chương trình
-        </a>
+    <div class="d-flex justify-content-between align-items-center">
+        <h1 class="h3">Khuyến mãi</h1>
+        <a class="btn btn-primary" th:href="@{/vendor/promotions/new}">Tạo chương trình</a>
     </div>
-
     <div class="card table-responsive mt-3">
         <table class="table align-middle mb-0">
-            <thead>
-            <tr>
-                <th scope="col">Chương trình</th>
-                <th scope="col">Phạm vi</th>
-                <th scope="col">Thời gian</th>
-                <th scope="col">Trạng thái</th>
-                <th scope="col" class="text-end">Thao tác</th>
-            </tr>
-            </thead>
-
+            <thead><tr><th>Chương trình</th><th>Thời gian</th><th>Trạng thái</th><th></th></tr></thead>
             <tbody>
             <tr th:each="p : ${promotions}">
-                <td>
-                    <strong th:text="${p.name}">
-                        Tên chương trình
-                    </strong>
-
-                    <div class="text-muted small mt-1"
-                         th:text="${p.type.label}">
-                        Loại khuyến mãi
-                    </div>
-
-                    <div class="fw-semibold mt-1">
-                        <span th:if="${p.type.name() == 'PRODUCT_PERCENT'}"
-                              th:text="${p.discountValue.stripTrailingZeros().toPlainString()} + '%'">
-                            20%
-                        </span>
-
-                        <span th:if="${p.type.name() == 'SHIPPING_DISCOUNT'}"
-                              th:text="${#numbers.formatDecimal(p.discountValue, 0, 'COMMA', 0, 'POINT')} + ' ₫'">
-                            10.000 ₫
-                        </span>
-                    </div>
-                </td>
-
-                <td>
-                    <span th:text="${p.product == null ? 'Toàn shop' : p.product.name}">
-                        Phạm vi áp dụng
-                    </span>
-                </td>
-
+                <td><strong th:text="${p.name}"></strong><div th:text="${p.type.label + ' · ' + p.discountValue}"></div></td>
+                <td th:text="${#temporals.format(p.startsAt,'dd/MM/yyyy HH:mm') + ' — ' + #temporals.format(p.endsAt,'dd/MM/yyyy HH:mm')}"></td>
+                <td th:text="${p.active ? 'Đang bật' : 'Đã tắt'}"></td>
                 <td class="text-nowrap">
-                    <div th:text="${#temporals.format(p.startsAt, 'dd/MM/yyyy HH:mm')}">
-                        Thời gian bắt đầu
-                    </div>
-                    <div class="text-muted small">
-                        đến
-                        <span th:text="${#temporals.format(p.endsAt, 'dd/MM/yyyy HH:mm')}">
-                            Thời gian kết thúc
-                        </span>
-                    </div>
-                </td>
-
-                <td>
-                    <span class="badge"
-                          th:classappend="${p.active ? 'text-bg-success' : 'text-bg-secondary'}"
-                          th:text="${p.active ? 'Đang bật' : 'Đã tắt'}">
-                        Trạng thái
-                    </span>
-                </td>
-
-                <td class="text-nowrap text-end">
-                    <a class="btn btn-sm btn-outline-primary"
-                       th:href="@{/vendor/promotions/{id}/edit(id=${p.id})}">
-                        Sửa
-                    </a>
-
-                    <form class="d-inline confirm-form"
-                          th:action="@{/vendor/promotions/{id}/delete(id=${p.id})}"
-                          method="post">
-                        <button type="submit"
-                                class="btn btn-sm btn-outline-danger">
-                            Xóa
-                        </button>
-                    </form>
+                    <a class="btn btn-sm btn-outline-primary" th:href="@{/vendor/promotions/{id}/edit(id=${p.id})}">Sửa</a>
+                    <form class="d-inline confirm-form" data-confirm="Xóa chương trình khuyến mãi này?" th:action="@{/vendor/promotions/{id}/delete(id=${p.id})}" method="post"><button class="btn btn-sm btn-outline-danger">Xóa</button></form>
                 </td>
             </tr>
-
-            <tr th:if="${#lists.isEmpty(promotions)}">
-                <td colspan="5"
-                    class="text-center text-muted py-4">
-                    Chưa có chương trình khuyến mãi.
-                </td>
-            </tr>
+            <tr th:if="${#lists.isEmpty(promotions)}"><td colspan="4" class="text-center text-muted py-4">Chưa có chương trình khuyến mãi.</td></tr>
             </tbody>
         </table>
     </div>
-
-    <p class="text-muted small mt-3">
-        Khuyến mãi chỉ được áp dụng khi đang bật
-        và nằm trong thời gian hiệu lực.
-    </p>
+    </div>
+    </div>
 </main>
-
 <footer th:replace="~{fragments/layout :: footer}"></footer>
 <th:block th:replace="~{fragments/layout :: scripts}"></th:block>
 </body>

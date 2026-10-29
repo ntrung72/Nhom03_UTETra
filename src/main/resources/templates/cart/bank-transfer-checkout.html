@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Chuyển khoản đơn hàng')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="container bank-transfer-checkout py-4 py-lg-5">
+    <div th:replace="~{fragments/layout :: flash}"></div>
+    <h1 class="h3 mb-2">Thanh toán chuyển khoản</h1>
+    <p class="text-muted mb-4">Mỗi đơn có một link thanh toán riêng. Mở payOS để quét QR; sau khi thanh toán, tải lại trang để xem trạng thái.</p>
+    <div class="card p-4 mb-3" th:each="transfer : ${transfers}">
+        <div class="d-flex flex-wrap justify-content-between gap-2 mb-3">
+            <div>
+                <strong class="fs-5" th:text="${transfer.orders[0].shop.name}"></strong>
+                <small class="d-block text-muted" th:text="${'Mã đơn: ' + transfer.reference}"></small>
+            </div>
+            <span class="badge bank-transfer-status text-bg-success" th:if="${transfer.paid}">Đã xác nhận thanh toán</span>
+            <span class="badge bank-transfer-status text-bg-info" th:if="${transfer.awaiting and !transfer.paid}">Cần kiểm tra thanh toán</span>
+            <span class="badge bank-transfer-status text-bg-warning" th:if="${transfer.payable and !transfer.awaiting}">Chờ chuyển khoản</span>
+        </div>
+        <div th:if="${transfer.payable and !transfer.awaiting and transfer.payOsUrl != null}" class="mb-3">
+            <strong class="fs-3 text-primary" th:text="${#numbers.formatDecimal(transfer.total,0,'COMMA',0,'POINT') + ' ₫'}"></strong>
+            <p class="small text-muted mt-2">payOS sẽ hiển thị QR, số tiền và mã đơn. Hệ thống tự cập nhật sau khi payOS xác nhận thanh toán.</p>
+            <a class="btn btn-primary" th:href="${transfer.payOsUrl}" target="_blank" rel="noopener noreferrer">Mở QR thanh toán payOS</a>
+        </div>
+        <div class="row g-4 align-items-center" th:if="${transfer.payable and transfer.payOsUrl == null}">
+            <div class="col-md-4 text-center">
+                <img class="img-fluid bg-white p-2 rounded-3 border" width="300" height="300"
+                     th:src="@{/bank-transfer/{reference}/qr(reference=${transfer.reference})}"
+                     th:alt="${'QR thanh toán đơn ' + transfer.reference}">
+            </div>
+            <div class="col-md-8">
+                <div class="small text-muted">Ngân hàng · Chủ tài khoản</div>
+                <strong th:text="${transfer.bankName + ' · ' + transfer.accountName}"></strong>
+                <div class="small text-muted mt-3">Số tài khoản</div>
+                <strong th:text="${transfer.accountNumber}"></strong>
+                <div class="small text-muted mt-3">Số tiền cần chuyển</div>
+                <strong class="fs-3 text-primary" th:text="${#numbers.formatDecimal(transfer.total,0,'COMMA',0,'POINT') + ' ₫'}"></strong>
+                <div class="small text-muted mt-3">Nội dung chuyển khoản</div>
+                <code class="fs-5" th:text="${transfer.reference}"></code>
+                <div class="small text-muted mt-2" th:if="${transfer.expiresAt != null and !transfer.awaiting}"
+                     th:text="${'Chuyển trước ' + #temporals.format(transfer.expiresAt,'HH:mm · dd/MM/yyyy')}"></div>
+                <form class="mt-3" th:if="${!transfer.awaiting}"
+                      th:action="@{/bank-transfer/{reference}/sent(reference=${transfer.reference})}" method="post">
+                    <input type="hidden" name="checkoutReference" th:value="${checkoutReference}">
+                    <button class="btn btn-primary" type="submit">Tôi đã chuyển tiền cho đơn này</button>
+                </form>
+                <p class="small text-muted mt-3 mb-0">Đơn chỉ được xử lý sau khi Admin kiểm tra tiền thực nhận và xác nhận.</p>
+            </div>
+        </div>
+        <div class="alert alert-warning mb-0" th:if="${!transfer.payable and !transfer.paid}">
+            Đơn không còn chờ chuyển khoản. Nếu đã chuyển tiền, liên hệ Admin để kiểm tra.
+        </div>
+    </div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

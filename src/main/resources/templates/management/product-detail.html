@@ -3,11 +3,13 @@
 <head th:replace="~{fragments/layout :: head('Chi tiết sản phẩm')}"></head>
 <body>
 <header th:replace="~{fragments/layout :: header}"></header>
-<main class="container py-4">
-    <div th:replace="~{fragments/management-nav :: nav}"></div>
+<main class="container py-4 management-page">
+    <div class="admin-dashboard-shell">
+        <div th:replace="~{fragments/management-nav :: nav}"></div>
+        <div class="admin-dashboard-content">
     <div th:replace="~{fragments/layout :: flash}"></div>
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-        <div><span class="page-kicker"><i class="bi bi-cup-straw"></i> CHI TIẾT SẢN PHẨM</span><h1 class="h3 mb-1" th:text="${product.name}"></h1><p class="text-muted mb-0" th:text="${product.shop.name + ' · ' + product.sku}"></p></div>
+        <div><h1 class="h3 mb-1" th:text="${product.name}"></h1><p class="text-muted mb-0" th:text="${product.shop.name + ' · ' + product.sku}"></p></div>
         <div class="d-flex gap-2"><a class="btn btn-light" th:href="@{/management/products}"><i class="bi bi-arrow-left"></i> Quay lại</a><a class="btn btn-primary" th:href="@{/management/products/{id}/edit(id=${product.id})}"><i class="bi bi-pencil"></i> Chỉnh sửa</a></div>
     </div>
     <div class="row g-4">
@@ -34,6 +36,8 @@
                 <div class="mb-3"><small class="text-muted d-block mb-2">Size đang áp dụng</small><span class="badge text-bg-light border me-2" th:each="size : ${sizes}" th:text="${size.code + ' +' + #numbers.formatDecimal(size.extraPrice,0,'COMMA',0,'POINT') + ' ₫'}"></span><span class="text-muted" th:if="${#lists.isEmpty(sizes)}">Không áp dụng size</span></div>
                 <div><small class="text-muted d-block mb-2">Topping được chọn</small><span class="badge text-bg-light border me-2 mb-2" th:each="item : ${productToppings}" th:text="${item.topping.name + ' +' + #numbers.formatDecimal(item.topping.price,0,'COMMA',0,'POINT') + ' ₫'}"></span><span class="text-muted" th:if="${#lists.isEmpty(productToppings)}">Không có topping đi kèm</span></div>
             </section>
+        </div>
+    </div>
         </div>
     </div>
 </main>

@@ -1,6 +1,7 @@
 package vn.iotstar.repository;
 
 import java.util.Optional;
+import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -13,4 +14,6 @@ public interface SavedRecipeRepository extends JpaRepository<SavedRecipe, Long> 
 
     @EntityGraph(attributePaths = {"product", "product.shop", "product.category"})
     Optional<SavedRecipe> findByIdAndUserId(Long id, Long userId);
+
+    List<SavedRecipe> findByUserIdAndProductIdOrderByUpdatedAtDescIdDesc(Long userId, Long productId);
 }

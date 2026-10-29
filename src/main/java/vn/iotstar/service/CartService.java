@@ -1,302 +1,302 @@
 package vn.iotstar.service;
 
+import vn.iotstar.util.VietnamTime;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
-import vn.iotstar.entity.*;
+import vn.iotstar.entity.Cart;
+import vn.iotstar.entity.CartItem;
+import vn.iotstar.entity.Product;
+import vn.iotstar.entity.ProductSize;
+import vn.iotstar.entity.ProductTopping;
+import vn.iotstar.entity.User;
 import vn.iotstar.entity.DomainEnums.IceLevel;
 import vn.iotstar.entity.DomainEnums.SugarLevel;
-import vn.iotstar.repository.*;
+import vn.iotstar.repository.CartItemRepository;
+import vn.iotstar.repository.CartRepository;
+import vn.iotstar.repository.ProductRepository;
+import vn.iotstar.repository.ProductSizeRepository;
+import vn.iotstar.repository.ProductToppingRepository;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class CartService {
-	@jakarta.persistence.PersistenceContext
-	private jakarta.persistence.EntityManager entityManager;
-	private final CartRepository cartRepository;
-	private final CartItemRepository cartItemRepository;
-	private final ProductRepository productRepository;
-	private final UserRepository userRepository;
-	private final ProductOptionService productOptionService;
-	private final ProductPricingService productPricingService;
+    private final CartRepository cartRepository;
+    private final CartItemRepository cartItemRepository;
+    private final ProductRepository productRepository;
+    private final ProductSizeRepository productSizeRepository;
+    private final ProductToppingRepository productToppingRepository;
 
-	public Optional<Cart> findExisting(User user) {
-		return cartRepository.findByUserId(user.getId());
-	}
+    @Transactional(readOnly = true)
+    public Optional<Cart> findExisting(User user) {
+        return cartRepository.findByUserId(user.getId());
+    }
 
-	@Transactional
-	public Cart get(User user) {
-		var owner = userRepository.findByIdForUpdate(user.getId()).orElseThrow();
-		return cartRepository.findByUserId(owner.getId()).orElseGet(() -> {
-			var cart = new Cart();
-			cart.setUser(owner);
-			return cartRepository.saveAndFlush(cart);
-		});
-	}
+    @Transactional
+    public Cart get(User user) {
+        return cartRepository.findByUserId(user.getId()).orElseGet(() -> {
+            Cart cart = new Cart();
+            cart.setUser(user);
+            return cartRepository.save(cart);
+        });
+    }
 
-	@Transactional
-	public void add(User user, Long productId, int quantity, Long sizeId, SugarLevel sugar, IceLevel ice,
-			List<Long> toppingIds) {
-		if (quantity <= 0)
-			throw new IllegalArgumentException("Số lượng phải lớn hơn 0.");
-		var cart = get(user);
-		var product = productRepository.findByIdForUpdate(productId)
-				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy sản phẩm."));
-		if (!product.isAvailable())
-			throw new IllegalArgumentException("Sản phẩm hiện không khả dụng.");
-		checkStock(cart, product, null, quantity);
-		var quote = quote(product, sizeId, sugar, ice, toppingIds, true);
-		var item = cart.getItems().stream().filter(
-				line -> line.getProduct().getId().equals(productId) && line.getOptionKey().equals(quote.optionKey()))
-				.findFirst().orElseGet(() -> {
-					var created = new CartItem();
-					created.setCart(cart);
-					created.setProduct(product);
-					cart.getItems().add(created);
-					return created;
-				});
-		item.setQuantity(item.getQuantity() + quantity);
-		apply(item, quote);
-		cartItemRepository.saveAndFlush(item);
-		cart.setUpdatedAt(LocalDateTime.now());
-	}
+    @Transactional
+    public void add(User user, Long productId, int quantity) {
+        add(user, productId, quantity, null, null, null, List.of());
+    }
 
-	@Transactional
-	public void update(User user, Long itemId, int quantity) {
-		if (quantity < 0)
-			throw new IllegalArgumentException("Số lượng không được âm.");
-		var cart = get(user);
-		var item = ownedItem(cart, itemId);
-		if (quantity == 0) {
-			cart.getItems().remove(item);
-		} else {
-			var product = productRepository.findByIdForUpdate(item.getProduct().getId()).orElseThrow();
-			if (!product.isAvailable())
-				throw new IllegalArgumentException("Sản phẩm hiện không khả dụng.");
-			checkStock(cart, product, itemId, quantity);
-			apply(item, quote(product, item.getSizeId(), item.getSugarLevel(), item.getIceLevel(),
-					parseToppingIds(item.getToppingIds()), false));
-			item.setQuantity(quantity);
-		}
-		cart.setUpdatedAt(LocalDateTime.now());
-	}
+    @Transactional
+    public void add(User user, Long productId, int quantity, Long sizeId, SugarLevel sugarLevel,
+                    IceLevel iceLevel, List<Long> toppingIds) {
+        addInternal(user, productId, quantity, sizeId, sugarLevel, iceLevel, toppingIds, false);
+    }
 
-	@Transactional
-	public void remove(User user, Long itemId) {
-		var cart = get(user);
-		cart.getItems().remove(ownedItem(cart, itemId));
-		cart.setUpdatedAt(LocalDateTime.now());
-	}
+    @Transactional
+    public Long addForImmediateCheckout(User user, Long productId, int quantity, Long sizeId,
+                                        SugarLevel sugarLevel, IceLevel iceLevel, List<Long> toppingIds) {
+        return addInternal(user, productId, quantity, sizeId, sugarLevel, iceLevel, toppingIds, true).getId();
+    }
 
-	@Transactional
-	public CartView view(User user) {
-		return reprice(get(user));
-	}
+    private CartItem addInternal(User user, Long productId, int quantity, Long sizeId,
+                                 SugarLevel sugarLevel, IceLevel iceLevel, List<Long> toppingIds,
+                                 boolean separateLine) {
+        Product product = productRepository.findById(productId)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm."));
+        if (!product.isAvailable()) throw new IllegalArgumentException("Sản phẩm hiện không khả dụng.");
+        if (quantity < 1) throw new IllegalArgumentException("Số lượng phải từ 1 trở lên.");
+        Cart cart = get(user);
 
-	@Transactional
-	public CartSelection prepareSelection(User user, List<Long> itemIds) {
-		var view = reprice(get(user));
-		if (itemIds == null || itemIds.isEmpty() || itemIds.stream().anyMatch(id -> id == null || id <= 0))
-			throw new IllegalArgumentException("Vui lòng chọn ít nhất một sản phẩm hợp lệ.");
-		var ids = new LinkedHashSet<>(itemIds);
-		var selected = view.cart().getItems().stream().filter(item -> ids.contains(item.getId())).toList();
-		if (selected.size() != ids.size())
-			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Sản phẩm đã chọn không thuộc giỏ hàng của bạn.");
-		if (ids.stream().anyMatch(view.invalidItemIds()::contains))
-			throw new IllegalArgumentException("Một sản phẩm đã chọn không còn khả dụng. Vui lòng cập nhật giỏ hàng.");
-		return new CartSelection(view.cart(), selected,
-				selected.stream().map(CartItem::getLineTotal).reduce(BigDecimal.ZERO, BigDecimal::add));
-	}
+        List<ProductSize> sizes = productSizeRepository.findByProductIdAndActiveTrueOrderByDisplayOrderAscIdAsc(productId);
+        ProductSize size = null;
+        if (!sizes.isEmpty()) {
+            size = sizeId == null ? sizes.getFirst() : productSizeRepository.findByIdAndProductIdAndActiveTrue(sizeId, productId)
+                .orElseThrow(() -> new IllegalArgumentException("Kích thước đã chọn không hợp lệ."));
+            if (sugarLevel == null) sugarLevel = SugarLevel.PERCENT_100;
+            if (iceLevel == null) iceLevel = IceLevel.NORMAL;
+        }
 
-	/**
-	 * Reprice and lock only selected lines; unselected lines cannot block checkout.
-	 */
-	@Transactional
-	public CheckoutSelection prepareCheckoutSelection(User user, List<Long> itemIds) {
-		var cart = get(user);
-		if (itemIds == null || itemIds.isEmpty() || itemIds.stream().anyMatch(id -> id == null || id <= 0))
-			throw new IllegalArgumentException("Vui lòng chọn ít nhất một sản phẩm hợp lệ.");
-		var ids = new LinkedHashSet<>(itemIds);
-		var items = cart.getItems().stream().filter(item -> ids.contains(item.getId())).toList();
-		if (items.size() != ids.size())
-			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Sản phẩm đã chọn không thuộc giỏ hàng của bạn.");
-		// The cart may already reference products loaded before another checkout
-		// committed.
-		// Lock each database row by its scalar ID first, without reusing a cached
-		// entity/version.
-		// Then refresh the existing managed instance while that row lock is already
-		// held.
-		// Keep a consistent ID order when a checkout contains several products.
-		items.stream().map(CartItem::getProduct).distinct().sorted(Comparator.comparing(Product::getId))
-				.forEach(product -> {
-					entityManager.createQuery("select p.id from Product p where p.id = :productId", Long.class)
-							.setParameter("productId", product.getId())
-							.setLockMode(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE).getSingleResult();
-					entityManager.refresh(product, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
-				});
-		var quantities = items.stream().collect(Collectors.groupingBy(item -> item.getProduct().getId(),
-				Collectors.summingLong(CartItem::getQuantity)));
-		boolean changed = false;
-		for (var item : items) {
-			var product = item.getProduct();
-			if (!product.isAvailable() || item.getQuantity() <= 0
-					|| quantities.get(product.getId()) > product.getStock())
-				throw new IllegalArgumentException(product.getName() + " không khả dụng hoặc không đủ tồn kho.");
-			var quote = quote(product, item.getSizeId(), item.getSugarLevel(), item.getIceLevel(),
-					parseToppingIds(item.getToppingIds()), false);
-			changed |= item.getUnitPrice().compareTo(quote.unitPrice()) != 0;
-			apply(item, quote);
-		}
-		if (changed)
-			cart.setUpdatedAt(LocalDateTime.now());
-		return new CheckoutSelection(cart, items,
-				items.stream().map(CartItem::getLineTotal).reduce(BigDecimal.ZERO, BigDecimal::add), changed);
-	}
+        List<ProductTopping> allowedToppings = productToppingRepository
+            .findByProductIdAndToppingActiveTrueOrderByToppingNameAsc(productId);
+        var requestedIds = new LinkedHashSet<>(toppingIds == null ? List.<Long>of() : toppingIds);
+        List<ProductTopping> selectedToppings = new ArrayList<>();
+        for (Long toppingId : requestedIds) {
+            ProductTopping match = allowedToppings.stream()
+                .filter(link -> link.getTopping().getId().equals(toppingId)).findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Topping đã chọn không áp dụng cho sản phẩm này."));
+            selectedToppings.add(match);
+        }
+        selectedToppings.sort(java.util.Comparator.comparing(link -> link.getTopping().getId()));
 
-	@Transactional
-	public void removeItems(Cart cart, List<CartItem> items) {
-		cart.getItems().removeAll(items);
-		cart.setUpdatedAt(LocalDateTime.now());
-	}
+        String selectedIds = selectedToppings.stream().map(link -> link.getTopping().getId().toString())
+            .collect(java.util.stream.Collectors.joining(","));
+        String optionKey = sizes.isEmpty() ? (selectedIds.isBlank() ? "BASE" : "BASE|" + selectedIds)
+            : size.getId() + "|" + sugarLevel.name() + "|" + iceLevel.name() + "|" + selectedIds;
+        if (separateLine) optionKey = "BUY_NOW|" + UUID.randomUUID() + "|" + optionKey;
+        SugarLevel finalSugarLevel = sugarLevel;
+        IceLevel finalIceLevel = iceLevel;
+        CartItem item = (separateLine ? Optional.<CartItem>empty()
+            : cartItemRepository.findByCartIdAndProductIdAndOptionKey(cart.getId(), productId, optionKey)).orElseGet(() -> {
+            CartItem created = new CartItem();
+            created.setCart(cart);
+            created.setProduct(product);
+            cart.getItems().add(created);
+            return created;
+        });
+        int total = item.getQuantity() + quantity;
+        if (total > product.getStock()) throw new IllegalArgumentException("Số lượng vượt quá tồn kho.");
+        item.setQuantity(total);
+        BigDecimal sizePrice = size == null ? BigDecimal.ZERO : size.getExtraPrice();
+        BigDecimal toppingPrice = selectedToppings.stream().map(link -> link.getTopping().getPrice())
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+        item.setOptionKey(optionKey);
+        item.setSize(size == null ? null : size.getCode());
+        item.setSugarLevel(sizes.isEmpty() ? null : finalSugarLevel);
+        item.setIceLevel(sizes.isEmpty() ? null : finalIceLevel);
+        item.setToppingIds(selectedIds.isBlank() ? null : selectedIds);
+        item.setToppings(selectedToppings.isEmpty() ? null : selectedToppings.stream()
+            .map(link -> link.getTopping().getName()).collect(java.util.stream.Collectors.joining(", ")));
+        item.setBasePrice(product.getPrice());
+        item.setOptionPrice(sizePrice.add(toppingPrice));
+        item.setUnitPrice(product.getPrice().add(item.getOptionPrice()));
+        CartItem saved = cartItemRepository.save(item);
+        cart.setUpdatedAt(VietnamTime.now());
+        return saved;
+    }
 
-	private CartItem ownedItem(Cart cart, Long id) {
-		return cart.getItems().stream().filter(item -> item.getId().equals(id)).findFirst().orElseThrow(
-				() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy sản phẩm trong giỏ của bạn."));
-	}
+    @Transactional
+    public void update(User user, Long itemId, int quantity) {
+        CartItem item = cartItemRepository.findByIdAndCart_User_Id(itemId, user.getId())
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm trong giỏ."));
+        if (quantity <= 0) {
+            removeItem(item);
+            return;
+        }
+        if (quantity > item.getProduct().getStock()) throw new IllegalArgumentException("Số lượng vượt quá tồn kho.");
+        item.setQuantity(quantity);
+        item.getCart().setUpdatedAt(VietnamTime.now());
+    }
 
-	private void checkStock(Cart cart, Product product, Long replacedItemId, int requested) {
-		long otherQuantity = cart.getItems().stream().filter(
-				item -> item.getProduct().getId().equals(product.getId()) && !item.getId().equals(replacedItemId))
-				.mapToLong(CartItem::getQuantity).sum();
-		if (otherQuantity + requested > product.getStock())
-			throw new IllegalArgumentException("Tổng số lượng của sản phẩm trong giỏ vượt quá tồn kho.");
-	}
+    @Transactional
+    public void remove(User user, Long itemId) {
+        CartItem item = cartItemRepository.findByIdAndCart_User_Id(itemId, user.getId())
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm trong giỏ."));
+        removeItem(item);
+    }
 
-	private CartView reprice(Cart cart) {
-		var invalid = new LinkedHashSet<Long>();
-		var warnings = new LinkedHashSet<String>();
-		boolean changed = false;
-		for (var item : cart.getItems()) {
-			var product = item.getProduct();
-			if (!product.isAvailable()) {
-				invalid.add(item.getId());
-				warnings.add(product.getName() + " hiện không khả dụng.");
-				continue;
-			}
-			long quantity = cart.getItems().stream().filter(line -> line.getProduct().getId().equals(product.getId()))
-					.mapToLong(CartItem::getQuantity).sum();
-			if (quantity > product.getStock()) {
-				invalid.add(item.getId());
-				warnings.add(product.getName() + ": tổng số lượng vượt tồn kho, vui lòng giảm số lượng.");
-			}
-			try {
-				var quote = quote(product, item.getSizeId(), item.getSugarLevel(), item.getIceLevel(),
-						parseToppingIds(item.getToppingIds()), false);
-				changed |= item.getUnitPrice() == null || item.getUnitPrice().compareTo(quote.unitPrice()) != 0;
-				apply(item, quote);
-			} catch (IllegalArgumentException ex) {
-				invalid.add(item.getId());
-				warnings.add(product.getName() + ": " + ex.getMessage());
-			}
-		}
-		if (changed)
-			cart.setUpdatedAt(LocalDateTime.now());
-		return new CartView(cart, changed, List.copyOf(warnings), Set.copyOf(invalid));
-	}
+    private void removeItem(CartItem item) {
+        Cart cart = item.getCart();
+        cart.getItems().remove(item);
+        cart.setUpdatedAt(VietnamTime.now());
+    }
 
-	private OptionQuote quote(Product product, Long sizeId, SugarLevel sugar, IceLevel ice, List<Long> toppingIds,
-			boolean allowDefault) {
-		if (product.getPrice() == null || product.getPrice().signum() < 0)
-			throw new IllegalArgumentException("Giá sản phẩm không hợp lệ.");
-		if (toppingIds != null && toppingIds.stream().anyMatch(id -> id == null || id <= 0))
-			throw new IllegalArgumentException("Mã topping không hợp lệ.");
-		var ids = new TreeSet<Long>(toppingIds == null ? List.of() : toppingIds);
-		var toppingProduct = "topping".equals(product.getCategory().getSlug());
-		ProductSize selectedSize = null;
-		if (toppingProduct) {
-			if (sizeId != null || sugar != null || ice != null || !ids.isEmpty())
-				throw new IllegalArgumentException("Topping bán riêng không có tùy chọn đồ uống.");
-		} else {
-			var sizes = productOptionService.availableSizes(product);
-			if (sizeId == null && allowDefault && !sizes.isEmpty())
-				selectedSize = sizes.getFirst();
-			else
-				selectedSize = sizes.stream().filter(size -> size.getId().equals(sizeId)).findFirst()
-						.orElseThrow(() -> new IllegalArgumentException("Size đã chọn không còn khả dụng."));
-			if (selectedSize.getExtraPrice() == null || selectedSize.getExtraPrice().signum() < 0)
-				throw new IllegalArgumentException("Phụ thu size không hợp lệ.");
-			if (sugar == null)
-				sugar = SugarLevel.PERCENT_100;
-			if (ice == null)
-				ice = IceLevel.NORMAL;
-		}
-		var allowed = productOptionService.availableToppings(product);
-		var selectedToppings = new ArrayList<Topping>();
-		for (Long id : ids) {
-			var topping = allowed.stream().map(ProductTopping::getTopping).filter(t -> t.getId().equals(id)).findFirst()
-					.orElseThrow(() -> new IllegalArgumentException("Topping đã chọn không còn áp dụng."));
-			if (topping.getPrice() == null || topping.getPrice().signum() < 0)
-				throw new IllegalArgumentException("Giá topping không hợp lệ.");
-			selectedToppings.add(topping);
-		}
-		var selectedIds = ids.stream().map(String::valueOf).collect(Collectors.joining(","));
-		var names = selectedToppings.stream().map(Topping::getName).collect(Collectors.joining(", "));
-		Long selectedSizeId = selectedSize == null ? null : selectedSize.getId();
-		String key = toppingProduct ? "BASE"
-				: selectedSizeId + "|" + sugar.name() + "|" + ice.name() + "|" + selectedIds;
-		if (key.length() > 500 || names.length() > 1000)
-			throw new IllegalArgumentException("Quá nhiều tùy chọn topping.");
-		// Validation above keeps unavailable options out of the shared pricing service.
-		// This also allows the cart to show a removable invalid line without rolling
-		// back other repricing.
-		var basePrice = productPricingService.price(product).salePrice();
-		var unitPrice = productPricingService.unitPrice(product, selectedSizeId, new ArrayList<>(ids));
-		if (unitPrice.signum() < 0 || unitPrice.compareTo(new BigDecimal("999999999999.99")) > 0)
-			throw new IllegalArgumentException("Giá sau tùy chọn vượt giới hạn cho phép.");
-		return new OptionQuote(key, selectedSizeId, selectedSize == null ? null : selectedSize.getCode(), sugar, ice,
-				selectedIds, names, basePrice, unitPrice.subtract(basePrice), unitPrice);
-	}
+    @Transactional
+    public void clear(Cart cart) {
+        cart.getItems().clear();
+        cart.setUpdatedAt(VietnamTime.now());
+    }
 
-	private List<Long> parseToppingIds(String value) {
-		if (value == null || value.isBlank())
-			return List.of();
-		try {
-			return Arrays.stream(value.split(",")).map(Long::valueOf).toList();
-		} catch (NumberFormatException ex) {
-			throw new IllegalArgumentException("Topping đã lưu không hợp lệ.");
-		}
-	}
+    @Transactional
+    public void removeItems(Cart cart, List<CartItem> items) {
+        cart.getItems().removeAll(items);
+        cart.setUpdatedAt(VietnamTime.now());
+    }
 
-	private void apply(CartItem item, OptionQuote quote) {
-		item.setOptionKey(quote.optionKey());
-		item.setSizeId(quote.sizeId());
-		item.setSize(quote.size());
-		item.setSugarLevel(quote.sugar());
-		item.setIceLevel(quote.ice());
-		item.setToppingIds(quote.toppingIds());
-		item.setToppings(quote.toppings().isEmpty() ? null : quote.toppings());
-		item.setBasePrice(quote.basePrice());
-		item.setOptionPrice(quote.optionPrice());
-		item.setUnitPrice(quote.unitPrice());
-	}
+    @Transactional
+    public CartSelection prepareSelection(User user, List<Long> itemIds, boolean selectAllWhenEmpty) {
+        Cart cart = get(user);
+        List<CartItem> items = selectItems(cart, itemIds, selectAllWhenEmpty);
+        CartRepriceResult repricing = reprice(items);
+        validateStock(items);
+        BigDecimal subtotal = items.stream().map(CartItem::getLineTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
+        return new CartSelection(cart, List.copyOf(items), subtotal, repricing);
+    }
 
-	private record OptionQuote(String optionKey, Long sizeId, String size, SugarLevel sugar, IceLevel ice,
-			String toppingIds, String toppings, BigDecimal basePrice, BigDecimal optionPrice, BigDecimal unitPrice) {
-	}
+    public List<CartItem> selectItems(Cart cart, List<Long> itemIds, boolean selectAllWhenEmpty) {
+        LinkedHashSet<Long> requested = itemIds == null ? new LinkedHashSet<>() : itemIds.stream()
+            .filter(java.util.Objects::nonNull).collect(Collectors.toCollection(LinkedHashSet::new));
+        if (requested.isEmpty() && selectAllWhenEmpty) {
+            requested.addAll(cart.getItems().stream().map(CartItem::getId).toList());
+        }
+        if (requested.isEmpty()) throw new IllegalArgumentException("Vui lòng chọn ít nhất một sản phẩm để thanh toán.");
+        List<CartItem> selected = cart.getItems().stream().filter(item -> requested.contains(item.getId())).toList();
+        if (selected.size() != requested.size()) {
+            throw new IllegalArgumentException("Có sản phẩm đã chọn không còn nằm trong giỏ hàng của bạn.");
+        }
+        return selected;
+    }
 
-	public record CartView(Cart cart, boolean pricesChanged, List<String> warnings, Set<Long> invalidItemIds) {
-	}
+    public void validateStock(List<CartItem> items) {
+        Map<Long, Integer> requested = new LinkedHashMap<>();
+        Map<Long, Product> products = new LinkedHashMap<>();
+        for (CartItem item : items) {
+            Product product = item.getProduct();
+            requested.merge(product.getId(), item.getQuantity(), Integer::sum);
+            products.putIfAbsent(product.getId(), product);
+        }
+        for (Map.Entry<Long, Integer> entry : requested.entrySet()) {
+            Product product = products.get(entry.getKey());
+            if (entry.getValue() > product.getStock()) {
+                throw new IllegalArgumentException("Sản phẩm " + product.getName() + " chỉ còn "
+                    + product.getStock() + " ly, bạn đã chọn " + entry.getValue()
+                    + " ly. Vui lòng điều chỉnh giỏ hàng.");
+            }
+        }
+    }
 
-	public record CheckoutSelection(Cart cart, List<CartItem> items, BigDecimal subtotal, boolean pricesChanged) {
-	}
+    @Transactional
+    public CartRepriceResult reprice(User user) {
+        return reprice(get(user));
+    }
 
-	public record CartSelection(Cart cart, List<CartItem> items, BigDecimal subtotal) {
-	}
+    @Transactional
+    public CartRepriceResult reprice(Cart cart) {
+        CartRepriceResult result = reprice(cart.getItems());
+        if (result.pricesChanged()) cart.setUpdatedAt(VietnamTime.now());
+        return result;
+    }
+
+    @Transactional
+    public CartRepriceResult reprice(List<CartItem> items) {
+        LinkedHashSet<String> changedProducts = new LinkedHashSet<>();
+        for (CartItem item : items) {
+            Product product = item.getProduct();
+            if (!product.isAvailable()) {
+                throw new IllegalArgumentException("Sản phẩm " + product.getName()
+                    + " hiện không khả dụng. Vui lòng cập nhật giỏ hàng.");
+            }
+            BigDecimal sizePrice = BigDecimal.ZERO;
+            if (item.getSize() != null && !item.getSize().isBlank()) {
+                ProductSize currentSize = productSizeRepository
+                    .findByProductIdAndActiveTrueOrderByDisplayOrderAscIdAsc(product.getId()).stream()
+                    .filter(size -> size.getCode().equalsIgnoreCase(item.getSize()))
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException(
+                        "Size " + item.getSize() + " của " + product.getName() + " không còn khả dụng. Vui lòng cập nhật giỏ hàng."));
+                sizePrice = currentSize.getExtraPrice();
+            }
+
+            Map<Long, ProductTopping> allowedToppings = productToppingRepository
+                .findByProductIdAndToppingActiveTrueOrderByToppingNameAsc(product.getId()).stream()
+                .collect(Collectors.toMap(link -> link.getTopping().getId(), link -> link,
+                    (first, ignored) -> first, LinkedHashMap::new));
+            List<Long> selectedIds = parseToppingIds(item.getToppingIds(), product.getName());
+            List<ProductTopping> selectedToppings = selectedIds.stream().map(id -> {
+                ProductTopping link = allowedToppings.get(id);
+                if (link == null) {
+                    throw new IllegalArgumentException("Một topping của " + product.getName()
+                        + " không còn khả dụng. Vui lòng cập nhật giỏ hàng.");
+                }
+                return link;
+            }).toList();
+            BigDecimal toppingPrice = selectedToppings.stream().map(link -> link.getTopping().getPrice())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal basePrice = product.getPrice();
+            BigDecimal optionPrice = sizePrice.add(toppingPrice);
+            BigDecimal unitPrice = basePrice.add(optionPrice);
+            if (!sameMoney(item.getBasePrice(), basePrice)
+                || !sameMoney(item.getOptionPrice(), optionPrice)
+                || !sameMoney(item.getUnitPrice(), unitPrice)) {
+                changedProducts.add(product.getName());
+            }
+            item.setBasePrice(basePrice);
+            item.setOptionPrice(optionPrice);
+            item.setUnitPrice(unitPrice);
+            item.setToppings(selectedToppings.isEmpty() ? null : selectedToppings.stream()
+                .map(link -> link.getTopping().getName()).collect(Collectors.joining(", ")));
+        }
+        if (!changedProducts.isEmpty() && !items.isEmpty()) {
+            items.getFirst().getCart().setUpdatedAt(VietnamTime.now());
+        }
+        return new CartRepriceResult(!changedProducts.isEmpty(), List.copyOf(changedProducts));
+    }
+
+    private List<Long> parseToppingIds(String toppingIds, String productName) {
+        if (toppingIds == null || toppingIds.isBlank()) return List.of();
+        try {
+            return java.util.Arrays.stream(toppingIds.split(","))
+                .filter(value -> !value.isBlank()).map(String::trim).map(Long::valueOf).toList();
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException("Topping đã lưu của " + productName
+                + " không hợp lệ. Vui lòng cập nhật giỏ hàng.");
+        }
+    }
+
+    private boolean sameMoney(BigDecimal first, BigDecimal second) {
+        return first != null && second != null && first.compareTo(second) == 0;
+    }
+
+    public record CartRepriceResult(boolean pricesChanged, List<String> changedProducts) {}
+    public record CartSelection(Cart cart, List<CartItem> items, BigDecimal subtotal,
+                                CartRepriceResult repricing) {}
 }

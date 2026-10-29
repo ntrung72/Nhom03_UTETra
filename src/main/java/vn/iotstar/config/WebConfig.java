@@ -8,25 +8,17 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
-
     @Value("${app.upload-dir:uploads}")
     private String uploadDir;
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        String location = Path.of(uploadDir)
-            .toAbsolutePath()
-            .normalize()
-            .toUri()
-            .toString();
-
-        if (!location.endsWith("/")) {
-            location += "/";
-        }
-
-        for (String folder : new String[]{"avatars", "products", "shops", "categories", "reviews"}) {
-            registry.addResourceHandler("/uploads/" + folder + "/**")
-                .addResourceLocations(location + folder + "/");
-        }
+        String location = Path.of(uploadDir).toAbsolutePath().normalize().toUri().toString();
+        if (!location.endsWith("/")) location += "/";
+        registry.addResourceHandler("/uploads/avatars/**").addResourceLocations(location + "avatars/");
+        registry.addResourceHandler("/uploads/products/**").addResourceLocations(location + "products/");
+        registry.addResourceHandler("/uploads/shops/**").addResourceLocations(location + "shops/");
+        registry.addResourceHandler("/uploads/categories/**").addResourceLocations(location + "categories/");
+        registry.addResourceHandler("/uploads/reviews/**").addResourceLocations(location + "reviews/");
     }
 }

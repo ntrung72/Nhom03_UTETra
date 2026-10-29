@@ -14,7 +14,6 @@ import vn.iotstar.entity.DomainEnums.PromotionType;
 @Entity
 @Table(name = "promotions")
 public class Promotion {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -26,12 +25,7 @@ public class Promotion {
     @Column(nullable = false, length = 30)
     private PromotionType type;
 
-    @Column(
-        name = "discount_value",
-        nullable = false,
-        precision = 14,
-        scale = 2
-    )
+    @Column(name = "discount_value", nullable = false, precision = 14, scale = 2)
     private BigDecimal discountValue;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -56,8 +50,6 @@ public class Promotion {
     private boolean active = true;
 
     public boolean isRunning(LocalDateTime now) {
-        return active
-            && !now.isBefore(startsAt)
-            && !now.isAfter(endsAt);
+        return active && !now.isBefore(startsAt) && !now.isAfter(endsAt);
     }
 }

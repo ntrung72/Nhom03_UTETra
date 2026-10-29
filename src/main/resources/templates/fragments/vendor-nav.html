@@ -1,28 +1,20 @@
-<!doctype html>
-<html lang="vi" xmlns:th="http://www.thymeleaf.org">
-<body>
-	<nav class="side-nav" th:fragment="nav"
-		aria-label="Điều hướng người bán">
-		<div class="px-3 py-2 fw-bold text-primary">KÊNH NGƯỜI BÁN</div>
-		<a th:href="@{/vendor}"><i class="bi bi-grid me-2"></i>Tổng quan</a> <a
-			th:href="@{/vendor/products}"><i class="bi bi-cup-straw me-2"></i>Sản
-			phẩm</a> <a th:href="@{/vendor/orders}"><i class="bi bi-receipt me-2"></i>Đơn
-			hàng</a> <a th:href="@{/vendor/returns}"><i
-			class="bi bi-arrow-return-left me-2"></i>Trả hàng / Hoàn tiền</a> <a
-			th:href="@{/vendor/promotions}"><i class="bi bi-tags me-2"></i>Khuyến
-			mãi</a>
-		<div class="dropdown side-nav-more">
-			<button class="btn side-nav-dropdown-toggle dropdown-toggle"
-				type="button" data-bs-toggle="dropdown" aria-expanded="false">
-				<i class="bi bi-three-dots me-2"></i> Cửa hàng & kho
-			</button>
-			<ul class="dropdown-menu">
-				<li><a class="dropdown-item" th:href="@{/vendor/shop/edit}"><i
-						class="bi bi-shop me-2"></i>Trang cửa hàng</a></li>
-				<li><a class="dropdown-item" th:href="@{/vendor/inventory}"><i
-						class="bi bi-box-seam me-2"></i>Lịch sử kho</a></li>
-			</ul>
-		</div>
-	</nav>
-</body>
-</html>
+<!doctype html><html lang="vi" xmlns:th="http://www.thymeleaf.org"><body>
+<nav class="side-nav dashboard-side-nav vendor-side-nav" th:fragment="nav" aria-label="Điều hướng người bán">
+    <div class="management-nav-title px-3 py-2 fw-bold text-primary">KÊNH NGƯỜI BÁN</div>
+    <button class="management-nav-toggle" type="button" aria-expanded="false" aria-label="Mở menu người bán">
+        <span><i class="bi bi-list" aria-hidden="true"></i> Menu người bán</span>
+        <i class="bi bi-chevron-down" aria-hidden="true"></i>
+    </button>
+    <a th:href="@{/vendor}"><i class="bi bi-grid me-2"></i>Tổng quan</a>
+    <a th:href="@{/vendor/products}"><i class="bi bi-cup-straw me-2"></i>Sản phẩm</a>
+    <a th:href="@{/vendor/orders}"><i class="bi bi-receipt me-2"></i>Đơn hàng</a>
+    <a th:href="@{/vendor/promotions}"><i class="bi bi-tags me-2"></i>Khuyến mãi</a>
+    <details class="management-nav-group">
+        <summary><span><i class="bi bi-three-dots me-2" aria-hidden="true"></i>Cửa hàng & kho</span><i class="bi bi-chevron-down" aria-hidden="true"></i></summary>
+        <div class="management-nav-submenu">
+            <a th:href="@{/vendor/shop/edit}"><i class="bi bi-shop me-2"></i>Trang cửa hàng</a>
+            <a th:href="@{/vendor/inventory}"><i class="bi bi-box-seam me-2"></i>Lịch sử kho</a>
+        </div>
+    </details>
+</nav>
+</body></html>

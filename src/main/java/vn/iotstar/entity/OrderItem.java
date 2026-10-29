@@ -49,7 +49,7 @@ public class OrderItem {
     @Column(name = "toppings", length = 1000)
     private String toppings;
 
-    @Column(name = "topping_ids", length = 500)
+    @Column(name = "topping_ids", length = 1000)
     private String toppingIds;
 
     @Column(name = "base_price", precision = 14, scale = 2)
@@ -64,4 +64,6 @@ public class OrderItem {
     @Column(name = "line_total", nullable = false, precision = 14, scale = 2)
     private BigDecimal lineTotal;
 
+    @Column(nullable = false)
+    private boolean reviewed;
 }

@@ -1,80 +1,101 @@
-# Nhóm 03 – UTETra
+# UTETra
 
-Website bán trà sữa đa cửa hàng (Spring Boot, Thymeleaf, Spring Security, SQL Server). Source này duy trì lịch sử Git và phân chia nghiệp vụ Guest/User, Vendor, Manager, Admin, Shipper của nhóm.
+UTETra là website bán trà sữa cho nhiều cửa hàng. Khách chọn món và đặt hàng; cửa hàng chuẩn bị món; quản trị viên điều phối giao hàng; shipper giao cho khách. Website cũng có quản lý khuyến mãi, đánh giá, điểm thưởng và trả hàng/hoàn tiền.
 
-## Yêu cầu
+## Công nghệ
 
-- Java **26** theo `pom.xml`, Maven qua `mvnw.cmd` (Windows).
-- SQL Server có database `UTETraDB` hoặc cấu hình `DB_URL` tới database khác.
-- SMTP Email/App Password để thử OTP; cấu hình VNPay Sandbox để thử thanh toán thật qua sandbox.
-- Không đưa mật khẩu DB, JWT/Remember-Me key, API key, chữ ký VNPay và dữ liệu upload vào Git.
+- **Ứng dụng:** Java 25, Spring Boot, Spring Security, Thymeleaf, WebSocket.
+- **Dữ liệu:** SQL Server, Spring Data JPA. Bộ kiểm thử dùng H2.
+- **Tích hợp:** payOS cho chuyển khoản QR, Gmail cho email/OTP, Cloudinary cho ảnh và video, Swagger UI cho tài liệu API.
 
-## Biến môi trường (CMD Windows)
+## Ai làm gì trên website?
 
-Thiết lập trong cửa sổ CMD chạy ứng dụng (các giá trị cần lấy từ môi trường của chính bạn):
+| Vai trò | Chức năng chính |
+| --- | --- |
+| Khách chưa đăng nhập | Xem, tìm kiếm sản phẩm và cửa hàng. |
+| Khách hàng (`USER`) | Quản lý hồ sơ, địa chỉ, giỏ hàng; đặt và theo dõi đơn; lưu công thức, theo dõi cửa hàng, đánh giá, xem điểm thưởng và yêu cầu trả hàng. |
+| Chủ cửa hàng (`VENDOR`) | Quản lý cửa hàng, sản phẩm, kho và khuyến mãi; xác nhận đơn, chuẩn bị món, đánh dấu sẵn sàng lấy hàng; xử lý yêu cầu trả hàng. |
+| Shipper (`SHIPPER`) | Chấp nhận hoặc từ chối đơn được phân công; cập nhật lấy hàng, giao hàng và bằng chứng giao hàng. |
+| Quản lý (`MANAGER`) | Xem và quản lý dữ liệu của các cửa hàng được Admin phân công; theo dõi đơn và điều phối shipper. |
+| Quản trị viên (`ADMIN`) | Quản lý toàn hệ thống, phân công Manager, quản lý voucher và thanh toán, điều phối đơn, xem nhật ký thao tác và xử lý hoàn tiền. |
 
-```cmd
-set DB_URL=jdbc:sqlserver://localhost:1433;databaseName=UTETraDB;encrypt=true;trustServerCertificate=true
-set DB_USERNAME=sa
-set DB_PASSWORD=<mat-khau-SQL-Server>
-set JWT_SECRET=<secret-it-nhat-32-ky-tu>
-set REMEMBER_ME_KEY=<remember-me-key-rieng>
-set MAIL_USERNAME=<tai-khoan-email>
-set MAIL_PASSWORD=<email-app-password>
-set MAIL_FROM=<email-gui>
-set WS_ALLOWED_ORIGINS=http://localhost:8090,http://127.0.0.1:8090
+## Luồng đơn hàng
+
+1. Khách chọn sản phẩm, size, đường, đá, topping và số lượng; sau đó đặt hàng từ giỏ.
+2. Khách chọn **COD** hoặc **chuyển khoản QR**. Với QR, payOS tạo link riêng cho đơn. Hệ thống xác nhận thanh toán từ thông báo hợp lệ hoặc kết quả đối chiếu với payOS; chỉ quay về website không đồng nghĩa đã trả tiền.
+3. Vendor xác nhận đơn, chuẩn bị món rồi đánh dấu **sẵn sàng lấy hàng**. Admin/Manager theo dõi và phân công shipper; shipper chấp nhận, lấy hàng rồi giao cho khách.
+4. Sau khi nhận hàng, khách có thể đánh giá và gửi yêu cầu trả hàng. Nếu yêu cầu được duyệt, Admin tự chuyển khoản hoàn tiền vào tài khoản khách đã chọn rồi ghi mã giao dịch để xác nhận hoàn tiền.
+
+VNPay và MoMo không còn là lựa chọn khi tạo đơn mới. Dữ liệu đơn cũ dùng các phương thức đó vẫn được giữ để xem lịch sử.
+
+## Chạy trên máy cá nhân
+
+### 1. Chuẩn bị
+
+- Cài **JDK 25** và **SQL Server**. Project có sẵn Maven Wrapper, không cần cài Maven riêng.
+- Tạo database `UTETraDB` bằng cách mở [database/create_utetra_database.sql](database/create_utetra_database.sql) trong SSMS và chạy toàn bộ script. Script tạo database; ở chế độ chạy local, Hibernate tạo/cập nhật các bảng khi ứng dụng khởi động.
+
+### 2. Cấu hình kết nối
+
+Ứng dụng mặc định kết nối `localhost:1433`, database `UTETraDB`, tài khoản SQL Server `sa`. Đặt mật khẩu và các giá trị riêng bằng biến môi trường, hoặc trong `application-local.properties` ở **thư mục gốc project**. File này được Git bỏ qua.
+
+Ví dụ trong PowerShell, thay giá trị bằng thông tin SQL Server của bạn:
+
+```powershell
+$env:DB_URL="jdbc:sqlserver://localhost:1433;databaseName=UTETraDB;encrypt=true;trustServerCertificate=true"
+$env:DB_USERNAME="sa"
+$env:DB_PASSWORD="mat-khau-cua-ban"
 ```
 
-Các biến không bắt buộc khi thử chức năng không tích hợp ngoại vi: `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, `VNPAY_TMN_CODE`, `VNPAY_HASH_SECRET`, `VNPAY_RETURN_URL`.
+Nếu SQL Server chạy bằng instance hoặc cổng khác, sửa `DB_URL` cho đúng. Không đưa mật khẩu hoặc khóa API vào Git.
 
-### Demo seed **chỉ khi chủ động bật**
+### 3. Chạy website
 
-Trên **database trống**, trước khi chạy lần đầu:
-
-```cmd
-set SEED_DATA=true
-mvnw.cmd spring-boot:run
+```powershell
+.\mvnw.cmd spring-boot:run
 ```
 
-Tài khoản minh họa nằm trong `DataInitializer.java`: `admin`, `manager`, `vendor`, `vendor2`, `shipper`, `user`; các mật khẩu demo tương ứng là `Admin@123`, `Manager@123`, `Vendor@123` (cả hai Vendor), `Shipper@123`, `User@123`. **Chỉ sử dụng trên database demo nội bộ**. Seed có 2 shop, 30 sản phẩm, 4 danh mục, carrier, voucher, promotion và ảnh tĩnh tham chiếu từ UTETra(7).
+Mở <http://localhost:8090>. Mặc định `SEED_DATA=false`, nên ứng dụng không tự thêm tài khoản và dữ liệu mẫu. Chỉ bật `SEED_DATA=true` khi muốn nạp dữ liệu mẫu vào **database thử nghiệm**.
 
-Mặc định `SEED_DATA=false`: **không tạo tài khoản/sản phẩm demo**. Khi database đã có người dùng/shop/sản phẩm/danh mục, seed sẽ không ghi đè hoặc thêm bản demo. Nên đặt lại `set SEED_DATA=false` sau khi tạo demo lần đầu.
+## Cấu hình các tính năng ngoài
 
-## Migrations/backfill cho database cũ
+Các biến sau chỉ cần đặt khi dùng tính năng tương ứng. Đặt chúng trong môi trường chạy ứng dụng; trên Azure, dùng **Web App → Settings → Environment variables**.
 
-Các component sau chạy khi khởi động, độc lập với `SEED_DATA`:
+| Tính năng | Biến cần cấu hình | Ghi chú |
+| --- | --- | --- |
+| SQL Server | `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` | Bắt buộc khi chạy production. |
+| Đăng nhập/API | `JWT_SECRET`, `REMEMBER_ME_KEY` | Dùng chuỗi bí mật riêng, đủ dài. |
+| Email/OTP | `MAIL_USERNAME`, `MAIL_APP_PASSWORD`, `MAIL_FROM` | `MAIL_APP_PASSWORD` là App Password của Gmail. |
+| Chuyển khoản payOS | `PAYOS_CLIENT_ID`, `PAYOS_API_KEY`, `PAYOS_CHECKSUM_KEY`, `PUBLIC_BASE_URL` | `PUBLIC_BASE_URL` là địa chỉ HTTPS công khai của website. Webhook: `/payments/payos/webhook`. |
+| Cloudinary | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Nếu chưa cấu hình, file công khai được lưu trong `uploads/`. |
+| Nơi lưu file | `UPLOAD_DIR`, `PRIVATE_UPLOAD_DIR` | `private-uploads/` chứa file cần bảo vệ như bằng chứng giao/trả hàng. Khi triển khai, dùng nơi lưu bền vững. |
 
-- `CartOptionsSchemaMigration`: bỏ ràng buộc unique kiểu cũ của cart (`cart_id,product_id`), giữ unique theo `option_key` để cùng sản phẩm có nhiều cấu hình.
-- `OrderStatusSchemaMigration`: cập nhật check constraint enum cũ **trên SQL Server** cho luồng Vendor/Shipper, COD/VNPay và Return.
-- `VnPaySchemaMigration`: giữ logic tương thích VNPay đã có trong nhánh nhóm.
-- `CommissionSnapshotBackfill`: giữ cách tính và bảo toàn `commissionRate` lịch sử của nhóm.
-- `VoucherUsageBackfill`: bổ sung thông tin voucher/giảm giá cho dữ liệu cũ và tạo tối đa một usage theo `checkoutReference`. Vì nhóm dùng `Long orderId`, migration được điều chỉnh đúng entity hiện tại, **không tạo lại Order/Voucher**.
+Các thiết lập mặc định nằm trong [application.properties](src/main/resources/application.properties). Cấu hình cho Azure/production nằm trong [application-prod.properties](src/main/resources/application-prod.properties). Chạy production cần đặt `SPRING_PROFILES_ACTIVE=prod`; chế độ này yêu cầu database đã có schema phù hợp và dùng `ddl-auto=validate`. Đừng chạy script tạo database local lên database đang có dữ liệu trên Azure.
 
-**Trước khi chạy trên SQL Server có dữ liệu thật:** sao lưu toàn bộ database, thử migration trên bản sao, xác minh trạng thái đơn hàng/Voucher/Commission và giữ bản sao lưu để rollback. Database mới nên được thử riêng. Lần tích hợp này kiểm tra trực tiếp với H2; **chưa chạy SQL Server thực trên máy của người dùng**.
+## Kiểm thử và đóng gói
 
-## Build và chạy
+Chạy từ thư mục gốc project:
 
-```cmd
-mvnw.cmd test
-mvnw.cmd spring-boot:run
+```powershell
+.\mvnw.cmd test
+.\mvnw.cmd clean package
 ```
 
-Web: `http://localhost:8090`. Kiểm tra riêng Bước 35:
+File sau khi đóng gói là `target/UTETra.jar`. Để chạy file JAR trên máy cá nhân:
 
-```cmd
-mvnw.cmd -Dtest=Step35IntegrationTests,Step35NoSeedTests test
+```powershell
+java -jar target\UTETra.jar
 ```
 
-Xem [`docs/BUOC35_SMOKE_TEST.md`](docs/BUOC35_SMOKE_TEST.md) để nghiệm thu từ Guest đến Shipper, WebSocket, VNPay, OTP và giao diện laptop. Việc nghiệm thu thực tế ngoài môi trường H2 cần TV1/TV2 cùng review vì tác động liên role.
+Swagger UI: `/swagger-ui/index.html`; tài liệu OpenAPI: `/v3/api-docs`. API đăng nhập nhận token tại `POST /api/auth/login`. Các chức năng REST khác cần quyền phù hợp.
 
-## Quy tắc tích hợp
+## Thư mục chính
 
-Không chép đè `.git` từ ZIP vào project đang làm việc. Chỉ đưa những file thay đổi thật sự của Bước 35 qua Git; giữ logic Checkout/OTP của TV1, Vendor/Inventory/Return của TV2 và các bước TV3 đã làm.
-
-## Bước 44 — release hardening / nghiệm thu tích hợp
-
-- Tài liệu bàn giao và checklist: [`docs/BUOC44_SMOKE_TEST.md`](docs/BUOC44_SMOKE_TEST.md).
-- Danh sách biến môi trường mẫu: [`config/env.example`](config/env.example) (không chứa secret).
-- Mặc định Swagger chỉ dành cho **ADMIN**; trên môi trường `dev` có thể bật `OPENAPI_PUBLIC=true`.
-- Profile `prod` khóa seed và Swagger, yêu cầu kết nối DB qua ENV, bật cookie Secure (chỉ dùng HTTPS) và cấu hình Hibernate `validate` (cần schema SQL Server đã triển khai từ trước).
-- Trước khi release: kiểm thử `mvnw.cmd test` trên **Java 26**, khởi động SQL Server mới **và DB cũ đã sao lưu**; chỉ TV1/TV2 được sửa lỗi nghiệp vụ nằm trong phạm vi riêng của họ.
+| Thư mục/file | Nội dung |
+| --- | --- |
+| `src/main/java/vn/iotstar/` | Controller, service, entity, repository và cấu hình. |
+| `src/main/resources/templates/` | Giao diện Thymeleaf. |
+| `src/main/resources/static/` | CSS, JavaScript và ảnh có sẵn. |
+| `src/test/` | Kiểm thử. |
+| `database/` | Script SQL dùng khi tạo database local và các tác vụ dữ liệu riêng. |
+| `uploads/`, `private-uploads/` | File được tải lên khi dùng lưu trữ local. |

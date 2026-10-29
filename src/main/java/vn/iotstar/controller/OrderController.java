@@ -1,21 +1,36 @@
 package vn.iotstar.controller;
 
-import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.web.util.UriComponentsBuilder;
 import vn.iotstar.dto.WebForms.CheckoutForm;
+import vn.iotstar.dto.WebForms.ReviewForm;
+import vn.iotstar.dto.WebForms.ReturnRequestForm;
+import vn.iotstar.entity.DomainEnums.OrderStatus;
+import vn.iotstar.entity.DomainEnums.PaymentStatus;
+import vn.iotstar.entity.DomainEnums.ReturnReason;
+import vn.iotstar.entity.CustomerOrder;
+import vn.iotstar.entity.OrderItem;
+import vn.iotstar.entity.User;
+import vn.iotstar.repository.OrderItemRepository;
 import vn.iotstar.service.CartService;
+import vn.iotstar.service.CheckoutPaymentService;
 import vn.iotstar.service.CurrentUserService;
+import vn.iotstar.service.EngagementService;
 import vn.iotstar.service.OrderService;
 import vn.iotstar.service.ProfileService;
+import vn.iotstar.service.ReorderService;
+import vn.iotstar.service.ReturnRequestService;
 
 @Controller
 @RequiredArgsConstructor
@@ -24,88 +39,135 @@ public class OrderController {
     private final CartService cartService;
     private final ProfileService profileService;
     private final OrderService orderService;
-    private final vn.iotstar.service.ReturnRequestService returnRequestService;
-    private final vn.iotstar.service.EngagementService engagementService;
-    private final vn.iotstar.service.CheckoutPaymentService checkoutPaymentService;
-    private final vn.iotstar.service.VnPayService vnPayService;
-    private final vn.iotstar.service.MomoService momoService;
-    private final vn.iotstar.service.ReorderService reorderService;
+    private final EngagementService engagementService;
+    private final ReturnRequestService returnRequestService;
+    private final CheckoutPaymentService checkoutPaymentService;
+    private final ReorderService reorderService;
+    private final OrderItemRepository orderItemRepository;
 
     @GetMapping("/checkout")
-    String checkout(@ModelAttribute("checkoutForm") CheckoutForm form, BindingResult result,
+    String checkout(@RequestParam(required = false) List<Long> itemIds,
+                    @RequestParam(defaultValue = "false") boolean selectionSubmitted,
                     Model model, RedirectAttributes redirect) {
-        if (result.hasErrors()) { redirect.addFlashAttribute("error", "Thông tin thanh toán không hợp lệ."); return "redirect:/cart"; }
-        if (form.getPaymentMethod() == null) form.setPaymentMethod(vn.iotstar.entity.DomainEnums.PaymentMethod.COD);
-        model.addAttribute("vnPayAvailable", vnPayService.isConfigured());
-        model.addAttribute("momoAvailable", momoService.isConfigured());
-        var user = currentUserService.require();
-        var addresses = profileService.addresses(user);
-        if (addresses.isEmpty()) {
+        User user = currentUserService.require();
+        if (profileService.addresses(user).isEmpty()) {
             redirect.addFlashAttribute("error", "Bạn cần thêm địa chỉ nhận hàng trước.");
             return "redirect:/user/profile";
         }
+        CartService.CartSelection selection;
         try {
-            var selection = cartService.prepareCheckoutSelection(user, form.getItemIds());
-            form.setItemIds(selection.items().stream().map(i -> i.getId()).toList());
-            var carriers = orderService.activeCarriers();
-            if (form.getAddressId() == null) form.setAddressId(addresses.getFirst().getId());
-            if (form.getCarrierId() == null && !carriers.isEmpty()) form.setCarrierId(carriers.getFirst().getId());
-            model.addAttribute("selectedItems", selection.items()); model.addAttribute("addresses", addresses);
-            model.addAttribute("carriers", carriers); model.addAttribute("vouchers", orderService.availableVouchers(user));
-            model.addAttribute("pricesChanged", selection.pricesChanged());
-            if (form.getCarrierId() != null) {
-                try { model.addAttribute("voucherRecommendations", orderService.recommendVouchers(user, form.getCarrierId(), form.getItemIds())); }
-                catch (IllegalArgumentException ex) { model.addAttribute("error", ex.getMessage()); }
-                try { model.addAttribute("preview", orderService.preview(user, form.getCarrierId(), form.getVoucherCode(), form.getItemIds())); }
-                catch (IllegalArgumentException ex) { model.addAttribute("error", ex.getMessage()); }
-            }
-            return "cart/checkout";
+            selection = cartService.prepareSelection(user, itemIds, !selectionSubmitted);
         } catch (IllegalArgumentException ex) {
-            redirect.addFlashAttribute("error", ex.getMessage()); return "redirect:/cart";
+            redirect.addFlashAttribute("error", ex.getMessage());
+            return "redirect:/cart";
         }
+        CheckoutForm checkoutForm = new CheckoutForm();
+        checkoutForm.setItemIds(selection.items().stream().map(item -> item.getId()).toList());
+        model.addAttribute("selectedItems", selection.items());
+        model.addAttribute("selectedSubtotal", selection.subtotal());
+        model.addAttribute("priceChangedProducts", selection.repricing().changedProducts());
+        model.addAttribute("priceChangedNames", String.join(", ", selection.repricing().changedProducts()));
+        model.addAttribute("addresses", profileService.addresses(user));
+        model.addAttribute("carriers", orderService.activeCarriers());
+        model.addAttribute("vouchers", orderService.availableVouchers(user));
+        model.addAttribute("checkoutForm", checkoutForm);
+        return "cart/checkout";
     }
 
     @PostMapping("/checkout")
-    String checkout(@Valid @ModelAttribute("checkoutForm") CheckoutForm form, BindingResult result,
-                    HttpSession session, jakarta.servlet.http.HttpServletRequest request, RedirectAttributes redirect) {
+    String checkout(@Valid @ModelAttribute CheckoutForm checkoutForm, BindingResult result,
+                    RedirectAttributes redirect) {
         if (result.hasErrors()) {
-            redirect.addFlashAttribute("error", result.getAllErrors().getFirst().getDefaultMessage());
-            redirect.addFlashAttribute("checkoutForm", form); return redirectToCheckout(form.getItemIds());
+            if (checkoutForm.getItemIds() == null || checkoutForm.getItemIds().isEmpty()) {
+                redirect.addFlashAttribute("error", "Vui lòng chọn ít nhất một sản phẩm để thanh toán.");
+                return "redirect:/cart";
+            }
+            redirect.addFlashAttribute("error", "Vui lòng chọn địa chỉ và nhà vận chuyển.");
+            return redirectToCheckout(checkoutForm.getItemIds());
         }
         try {
-            var checkout = checkoutPaymentService.checkout(currentUserService.require(), form, request.getRemoteAddr());
-            var orders = checkout.orders();
-            session.removeAttribute("cartSelection"); session.removeAttribute("cartSelectionOwner");
-            if (checkout.paymentUrl() != null) return "redirect:" + checkout.paymentUrl();
-            redirect.addFlashAttribute("success", "Đặt hàng COD thành công: " + orders.stream()
-                .map(o -> o.getCode()).collect(Collectors.joining(", ")));
-            return "redirect:/orders";
+            var checkoutResult = checkoutPaymentService.checkout(currentUserService.require(), checkoutForm);
+            var orders = checkoutResult.orders();
+            if (checkoutResult.paymentUrl() != null) return "redirect:" + checkoutResult.paymentUrl();
+            String codes = orders.stream().map(order -> order.getCode()).collect(Collectors.joining(", "));
+            redirect.addFlashAttribute("success", "Đặt hàng COD thành công: " + codes);
+            UriComponentsBuilder resultUrl = UriComponentsBuilder.fromPath("/checkout/result");
+            orders.forEach(order -> resultUrl.queryParam("orderIds", order.getId()));
+            return "redirect:" + resultUrl.build().encode().toUriString();
         } catch (IllegalArgumentException ex) {
-            redirect.addFlashAttribute("error", ex.getMessage()); redirect.addFlashAttribute("checkoutForm", form);
-            return redirectToCheckout(form.getItemIds());
+            redirect.addFlashAttribute("error", ex.getMessage());
+            return redirectToCheckout(checkoutForm.getItemIds());
         }
     }
 
+    @GetMapping("/api/checkout/preview")
+    @ResponseBody
+    ResponseEntity<?> checkoutPreview(@RequestParam Long carrierId,
+                                      @RequestParam(required = false) String voucherCode,
+                                      @RequestParam List<Long> itemIds) {
+        try {
+            return ResponseEntity.ok(orderService.preview(currentUserService.require(), carrierId, voucherCode, itemIds));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
+        }
+    }
+
+    @GetMapping("/api/checkout/vouchers")
+    @ResponseBody
+    ResponseEntity<?> checkoutVouchers(@RequestParam Long carrierId, @RequestParam List<Long> itemIds) {
+        try {
+            return ResponseEntity.ok(orderService.recommendVouchers(currentUserService.require(), carrierId, itemIds));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
+        }
+    }
+
+    private String redirectToCheckout(List<Long> itemIds) {
+        UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/checkout")
+            .queryParam("selectionSubmitted", true);
+        if (itemIds != null) itemIds.forEach(id -> builder.queryParam("itemIds", id));
+        return "redirect:" + builder.build().encode().toUriString();
+    }
+
+    @GetMapping("/checkout/result")
+    String checkoutResult(@RequestParam(required = false) List<Long> orderIds, Model model) {
+        User user = currentUserService.require();
+        List<Long> ids = orderIds;
+        if (ids == null) ids = List.of();
+        if (ids.size() > 20) throw new IllegalArgumentException("Danh sách đơn hàng không hợp lệ.");
+        model.addAttribute("orders", ids.stream().distinct()
+            .map(id -> orderService.getForUser(user, id)).toList());
+        return "cart/result";
+    }
+
     @GetMapping("/orders")
-    String orders(@RequestParam(required = false) vn.iotstar.entity.DomainEnums.OrderStatus status,
+    String orders(@RequestParam(required = false) OrderStatus status,
                   @RequestParam(defaultValue = "0") int page, Model model) {
-        model.addAttribute("orders", orderService.forUser(currentUserService.require(), status, page));
-        model.addAttribute("statuses", vn.iotstar.entity.DomainEnums.OrderStatus.values());
+        var orders = orderService.forUser(currentUserService.require(), status, page);
+        var orderIds = orders.getContent().stream().map(CustomerOrder::getId).toList();
+        Map<Long, List<OrderItem>> previews = orderIds.isEmpty() ? Map.of() : orderItemRepository.findItemsForOrders(orderIds).stream()
+            .collect(Collectors.groupingBy(item -> item.getOrder().getId()));
+        model.addAttribute("orders", orders);
+        model.addAttribute("orderPreviews", previews);
+        model.addAttribute("returnRequests", returnRequestService.forOrders(orderIds));
+        model.addAttribute("statuses", OrderStatus.values());
         model.addAttribute("selectedStatus", status);
         return "orders/list";
     }
 
     @GetMapping("/orders/{id}")
     String detail(@PathVariable Long id, Model model) {
-        var user = currentUserService.require();
-        model.addAttribute("order", orderService.getForUser(user, id));
-        model.addAttribute("statusHistory", orderService.statusHistory(user, id));
-        model.addAttribute("returnRequest", returnRequestService.forOrder(user, id));
-        model.addAttribute("reviewedItemIds", engagementService.reviewedItemIds(user, id));
-        model.addAttribute("paymentTransaction", vnPayService.latestForOrder(user, id));
-        model.addAttribute("paymentNeedsReconciliation", vnPayService.needsReconciliation(user, id));
-        model.addAttribute("vnPayAvailable", vnPayService.isConfigured());
-        model.addAttribute("momoAvailable", momoService.isConfigured());
+        var order = orderService.getForUser(currentUserService.require(), id);
+        model.addAttribute("order", order);
+        model.addAttribute("cancelBlockReason", orderService.cancellationBlockReason(order));
+        model.addAttribute("statusHistory", orderService.statusHistory(order));
+        var returnRequest = returnRequestService.forOrder(order.getId());
+        model.addAttribute("returnRequest", returnRequest);
+        model.addAttribute("hasRefundBank", ReturnRequestService.hasSavedBank(currentUserService.require()));
+        model.addAttribute("returnStatusHistory", returnRequest == null ? List.of()
+            : returnRequestService.statusHistory(returnRequest.getId()));
+        model.addAttribute("paymentTransaction", orderService.displayTransactionForOrder(order.getId()));
+        model.addAttribute("reviewForm", new ReviewForm());
         return "orders/detail";
     }
 
@@ -113,164 +175,118 @@ public class OrderController {
     String reorder(@PathVariable Long id, RedirectAttributes redirect) {
         try {
             var result = reorderService.reorder(currentUserService.require(), id);
-            if (result.addedLines() > 0) redirect.addFlashAttribute("success", "Đã thêm " + result.addedLines() + " món vào giỏ với giá hiện tại.");
-            if (!result.skipped().isEmpty()) redirect.addFlashAttribute("error", String.join("; ", result.skipped()));
+            if (!result.skipped().isEmpty()) {
+                redirect.addFlashAttribute("reorderWarnings", result.skipped());
+            }
+            if (result.addedLines() == 0) {
+                redirect.addFlashAttribute("error", "Không có món nào còn đủ điều kiện để mua lại.");
+                return "redirect:/orders/" + id;
+            }
+            redirect.addFlashAttribute("success", "Đã thêm " + result.addedLines()
+                + " món từ đơn cũ vào giỏ theo giá hiện tại.");
             return "redirect:/cart";
         } catch (IllegalArgumentException ex) {
-            redirect.addFlashAttribute("error", ex.getMessage()); return "redirect:/orders/" + id;
+            redirect.addFlashAttribute("error", ex.getMessage());
+            return "redirect:/orders";
         }
     }
 
     @PostMapping("/orders/{id}/cancel")
     String cancel(@PathVariable Long id, RedirectAttributes redirect) {
         try {
-            checkoutPaymentService.cancel(currentUserService.require(), id);
-            redirect.addFlashAttribute("success", "Đã hủy đơn và hoàn lại tồn kho. Mã giảm giá được hoàn khi tất cả đơn trong checkout đã hủy.");
-        } catch (IllegalArgumentException ex) { redirect.addFlashAttribute("error", ex.getMessage()); }
+            orderService.cancelByUser(currentUserService.require(), id);
+            redirect.addFlashAttribute("success", "Đã hủy đơn hàng.");
+        } catch (IllegalArgumentException ex) {
+            redirect.addFlashAttribute("error", ex.getMessage());
+        }
         return "redirect:/orders/" + id;
     }
 
-    @InitBinder("returnRequestForm")
-    void trimReturnDescription(org.springframework.web.bind.WebDataBinder binder) {
-        binder.registerCustomEditor(String.class, new org.springframework.beans.propertyeditors.StringTrimmerEditor(true));
-    }
-
     @GetMapping("/orders/{id}/return")
-    String returnForm(@PathVariable Long id, Model model, RedirectAttributes redirect) {
-        var user = currentUserService.require();
-        var order = orderService.getForUser(user, id);
-        if (order.getStatus() != vn.iotstar.entity.DomainEnums.OrderStatus.DELIVERED
-            || order.getPaymentStatus() != vn.iotstar.entity.DomainEnums.PaymentStatus.PAID
-            || returnRequestService.forOrder(user, id) != null) {
-            redirect.addFlashAttribute("error", "Chỉ đơn đã giao và thanh toán, chưa có yêu cầu trả hàng mới được mở yêu cầu.");
+    String returnForm(@PathVariable Long id, Model model) {
+        var order = orderService.getForUser(currentUserService.require(), id);
+        if (order.getStatus() != OrderStatus.DELIVERED
+            || order.getPaymentStatus() != PaymentStatus.PAID
+            || returnRequestService.forOrder(id) != null) {
             return "redirect:/orders/" + id;
         }
-        var form = new vn.iotstar.dto.WebForms.ReturnRequestForm(); form.setRefundAmount(order.getTotalAmount());
+        ReturnRequestForm form = new ReturnRequestForm();
+        form.setRefundAmount(order.getTotalAmount());
         prepareReturnForm(model, order, form);
         return "orders/return-form";
     }
 
     @PostMapping("/orders/{id}/return")
     String requestReturn(@PathVariable Long id,
-            @Valid @ModelAttribute("returnRequestForm") vn.iotstar.dto.WebForms.ReturnRequestForm form,
-            BindingResult result, @RequestParam(required = false) org.springframework.web.multipart.MultipartFile[] evidence,
-            Model model, RedirectAttributes redirect) {
-        var user = currentUserService.require();
+                         @Valid @ModelAttribute("returnRequestForm") ReturnRequestForm form,
+                         BindingResult result,
+                         @RequestParam(required = false) MultipartFile[] evidence,
+                         Model model, RedirectAttributes redirect) {
+        User user = currentUserService.require();
         var order = orderService.getForUser(user, id);
-        if (!result.hasErrors()) {
-            try {
-                returnRequestService.create(user, id, form, evidence);
-                redirect.addFlashAttribute("success", "Đã gửi yêu cầu trả hàng. Shop sẽ xem xét bằng chứng của bạn.");
-                return "redirect:/orders/" + id;
-            } catch (IllegalArgumentException ex) { result.reject("return.invalid", ex.getMessage()); }
-            catch (IllegalStateException ex) { result.reject("return.upload", "Chưa thể lưu bằng chứng. Vui lòng thử lại."); }
+        if (result.hasErrors()) {
+            prepareReturnForm(model, order, form);
+            return "orders/return-form";
         }
-        prepareReturnForm(model, order, form);
-        return "orders/return-form";
+        try {
+            returnRequestService.create(user, id, form, evidence);
+        } catch (IllegalArgumentException ex) {
+            result.reject("return.invalid", ex.getMessage());
+            prepareReturnForm(model, order, form);
+            return "orders/return-form";
+        }
+        redirect.addFlashAttribute("success", "Đã gửi yêu cầu trả hàng. Shop sẽ xem xét bằng chứng của bạn.");
+        return "redirect:/orders/" + id;
     }
 
     @PostMapping("/orders/{id}/return/shipped")
     String markReturnShipped(@PathVariable Long id, RedirectAttributes redirect) {
         try {
             returnRequestService.markReturning(currentUserService.require(), id);
-            redirect.addFlashAttribute("success", "Đã xác nhận bạn đang gửi hàng trả về shop.");
-        } catch (IllegalArgumentException ex) { redirect.addFlashAttribute("error", ex.getMessage()); }
+            redirect.addFlashAttribute("success", "Đã báo cửa hàng bạn đã giao sản phẩm trả. Vui lòng chờ cửa hàng xác nhận đã nhận.");
+        } catch (IllegalArgumentException ex) {
+            redirect.addFlashAttribute("error", ex.getMessage());
+        }
         return "redirect:/orders/" + id;
     }
 
-    private void prepareReturnForm(Model model, vn.iotstar.entity.CustomerOrder order,
-            vn.iotstar.dto.WebForms.ReturnRequestForm form) {
-        model.addAttribute("order", order); model.addAttribute("returnRequestForm", form);
-        model.addAttribute("returnReasons", vn.iotstar.entity.DomainEnums.ReturnReason.values());
-    }
-
-    @InitBinder("reviewForm")
-    void trimReview(org.springframework.web.bind.WebDataBinder binder) {
-        binder.registerCustomEditor(String.class, new org.springframework.beans.propertyeditors.StringTrimmerEditor(true));
+    @PostMapping("/orders/{id}/return/bank")
+    String selectReturnBank(@PathVariable Long id, @RequestParam String refundBankAccount,
+                            RedirectAttributes redirect) {
+        try {
+            if (!"SAVED".equals(refundBankAccount)) {
+                throw new IllegalArgumentException("Vui lòng chọn tài khoản ngân hàng đã lưu.");
+            }
+            returnRequestService.selectRefundBank(currentUserService.require(), id);
+            redirect.addFlashAttribute("success", "Đã lưu tài khoản nhận tiền hoàn cho yêu cầu này.");
+        } catch (IllegalArgumentException ex) {
+            redirect.addFlashAttribute("error", ex.getMessage());
+        }
+        return "redirect:/orders/" + id;
     }
 
     @PostMapping("/orders/{orderId}/items/{itemId}/review")
     String review(@PathVariable Long orderId, @PathVariable Long itemId,
-            @Valid @ModelAttribute("reviewForm") vn.iotstar.dto.WebForms.ReviewForm form, BindingResult result,
-            @RequestParam(required = false) org.springframework.web.multipart.MultipartFile[] media, RedirectAttributes redirect) {
-        var user = currentUserService.require(); orderService.getForUser(user, orderId);
-        if (result.hasErrors()) redirect.addFlashAttribute("error", "Cần 1–5 sao và nhận xét từ 50 đến 3.000 ký tự.");
-        else {
-            try {
-                engagementService.addReview(user, orderId, itemId, form, media);
-                redirect.addFlashAttribute("success", "Cảm ơn bạn đã đánh giá sản phẩm.");
-            } catch (IllegalArgumentException ex) { redirect.addFlashAttribute("error", ex.getMessage()); }
-            catch (IllegalStateException ex) { redirect.addFlashAttribute("error", "Chưa thể lưu media đánh giá. Vui lòng thử lại."); }
+                  @Valid @ModelAttribute ReviewForm reviewForm, BindingResult result,
+                  @RequestParam(required = false) MultipartFile[] media,
+                  RedirectAttributes redirect) {
+        if (result.hasErrors()) {
+            redirect.addFlashAttribute("error", "Đánh giá cần 1-5 sao và bình luận tối thiểu 50 ký tự.");
+        } else {
+            engagementService.addReview(currentUserService.require(), itemId, reviewForm, media);
+            redirect.addFlashAttribute("success", "Cảm ơn bạn đã đánh giá sản phẩm.");
         }
         return "redirect:/orders/" + orderId;
     }
 
-    @PostMapping("/orders/{id}/payment/retry")
-    String retryPayment(@PathVariable Long id, jakarta.servlet.http.HttpServletRequest request, RedirectAttributes redirect) {
-        try {
-            var buyer = currentUserService.require();
-            var owned = orderService.getForUser(buyer, id);
-            return "redirect:" + (owned.getPaymentMethod() == vn.iotstar.entity.DomainEnums.PaymentMethod.MOMO
-                ? momoService.retryPaymentUrl(buyer, id, request.getRemoteAddr())
-                : vnPayService.retryPaymentUrl(buyer, id, request.getRemoteAddr()));
-        }
-        catch (IllegalArgumentException ex) { redirect.addFlashAttribute("error", ex.getMessage()); return "redirect:/orders/" + id; }
+    private void prepareReturnForm(Model model, vn.iotstar.entity.CustomerOrder order, ReturnRequestForm form) {
+        form.setRefundAmount(order.getTotalAmount());
+        model.addAttribute("order", order);
+        model.addAttribute("returnRequestForm", form);
+        model.addAttribute("returnReasons", ReturnReason.values());
+        User user = currentUserService.require();
+        model.addAttribute("refundBank", user);
+        model.addAttribute("hasRefundBank", ReturnRequestService.hasSavedBank(user));
     }
 
-    @GetMapping("/payments/momo/return")
-    String momoReturn(RedirectAttributes redirect) {
-        redirect.addFlashAttribute("success", "Đã trở về từ MoMo. Trạng thái đơn được cập nhật sau xác nhận từ cổng thanh toán.");
-        return "redirect:/orders";
-    }
-
-    @PostMapping("/payments/momo/ipn") @ResponseBody
-    org.springframework.http.ResponseEntity<Void> momoIpn(@RequestBody java.util.Map<String, Object> payload) {
-        var callback = new java.util.HashMap<String, String>();
-        payload.forEach((key, value) -> { if (value != null) callback.put(key, value.toString()); });
-        try {
-            var result = momoService.processCallback(callback);
-            return org.springframework.http.ResponseEntity.status(result.valid() ? 204 : 400).build();
-        } catch (RuntimeException ex) { return org.springframework.http.ResponseEntity.status(503).build(); }
-    }
-
-    @GetMapping("/payments/vnpay/return")
-    String paymentReturn(jakarta.servlet.http.HttpServletRequest request, RedirectAttributes redirect) {
-        try {
-            var parameters = paymentParameters(request);
-            redirect.addFlashAttribute(vnPayService.returnSuccessful(parameters) ? "success" : "error", vnPayService.returnMessage(parameters));
-        }
-        catch (IllegalArgumentException ex) { redirect.addFlashAttribute("error", "Thông tin phản hồi thanh toán không hợp lệ."); }
-        return "redirect:/orders";
-    }
-
-    @GetMapping("/payments/vnpay/ipn") @ResponseBody
-    java.util.Map<String,String> paymentIpn(jakarta.servlet.http.HttpServletRequest request) {
-        try {
-            var result = vnPayService.processCallback(paymentParameters(request));
-            return java.util.Map.of("RspCode", result.responseCode(), "Message", result.message());
-        } catch (IllegalArgumentException ex) { return java.util.Map.of("RspCode", "97", "Message", "Invalid parameters"); }
-        catch (RuntimeException ex) { return java.util.Map.of("RspCode", "99", "Message", "Processing error"); }
-    }
-
-    private java.util.Map<String,String> paymentParameters(jakarta.servlet.http.HttpServletRequest request) {
-        var result = new java.util.TreeMap<String,String>();
-        request.getParameterMap().forEach((key, values) -> {
-            if (key.startsWith("vnp_")) {
-                if (values == null || values.length != 1) throw new IllegalArgumentException("Duplicate payment parameter");
-                result.put(key, values[0]);
-            }
-        });
-        return result;
-    }
-
-    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
-    @ResponseStatus(org.springframework.http.HttpStatus.BAD_REQUEST)
-    void invalidParameter() {}
-
-    private String redirectToCheckout(List<Long> ids) {
-        if (ids == null || ids.isEmpty()) return "redirect:/cart";
-        var builder = UriComponentsBuilder.fromPath("/checkout");
-        ids.stream().filter(java.util.Objects::nonNull).forEach(id -> builder.queryParam("itemIds", id));
-        return "redirect:" + builder.build().encode().toUriString();
-    }
 }

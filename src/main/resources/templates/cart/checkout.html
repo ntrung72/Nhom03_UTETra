@@ -2,92 +2,303 @@
 <html lang="vi" xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments/layout :: head('Thanh toán')}"></head>
 <body>
-<header th:replace="~{fragments/layout :: header}"></header>
-<main class="container py-4 py-lg-5">
-    <div th:replace="~{fragments/layout :: flash}"></div>
-    <h1 class="h3 mb-3">Thanh toán</h1>
-    <div class="alert alert-info" th:if="${pricesChanged}">Giá đã được cập nhật. Vui lòng kiểm tra tổng tiền trước khi đặt hàng.</div>
-    <div class="alert alert-warning" th:if="${carriers.empty}">Hiện chưa có nhà vận chuyển khả dụng. Vui lòng quay lại sau.</div>
-    <form th:action="@{/checkout}" method="post" th:object="${checkoutForm}" class="row g-4">
-        <input type="hidden" name="itemIds" th:each="id : *{itemIds}" th:value="${id}">
-        <div class="col-12">
-            <fieldset class="panel p-4">
-                <legend class="h5">Phương thức thanh toán</legend>
-                <label class="form-check"><input class="form-check-input" type="radio" th:field="*{paymentMethod}" value="COD"> Thanh toán khi nhận hàng (COD)</label>
-                <label class="form-check"><input class="form-check-input" type="radio" th:field="*{paymentMethod}" value="VNPAY" th:disabled="${!vnPayAvailable}"> Thanh toán online qua VNPay</label>
-                <small class="text-muted" th:if="${!vnPayAvailable}">Thanh toán online hiện chưa sẵn sàng. Bạn có thể chọn COD.</small>
-                <small class="text-muted d-block" th:if="${vnPayAvailable}">Với VNPay, các đơn cùng lần đặt hàng được thanh toán chung; khi hủy sẽ hủy toàn bộ các đơn chưa thanh toán của lần đặt hàng đó.</small>
-                <div class="form-check mt-2">
-                    <input class="form-check-input" type="radio" th:field="*{paymentMethod}" value="MOMO" th:disabled="${!momoAvailable}">
-                    <label class="form-check-label" for="paymentMethod3">Ví MoMo Sandbox</label>
-                    <small class="text-muted d-block" th:unless="${momoAvailable}">MoMo chưa được cấu hình. Bạn có thể chọn COD hoặc VNPay nếu sẵn sàng.</small>
-                </div>
-            </fieldset>
+    <header th:replace="~{fragments/layout :: header}"></header>
+<main class="container pt-3 pt-lg-4 pb-4 pb-lg-5">
+        <div th:replace="~{fragments/layout :: flash}"></div>
+        <div class="mb-4">
+            <h1 class="h3 mb-1">Xác nhận và thanh toán</h1>
+            <p class="text-muted mb-0">Kiểm tra địa chỉ, đơn vị vận chuyển và số tiền cuối cùng trước khi đặt hàng.</p>
         </div>
-        <section class="col-lg-7">
-            <div class="panel p-4 mb-4">
-                <h2 class="h5">Thông tin nhận hàng</h2>
-                <label for="addressId" class="form-label">Địa chỉ</label>
-                <select class="form-select mb-3" th:field="*{addressId}" required>
-                    <option th:each="a : ${addresses}" th:value="${a.id}" th:text="${a.receiverName + ' · ' + a.phone + ' · ' + a.fullAddress}"></option>
-                </select>
-                <a th:href="@{/user/profile(tab='addresses')}" class="small">Quản lý địa chỉ</a>
-                <label for="carrierId" class="form-label d-block mt-3">Nhà vận chuyển</label>
-                <select class="form-select mb-3" th:field="*{carrierId}" required>
-                    <option th:each="c : ${carriers}" th:value="${c.id}" th:text="${c.name + ' · ' + #numbers.formatDecimal(c.shippingFee,0,'COMMA',0,'POINT') + ' ₫/shop'}"></option>
-                </select>
-                <label for="voucherCode" class="form-label">Mã giảm giá</label>
-                <input class="form-control" th:field="*{voucherCode}" maxlength="40" list="checkout-vouchers" placeholder="Không bắt buộc">
-                <datalist id="checkout-vouchers"><option th:each="v : ${vouchers}" th:value="${v.code}" th:text="${v.name + ' · ' + v.type.label}"></option></datalist>
-                <p class="small text-muted mt-2">Điều kiện mã được kiểm tra trên tiền hàng sau khuyến mãi.</p>
-                <section class="my-3" th:if="${voucherRecommendations != null and !#lists.isEmpty(voucherRecommendations)}" aria-label="Gợi ý voucher">
-                    <h3 class="h6">Mã phù hợp cho giỏ hàng của bạn</h3>
-                    <div class="border rounded p-2 mb-2" th:each="v, iter : ${voucherRecommendations}">
-                        <span class="badge text-bg-success" th:if="${iter.first and v.eligible and v.saving.signum() > 0}">Tiết kiệm nhất</span>
-                        <strong th:text="${v.name}"></strong><small class="d-block" th:text="${v.code}"></small>
-                        <span th:if="${v.eligible}" th:text="|Giảm ${#numbers.formatDecimal(v.saving,0,'COMMA',0,'POINT')} ₫|"></span>
-                        <small class="text-muted" th:unless="${v.eligible}" th:text="${v.reason}"></small>
-                        <a class="btn btn-sm btn-outline-primary ms-2" th:if="${v.eligible}"
-                           th:href="@{/checkout(itemIds=${checkoutForm.itemIds},addressId=${checkoutForm.addressId},carrierId=${checkoutForm.carrierId},paymentMethod=${checkoutForm.paymentMethod},voucherCode=${v.code})}">Dùng mã</a>
+        <div class="row g-4">
+            <div class="col-lg-8">
+                <form id="checkoutForm" class="checkout-steps" th:action="@{/checkout}" th:object="${checkoutForm}" method="post">
+                    <input th:each="itemId : ${checkoutForm.itemIds}" type="hidden" name="itemIds" th:value="${itemId}">
+                    <div class="checkout-step card p-3 p-md-4">
+                        <div class="checkout-step-heading"><span class="checkout-step-number">1</span><div><h2>Địa chỉ nhận hàng</h2><p>Chọn nơi bạn muốn nhận trà sữa.</p></div></div>
+                        <label class="form-check selection-card p-3 ps-5 mb-2" th:each="a : ${addresses}">
+                            <input class="form-check-input" type="radio" th:field="*{addressId}" th:value="${a.id}" required>
+                            <span class="form-check-label">
+                                <strong th:text="${a.receiverName}"></strong> — <span th:text="${a.phone}"></span><br>
+                                <span th:text="${a.fullAddress}"></span>
+                            </span>
+                        </label>
+                        <a class="checkout-step-link" th:href="@{/user/profile}"><i class="bi bi-plus-circle me-1"></i>Thêm hoặc sửa địa chỉ</a>
                     </div>
-                </section>
-                <label for="note" class="form-label">Ghi chú cho shop</label>
-                <textarea class="form-control" rows="3" th:field="*{note}" maxlength="500"></textarea>
-                <button class="btn btn-outline-primary mt-3" type="submit" formmethod="get" th:formaction="@{/checkout}">Cập nhật tổng tiền</button>
-            </div>
-            <div class="panel p-4">
-                <h2 class="h5">Sản phẩm đã chọn</h2>
-                <article class="border-bottom py-3" th:each="i : ${selectedItems}">
-                    <strong th:text="${i.product.name}"></strong>
-                    <small class="d-block text-muted" th:text="${i.product.shop.name}"></small>
-                    <div class="small" th:if="${i.size != null}">
-                        <span th:text="${'Size ' + i.size + ' · ' + i.sugarLevel.label + ' · ' + i.iceLevel.label}"></span>
-                        <span th:if="${i.toppings != null}" th:text="${' · ' + i.toppings}"></span>
+
+                    <div class="checkout-step card p-3 p-md-4">
+                        <div class="checkout-step-heading"><span class="checkout-step-number">2</span><div><h2>Vận chuyển</h2><p>Phí giao hàng được tính theo từng cửa hàng.</p></div></div>
+                        <label class="form-label fw-bold" for="carrierId">Nhà vận chuyển</label>
+                        <select class="form-select" th:field="*{carrierId}" required>
+                            <option value="">-- Chọn nhà vận chuyển --</option>
+                            <option th:each="c : ${carriers}" th:value="${c.id}"
+                                    th:text="${c.name + ' — ' + #numbers.formatDecimal(c.shippingFee,0,'COMMA',0,'POINT') + ' ₫/shop'}"></option>
+                        </select>
                     </div>
-                    <div th:text="${i.quantity + ' × ' + #numbers.formatDecimal(i.unitPrice,0,'COMMA',0,'POINT') + ' ₫'}"></div>
-                </article>
+
+                    <div class="checkout-step card p-3 p-md-4">
+                        <div class="checkout-step-heading"><span class="checkout-step-number">3</span><div><h2>Voucher</h2><p>Hệ thống gợi ý mã tiết kiệm nhất; bạn vẫn có thể chọn mã khác.</p></div></div>
+                        <label class="form-label fw-bold" for="voucherCode">Mã giảm giá</label>
+                        <select class="form-select" th:field="*{voucherCode}">
+                            <option value="">Không sử dụng mã giảm giá</option>
+                            <option th:each="v : ${vouchers}" th:value="${v.code}"
+                                    th:text="${v.code + ' — ' + v.name + ' · Tối đa ' + v.effectiveMaxUsesPerUser + ' lượt/người'}"></option>
+                        </select>
+                        <small class="text-muted">Điều kiện tiền hàng tối thiểu được tính sau khuyến mãi sản phẩm.</small>
+                        <div class="voucher-recommendations mt-3" id="voucherRecommendations" aria-live="polite">
+                            <p class="text-muted small mb-0">Chọn nhà vận chuyển để xem mức tiết kiệm và điều kiện của từng mã.</p>
+                        </div>
+                    </div>
+
+                    <div class="checkout-step card p-3 p-md-4">
+                        <div class="checkout-step-heading"><span class="checkout-step-number">4</span><div><h2>Thanh toán</h2><p>Chọn COD hoặc chuyển khoản trước qua payOS.</p></div></div>
+                        <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="selection-card payment-option d-flex align-items-center gap-3 p-3 h-100">
+                                <input class="form-check-input m-0" type="radio" th:field="*{paymentMethod}" value="COD" required>
+                                <span><strong class="d-block">COD</strong><small class="text-muted">Thanh toán khi nhận hàng</small></span>
+                            </label>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="selection-card payment-option d-flex align-items-center gap-3 p-3 h-100">
+                                <input class="form-check-input m-0" type="radio" th:field="*{paymentMethod}" value="BANK_TRANSFER" required>
+                                <span><strong class="d-block">Chuyển khoản QR qua payOS</strong><small class="text-muted">Quét QR bằng ứng dụng hỗ trợ; payOS tự xác nhận thanh toán</small></span>
+                            </label>
+                        </div>
+                        </div>
+                    </div>
+
+                    <div class="checkout-step card p-3 p-md-4">
+                        <div class="checkout-step-heading"><span class="checkout-step-number">5</span><div><h2>Xác nhận đơn hàng</h2><p>Kiểm tra tổng tiền bên phải trước khi đặt.</p></div></div>
+                        <label class="form-label fw-bold" for="note">Ghi chú cho cửa hàng <span class="text-muted fw-normal">(không bắt buộc)</span></label>
+                        <textarea class="form-control" th:field="*{note}" rows="3" placeholder="Ví dụ: gọi trước khi giao..."></textarea>
+                        <button id="placeOrderButton" class="btn btn-primary btn-lg mt-4 w-100" type="submit" disabled>
+                            <i id="placeOrderIcon" class="bi bi-bag-check me-1"></i><span id="placeOrderLabel" aria-live="polite">Đặt hàng COD</span>
+                        </button>
+                        <div id="checkoutFormState" class="checkout-form-state" role="alert" hidden></div>
+                        <small class="text-muted d-block mt-2">Mỗi lần bấm chỉ gửi một yêu cầu. Giá và tồn kho sẽ được kiểm tra lại trước khi tạo đơn.</small>
+                    </div>
+                </form>
             </div>
-        </section>
-        <aside class="col-lg-5">
-            <div class="panel p-4" th:if="${preview != null}">
-                <h2 class="h5">Chi tiết thanh toán</h2>
-                <dl class="row mb-3">
-                    <dt class="col-7">Tiền hàng trước giảm</dt><dd class="col-5 text-end" th:text="${#numbers.formatDecimal(preview.subtotal,0,'COMMA',0,'POINT') + ' ₫'}"></dd>
-                    <dt class="col-7">Khuyến mãi sản phẩm</dt><dd class="col-5 text-end" th:text="${'-' + #numbers.formatDecimal(preview.productDiscount,0,'COMMA',0,'POINT') + ' ₫'}"></dd>
-                    <dt class="col-7">Mã giảm tiền hàng</dt><dd class="col-5 text-end" th:text="${'-' + #numbers.formatDecimal(preview.voucherDiscount,0,'COMMA',0,'POINT') + ' ₫'}"></dd>
-                    <dt class="col-7">Phí giao hàng</dt><dd class="col-5 text-end" th:text="${#numbers.formatDecimal(preview.shippingFee,0,'COMMA',0,'POINT') + ' ₫'}"></dd>
-                    <dt class="col-7">Giảm phí giao hàng</dt><dd class="col-5 text-end" th:text="${'-' + #numbers.formatDecimal(preview.shippingDiscount,0,'COMMA',0,'POINT') + ' ₫'}"></dd>
-                    <dt class="col-7">Phí giao còn lại</dt><dd class="col-5 text-end" th:text="${#numbers.formatDecimal(preview.finalShippingFee,0,'COMMA',0,'POINT') + ' ₫'}"></dd>
-                </dl>
-                <div class="d-flex justify-content-between border-top pt-3"><strong>Tổng thanh toán</strong><strong class="price" th:text="${#numbers.formatDecimal(preview.totalAmount,0,'COMMA',0,'POINT') + ' ₫'}"></strong></div>
-                <p class="small text-muted mt-3" th:text="${'Tách thành ' + preview.shopCount + ' đơn theo shop. Tổng tiền được xác nhận theo phương thức bạn chọn.'}"></p>
-                <button class="btn btn-primary w-100 btn-lg">Xác nhận đặt hàng</button>
+
+            <div class="col-lg-4">
+                <div class="card p-4 position-sticky checkout-summary"
+                     id="checkoutSummary" th:attr="data-preview-url=@{/api/checkout/preview},data-voucher-url=@{/api/checkout/vouchers}">
+                    <h2 class="h5 mb-3"><i class="bi bi-receipt me-2 text-primary"></i>Tóm tắt đơn hàng</h2>
+                    <div class="alert alert-warning py-2 px-3 small" th:if="${priceChangedProducts != null and !priceChangedProducts.empty}">
+                        <i class="bi bi-exclamation-triangle me-1"></i>
+                        <strong>Giá sản phẩm đã thay đổi.</strong>
+                        <span th:text="${priceChangedNames}"></span> — tổng tiền đã cập nhật theo giá hiện tại.
+                    </div>
+                    <div class="d-flex justify-content-between gap-3 py-2 border-bottom" th:each="i : ${selectedItems}">
+                        <span>
+                            <span th:text="${i.product.name}"></span>
+                            <small class="d-block text-muted" th:if="${i.size != null}"
+                                   th:text="${'Size ' + i.size + ' · ' + i.sugarLevel.label + ' · ' + i.iceLevel.label + (i.toppings == null ? '' : ' · ' + i.toppings)}"></small>
+                            <small class="d-block text-muted" th:text="${#numbers.formatDecimal(i.effectiveUnitPrice,0,'COMMA',0,'POINT') + ' ₫/ly'}"></small>
+                        </span>
+                        <strong class="text-nowrap" th:text="${'× ' + i.quantity}"></strong>
+                    </div>
+
+                    <div class="checkout-price-breakdown mt-3" aria-live="polite">
+                        <div class="checkout-price-row"><span>Giá gốc món + tùy chọn</span><strong data-amount="subtotal" th:text="${#numbers.formatDecimal(selectedSubtotal,0,'COMMA',0,'POINT')} + ' ₫'"></strong></div>
+                        <div class="checkout-price-row text-success"><span>Giảm promotion</span><strong data-amount="productDiscount">−0 ₫</strong></div>
+                        <div class="checkout-price-row text-success"><span>Giảm voucher</span><strong data-amount="voucherDiscount">−0 ₫</strong></div>
+                        <div class="checkout-price-row"><span>Phí vận chuyển</span><strong data-amount="shippingFee">0 ₫</strong></div>
+                        <div class="checkout-price-row text-success"><span>Giảm phí vận chuyển</span><strong data-amount="shippingDiscount">−0 ₫</strong></div>
+                        <div class="checkout-final-row"><span>Tổng thanh toán</span><strong data-amount="totalAmount">—</strong></div>
+                    </div>
+                    <div class="checkout-preview-state mt-3" id="previewState">
+                        <i class="bi bi-truck"></i><span>Chọn nhà vận chuyển để xem tổng thanh toán chính xác.</span>
+                    </div>
+                    <small class="text-muted d-block mt-2" id="shopCountNote">Hệ thống tự tách đơn theo từng cửa hàng.</small>
+                </div>
             </div>
-            <a class="btn btn-light mt-3" th:href="@{/cart}">Quay lại giỏ hàng</a>
-        </aside>
-    </form>
-</main>
-<footer th:replace="~{fragments/layout :: footer}"></footer>
-<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+        </div>
+    </main>
+    <footer th:replace="~{fragments/layout :: footer}"></footer>
+    <th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+    <script>
+    (() => {
+        const carrier = document.getElementById('carrierId');
+        const voucher = document.getElementById('voucherCode');
+        const recommendations = document.getElementById('voucherRecommendations');
+        const summary = document.getElementById('checkoutSummary');
+        const state = document.getElementById('previewState');
+        const form = document.getElementById('checkoutForm');
+        const formState = document.getElementById('checkoutFormState');
+        const submit = document.getElementById('placeOrderButton');
+        const submitIcon = document.getElementById('placeOrderIcon');
+        const shopNote = document.getElementById('shopCountNote');
+        const paymentMethods = document.querySelectorAll('input[name="paymentMethod"]');
+        const placeOrderLabel = document.getElementById('placeOrderLabel');
+        const money = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 });
+        let requestController;
+        let manualVoucherSelection = false;
+        let submitting = false;
+
+        const renderRecommendations = data => {
+            recommendations.replaceChildren();
+            const heading = document.createElement('div');
+            heading.className = 'voucher-recommendations-heading';
+            heading.textContent = data.bestCode
+                ? `Gợi ý mã tiết kiệm nhất: ${data.bestCode}`
+                : 'Chưa có mã phù hợp với giỏ hàng hiện tại';
+            recommendations.append(heading);
+
+            const selectedCode = voucher.value;
+            voucher.replaceChildren(new Option('Không sử dụng mã giảm giá', ''));
+            const list = document.createElement('div');
+            list.className = 'voucher-recommendations-list';
+            for (const candidate of data.vouchers) {
+                const saving = money.format(Number(candidate.savings || 0));
+                const missing = money.format(Number(candidate.missingAmount || 0));
+                const option = new Option(candidate.applicable
+                    ? `${candidate.code} — Tiết kiệm ${saving}`
+                    : candidate.missingAmount > 0
+                        ? `${candidate.code} — Cần thêm ${missing}`
+                        : `${candidate.code} — ${candidate.condition}`, candidate.code);
+                option.disabled = !candidate.applicable;
+                voucher.add(option);
+
+                const card = document.createElement('button');
+                card.type = 'button';
+                card.className = `voucher-recommendation${candidate.code === data.bestCode ? ' is-best' : ''}`;
+                card.disabled = !candidate.applicable;
+                const title = document.createElement('strong');
+                title.textContent = `${candidate.code} · ${candidate.name}`;
+                const detail = document.createElement('span');
+                detail.textContent = candidate.applicable
+                    ? `Tiết kiệm ${saving}${candidate.code === data.bestCode ? ' · Tốt nhất' : ''}`
+                    : candidate.missingAmount > 0
+                        ? `Chưa áp dụng: cần thêm ${missing} tiền hàng sau khuyến mãi`
+                        : `Chưa áp dụng: ${candidate.condition}`;
+                card.append(title, detail);
+                if (candidate.applicable) card.addEventListener('click', () => {
+                    voucher.value = candidate.code;
+                    manualVoucherSelection = true;
+                    updatePreview();
+                });
+                list.append(card);
+            }
+            recommendations.append(list);
+            const selectedStillValid = data.vouchers.some(item => item.code === selectedCode && item.applicable);
+            if (manualVoucherSelection && (selectedCode === '' || selectedStillValid)) {
+                voucher.value = selectedCode;
+            } else {
+                voucher.value = data.bestCode || '';
+                manualVoucherSelection = false;
+            }
+            for (const card of list.children) {
+                card.classList.toggle('is-selected', card.querySelector('strong').textContent.startsWith(`${voucher.value} ·`) && !!voucher.value);
+            }
+        };
+
+        const setAmount = (name, value, negative = false) => {
+            const amount = Number(value || 0);
+            summary.querySelector(`[data-amount="${name}"]`).textContent = `${negative ? '−' : ''}${money.format(amount)}`;
+        };
+        const showState = (message, type, spinning = false) => {
+            state.className = `checkout-preview-state mt-3 is-${type}`;
+            state.innerHTML = `<i class="bi ${spinning ? 'bi-arrow-repeat preview-spin' : ['error', 'warning'].includes(type) ? 'bi-exclamation-circle' : 'bi-check-circle'}"></i><span></span>`;
+            state.querySelector('span').textContent = message;
+            formState.hidden = type !== 'error' && type !== 'warning';
+            if (!formState.hidden) {
+                formState.className = `checkout-form-state is-${type}`;
+                formState.textContent = message;
+            }
+        };
+        const resetPreview = () => {
+            setAmount('productDiscount', 0, true);
+            setAmount('voucherDiscount', 0, true);
+            setAmount('shippingFee', 0);
+            setAmount('shippingDiscount', 0, true);
+            summary.querySelector('[data-amount="totalAmount"]').textContent = '—';
+            submit.disabled = true;
+        };
+        const updatePreview = async () => {
+            if (submitting) return;
+            if (!carrier.value) {
+                requestController?.abort();
+                resetPreview();
+                recommendations.textContent = 'Chọn nhà vận chuyển để xem mức tiết kiệm của từng mã.';
+                showState('Chọn nhà vận chuyển để xem tổng thanh toán chính xác.', 'idle');
+                return;
+            }
+            requestController?.abort();
+            requestController = new AbortController();
+            submit.disabled = true;
+            showState('Đang cập nhật ưu đãi và phí vận chuyển...', 'loading', true);
+            const params = new URLSearchParams({ carrierId: carrier.value });
+            document.querySelectorAll('#checkoutForm input[name="itemIds"]').forEach(input => params.append('itemIds', input.value));
+            try {
+                const voucherResponse = await fetch(`${summary.dataset.voucherUrl}?${params}`, {
+                    headers: { 'Accept': 'application/json' }, signal: requestController.signal
+                });
+                const voucherData = await voucherResponse.json();
+                if (!voucherResponse.ok) throw new Error(voucherData.message || 'Không thể kiểm tra mã giảm giá.');
+                renderRecommendations(voucherData);
+                if (voucher.value) params.set('voucherCode', voucher.value);
+                const response = await fetch(`${summary.dataset.previewUrl}?${params}`, {
+                    headers: { 'Accept': 'application/json' }, signal: requestController.signal
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.message || 'Không thể tính tổng thanh toán.');
+                setAmount('subtotal', data.subtotal);
+                setAmount('productDiscount', data.productDiscount, true);
+                setAmount('voucherDiscount', data.voucherDiscount, true);
+                setAmount('shippingFee', data.shippingFee);
+                setAmount('shippingDiscount', data.shippingDiscount, true);
+                setAmount('totalAmount', data.totalAmount);
+                shopNote.textContent = data.shopCount > 1
+                    ? `Giỏ hàng được tách thành ${data.shopCount} đơn; phí vận chuyển đã tính cho từng cửa hàng.`
+                    : 'Giỏ hàng được giao từ 1 cửa hàng.';
+                if (data.pricesChanged) {
+                    const products = data.changedProducts?.length ? ` (${data.changedProducts.join(', ')})` : '';
+                    showState(`Giá sản phẩm đã thay đổi${products}. Tổng tiền đã được cập nhật.`, 'warning');
+                } else {
+                    showState('Tổng tiền đã được cập nhật chính xác.', 'success');
+                }
+                submit.disabled = false;
+            } catch (error) {
+                if (error.name === 'AbortError') return;
+                resetPreview();
+                showState(error.message, 'error');
+            }
+        };
+        carrier.addEventListener('change', updatePreview);
+        voucher.addEventListener('change', () => {
+            manualVoucherSelection = true;
+            updatePreview();
+        });
+        const updatePaymentLabel = () => {
+            if (submitting) return;
+            const selected = document.querySelector('input[name="paymentMethod"]:checked')?.value;
+            placeOrderLabel.textContent = selected === 'BANK_TRANSFER' ? 'Tạo đơn và xem mã QR' : 'Đặt hàng COD';
+        };
+        paymentMethods.forEach(input => input.addEventListener('change', updatePaymentLabel));
+        form.addEventListener('submit', event => {
+            if (submitting || submit.disabled) {
+                event.preventDefault();
+                return;
+            }
+            submitting = true;
+            requestController?.abort();
+            submit.disabled = true;
+            form.setAttribute('aria-busy', 'true');
+            submitIcon.className = 'bi bi-arrow-repeat preview-spin me-1';
+            placeOrderLabel.textContent = 'Đang xử lý đơn hàng...';
+        });
+        window.addEventListener('pageshow', event => {
+            if (!event.persisted) return;
+            submitting = false;
+            form.removeAttribute('aria-busy');
+            submitIcon.className = 'bi bi-bag-check me-1';
+            updatePaymentLabel();
+            updatePreview();
+        });
+        updatePaymentLabel();
+        if (carrier.value) updatePreview();
+    })();
+    </script>
 </body>
 </html>

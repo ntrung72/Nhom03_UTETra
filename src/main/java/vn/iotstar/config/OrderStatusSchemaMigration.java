@@ -14,11 +14,6 @@ import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
-/**
- * Hibernate's ddl-auto=update does not widen an existing SQL Server enum check
- * constraint when Java enum values are added. Keep legacy databases compatible
- * with the Vendor -> Shipper workflow without requiring users to recreate data.
- */
 @Slf4j
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 1)
@@ -44,6 +39,8 @@ public class OrderStatusSchemaMigration implements ApplicationRunner {
         ensureConstraint("order_status_history", "old_status", "ck_order_status_history_old_status");
         ensureConstraint("order_status_history", "new_status", "ck_order_status_history_new_status");
         ensurePaymentStatusConstraint();
+        ensureShipperAssignmentStatusConstraint();
+        repairCancelledShipperAssignments();
         ensurePaymentMethodConstraint();
         ensurePaymentTransactionStatusConstraint();
         ensureReturnStatusConstraint();
@@ -78,34 +75,59 @@ public class OrderStatusSchemaMigration implements ApplicationRunner {
         log.info("Đã bảo đảm ràng buộc trạng thái thanh toán của đơn hàng.");
     }
 
+    private void ensureShipperAssignmentStatusConstraint() {
+        List<CheckConstraint> matches = constraintsFor("customer_orders").stream()
+            .filter(constraint -> references(constraint.definition(), "shipper_assignment_status")).toList();
+        boolean current = matches.stream().anyMatch(constraint -> {
+            String definition = constraint.definition().toUpperCase(Locale.ROOT);
+            return definition.contains("EXPIRED") && definition.contains("CANCELLED");
+        });
+        if (current) return;
+        matches.forEach(constraint -> {
+            requireSafeIdentifier(constraint.name());
+            jdbcTemplate.execute("ALTER TABLE customer_orders DROP CONSTRAINT " + constraint.name());
+        });
+        jdbcTemplate.execute("ALTER TABLE customer_orders ADD CONSTRAINT ck_customer_orders_shipper_assignment_status "
+            + "CHECK (shipper_assignment_status IN ('PENDING','ACCEPTED','REJECTED','EXPIRED','CANCELLED'))");
+        log.info("Đã cập nhật ràng buộc trạng thái phân công shipper.");
+    }
+
+    private void repairCancelledShipperAssignments() {
+        int updated = jdbcTemplate.update("UPDATE customer_orders "
+            + "SET shipper_assignment_status = 'CANCELLED', shipper_reminder_sent_at = NULL "
+            + "WHERE status = 'CANCELLED' AND shipper_assignment_status IS NOT NULL "
+            + "AND shipper_assignment_status <> 'CANCELLED'");
+        if (updated > 0) log.info("Đã đồng bộ trạng thái phân công cho {} đơn hàng cũ đã hủy.", updated);
+    }
+
     private void ensurePaymentMethodConstraint() {
         List<CheckConstraint> matches = constraintsFor("customer_orders").stream()
             .filter(constraint -> references(constraint.definition(), "payment_method")).toList();
         boolean alreadyCurrent = matches.stream()
-            .anyMatch(constraint -> constraint.definition().toUpperCase(Locale.ROOT).contains("VNPAY"));
+            .anyMatch(constraint -> constraint.definition().toUpperCase(Locale.ROOT).contains("BANK_TRANSFER"));
         if (alreadyCurrent) return;
         matches.forEach(constraint -> {
             requireSafeIdentifier(constraint.name());
             jdbcTemplate.execute("ALTER TABLE customer_orders DROP CONSTRAINT " + constraint.name());
         });
         jdbcTemplate.execute("ALTER TABLE customer_orders ADD CONSTRAINT ck_customer_orders_payment_method "
-            + "CHECK (payment_method IN ('COD','VNPAY'))");
-        log.info("Đã cập nhật ràng buộc phương thức thanh toán COD/VNPay.");
+            + "CHECK (payment_method IN ('COD','VNPAY','MOMO','BANK_TRANSFER'))");
+        log.info("Đã cập nhật ràng buộc phương thức thanh toán cho chuyển khoản QR.");
     }
 
     private void ensurePaymentTransactionStatusConstraint() {
         List<CheckConstraint> matches = constraintsFor("payment_transactions").stream()
             .filter(constraint -> references(constraint.definition(), "status")).toList();
         boolean alreadyCurrent = matches.stream()
-            .anyMatch(constraint -> constraint.definition().toUpperCase(Locale.ROOT).contains("EXPIRED"));
+            .anyMatch(constraint -> constraint.definition().toUpperCase(Locale.ROOT).contains("AWAITING_REVIEW"));
         if (alreadyCurrent) return;
         matches.forEach(constraint -> {
             requireSafeIdentifier(constraint.name());
             jdbcTemplate.execute("ALTER TABLE payment_transactions DROP CONSTRAINT " + constraint.name());
         });
         jdbcTemplate.execute("ALTER TABLE payment_transactions ADD CONSTRAINT ck_payment_transactions_status "
-            + "CHECK (status IN ('PENDING','SUCCESS','FAILED','CANCELLED','EXPIRED'))");
-        log.info("Đã cập nhật ràng buộc trạng thái giao dịch VNPay với trạng thái hết hạn.");
+            + "CHECK (status IN ('PENDING','AWAITING_REVIEW','SUCCESS','FAILED','CANCELLED','EXPIRED'))");
+        log.info("Đã cập nhật ràng buộc trạng thái giao dịch chuyển khoản chờ xác nhận.");
     }
 
     private void ensureReturnStatusConstraint() {

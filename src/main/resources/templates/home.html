@@ -1,217 +1,104 @@
 <!doctype html>
 <html lang="vi" xmlns:th="http://www.thymeleaf.org">
-
 <head th:replace="~{fragments/layout :: head('Trang chủ')}"></head>
-
 <body>
-
 <header th:replace="~{fragments/layout :: header}"></header>
-
 <div th:replace="~{fragments/layout :: flash}"></div>
 
-<main>
-
-    <section class="hero discovery-hero">
-        <div class="container">
-            <div class="row align-items-center">
-                <div class="col-lg-8">
-
-                    <span class="badge rounded-pill text-bg-warning mb-3">
-                        TRÀ NGON · NHIỀU CỬA HÀNG
-                    </span>
-
-                    <h1>
-                        Chạm vị tươi,
-                        <br>
-                        kết nối chất UTE.
-                    </h1>
-
-                    <p class="lead">
-                        Khám phá trà sữa, trà trái cây và cà phê từ chuỗi
-                        cửa hàng UTETra. Tìm món yêu thích và khám phá
-                        thông tin sản phẩm trước khi lựa chọn.
-                    </p>
-
-                    <form class="search-box d-flex mt-4 position-relative"
-                          th:action="@{/products}"
-                          method="get">
-
-                        <input class="form-control form-control-lg"
-                               name="q" aria-label="Tìm sản phẩm"
-                               placeholder="Bạn đang thèm món gì?">
-
-                        <button class="btn btn-danger px-4" type="submit">
-                            <i class="bi bi-search"></i>
-                            Tìm
-                        </button>
-
-                    </form>
-
+<main class="home-page">
+    <section class="hero home-hero" aria-labelledby="home-hero-title">
+        <div class="container home-hero-grid">
+            <div class="home-hero-copy">
+                <span class="home-hero-kicker"><i class="bi bi-mortarboard-fill" aria-hidden="true"></i> Cảm hứng từ nhịp sống sinh viên UTE</span>
+                <h1 id="home-hero-title">Nạp vị ngon.<br><span>Bật chất UTE.</span></h1>
+                <p class="lead">Giữa những giờ học và ý tưởng mới, luôn có một ly trà sữa đúng gu tiếp năng lượng cho bạn. Khám phá UTETra và chọn món yêu thích ngay hôm nay!</p>
+                <div class="home-hero-actions">
+                    <a class="btn btn-lg home-hero-primary" th:href="@{/products}">Khám phá menu</a>
+                    <a class="btn btn-lg home-hero-secondary" th:href="@{/products(discounted=true)}">Xem món đang giảm giá</a>
+                </div>
+                <div class="home-hero-benefits" aria-label="Điểm nổi bật của UTETra">
+                    <span><i class="bi bi-cup-straw" aria-hidden="true"></i> Trà sữa đúng gu</span>
+                    <span><i class="bi bi-lightning-charge-fill" aria-hidden="true"></i> Năng lượng sáng tạo</span>
+                    <span><i class="bi bi-shield-check" aria-hidden="true"></i> COD, chuyển khoản QR</span>
                 </div>
             </div>
-        </div>
-    </section>
-
-    <section class="container py-5">
-
-        <div class="d-flex justify-content-between
-                    align-items-center mb-4">
-
-            <h2 class="section-title mb-0">
-                Danh mục nổi bật
-            </h2>
-
-            <a th:href="@{/products}"
-               class="text-decoration-none">
-
-                Xem tất cả
-                <i class="bi bi-arrow-right"></i>
-            </a>
-
-        </div>
-
-        <div class="row row-cols-2 row-cols-md-4 g-3">
-
-            <div class="col"
-                 th:each="category : ${categories}">
-
-                <a class="text-decoration-none text-dark"
-                   th:href="@{/products(category=${category.id})}">
-
-                    <div class="category-card">
-
-                        <img th:src="${#strings.isEmpty(category.imageUrl) ? '/images/logo.svg' : category.imageUrl}"
-                             th:alt="${category.name}">
-
-                        <h6 class="fw-bold mt-2 mb-0"
-                            th:text="${category.name}">
-                            Danh mục
-                        </h6>
-
-                    </div>
-
+            <div class="home-hero-visual">
+                <img class="home-hero-mascot" th:src="@{/images/utetra-hero-mascot-2d.svg}" src="/images/utetra-hero-mascot-2d.svg" alt="Linh vật trà sữa UTETra 2D đội mũ tốt nghiệp, má hồng và vẫy tay" width="480" height="550">
+                <a class="home-hero-featured" th:if="${heroProduct != null}" th:href="@{/products/{id}(id=${heroProduct.id})}">
+                    <span class="home-hero-featured-label">Món bán chạy</span>
+                    <strong th:text="${heroProduct.name}">Trà sữa yêu thích</strong>
+                    <span th:text="|Đã bán ${heroProduct.soldCount} ly|">Đã bán nhiều ly</span>
                 </a>
-
             </div>
-
         </div>
-
     </section>
 
-    <section class="container pb-5">
-
-        <div class="d-flex flex-wrap gap-2 mb-4">
-            <a class="btn btn-outline-primary" th:href="@{/products(sort='newest')}">Sản phẩm mới</a>
-            <a class="btn btn-outline-primary" th:href="@{/products(sort='bestselling')}">Bán chạy nhất</a>
-            <a class="btn btn-outline-primary" th:href="@{/products(sort='rating')}">Đánh giá cao</a>
-            <a class="btn btn-outline-primary" th:href="@{/products(sort='favorite')}">Yêu thích nhất</a>
+    <section class="container home-section home-best-sellers" id="ban-chay" aria-labelledby="home-best-heading">
+        <div class="home-section-heading">
+            <div><h2 id="home-best-heading" class="section-title">Bán chạy trên 10 ly</h2><p>Các món bán chạy từ các cửa hàng, xếp theo số ly đã bán giảm dần.</p></div>
+            <a class="home-section-link" th:href="@{/products(sort='bestselling')}">Xem thêm</a>
         </div>
+        <div class="home-product-grid" th:if="${!#lists.isEmpty(bestSellers)}">
+            <div class="home-bestseller-item" th:each="product, stat : ${bestSellers}">
+                <span class="home-rank-badge" th:text="|#${stat.count}|" th:aria-label="|Hạng ${stat.count} bán chạy|">#1</span>
+                <div th:replace="~{fragments/product-card :: card(${product})}"></div>
+            </div>
+        </div>
+        <div class="empty-state panel" th:if="${#lists.isEmpty(bestSellers)}"><i class="bi bi-cup-straw"></i><p class="mb-2">Chưa có món đạt trên 10 ly đã bán.</p><a th:href="@{/products}">Khám phá toàn bộ thực đơn</a></div>
+    </section>
 
-        <div class="d-flex justify-content-between
-                    align-items-end mb-4">
-
-            <div>
-
-                <span class="text-danger fw-bold">
-                    BÁN CHẠY
+    <section class="container home-section home-categories" aria-labelledby="home-categories-heading">
+        <div class="home-section-heading">
+            <div><h2 id="home-categories-heading" class="section-title">Chọn danh mục bạn thích</h2></div>
+            <a class="home-section-link" th:href="@{/products}">Xem tất cả</a>
+        </div>
+        <div class="home-category-grid" th:if="${!#lists.isEmpty(categories)}">
+            <a class="category-card home-category-card" th:each="category : ${categories}" th:href="@{/products(category=${category.id})}">
+                <span class="home-category-visual">
+                    <img th:if="${category.imageUrl != null and !category.imageUrl.isBlank()}" th:src="${category.imageUrl}" th:alt="${category.name}" loading="lazy">
+                    <i th:unless="${category.imageUrl != null and !category.imageUrl.isBlank()}" class="bi bi-cup-straw" aria-hidden="true"></i>
                 </span>
-
-                <h2 class="section-title mb-0">
-                    Sản phẩm đã bán trên 10 ly
-                </h2>
-
-                <p class="text-muted mb-0">
-                    Sắp xếp từ số lượng bán cao xuống thấp.
-                </p>
-
-            </div>
-
-            <a th:href="@{/products(sort='bestselling')}"
-               class="btn btn-outline-primary">
-                Xem top 20
+                <strong th:text="${category.name}">Trà sữa</strong>
+                <small class="home-category-description" th:if="${category.description != null and !category.description.isBlank()}" th:text="${category.description}">Hương vị yêu thích</small>
             </a>
-
         </div>
-
-        <div class="row row-cols-2 row-cols-md-3
-                    row-cols-xl-4 g-4"
-             th:if="${!#lists.isEmpty(bestSellers)}">
-
-            <th:block th:each="product : ${bestSellers}">
-
-                <div th:replace="~{fragments/product-card
-                     :: card(${product})}">
-                </div>
-
-            </th:block>
-
-        </div>
-
-        <div class="empty-state panel"
-             th:if="${#lists.isEmpty(bestSellers)}">
-
-            <i class="bi bi-cup-straw fs-1"></i>
-
-            <p>
-                Chưa có sản phẩm đạt trên 10 lượt bán.
-            </p>
-
-        </div>
-
+        <div class="empty-state panel" th:if="${#lists.isEmpty(categories)}"><i class="bi bi-grid"></i><p class="mb-0">Danh mục đang được cập nhật.</p></div>
     </section>
 
-    <section class="container pb-5">
-
-        <h2 class="section-title mb-4">
-            Cửa hàng trong chuỗi
-        </h2>
-
-        <div class="row g-4">
-
-            <div class="col-md-6"
-                 th:each="shop : ${shops}">
-
-                <a class="text-decoration-none text-dark"
-                   th:href="@{/shops/{slug}(slug=${shop.slug})}">
-
-                    <article class="panel shop-list-card d-flex gap-3
-                                    align-items-center">
-
-                        <img class="shop-list-image"
-                             th:src="${#strings.isEmpty(shop.imageUrl) ? '/images/logo.svg' : shop.imageUrl}"
-                             th:alt="${shop.name}"
-                             width="110"
-                             height="85">
-
-                        <div>
-
-                            <h5 class="fw-bold mb-1"
-                                th:text="${shop.name}">
-                                Shop
-                            </h5>
-
-                            <p class="text-muted mb-0 truncate-2"
-                               th:text="${shop.description}">
-                                Mô tả cửa hàng
-                            </p>
-
-                        </div>
-
-                    </article>
-
-                </a>
-
+    <section class="home-promotion-band" th:if="${!#lists.isEmpty(promotions)}" aria-labelledby="home-promotions-heading">
+        <div class="container home-section">
+            <div class="home-section-heading">
+                <div><h2 id="home-promotions-heading" class="section-title">Món ngon, giá tốt</h2><p>Giá hiển thị là giá khuyến mãi hiện tại của sản phẩm.</p></div>
+                <a class="home-section-link" th:href="@{/products(discounted=true)}">Xem tất cả ưu đãi</a>
             </div>
-
+            <div class="home-product-grid">
+                <th:block th:each="product : ${promotions}"><div th:replace="~{fragments/product-card :: card(${product})}"></div></th:block>
+            </div>
         </div>
-
     </section>
 
+    <section class="container home-section" th:if="${!#lists.isEmpty(featuredProducts)}" aria-labelledby="home-featured-heading">
+        <div class="home-section-heading">
+            <div><h2 id="home-featured-heading" class="section-title">Sản phẩm nổi bật</h2><p>Ưu tiên món được đánh giá cao và còn hàng.</p></div>
+            <a class="home-section-link" th:href="@{/products(sort='rating')}">Xem thêm</a>
+        </div>
+        <div class="home-product-grid">
+            <th:block th:each="product : ${featuredProducts}"><div th:replace="~{fragments/product-card :: card(${product})}"></div></th:block>
+        </div>
+    </section>
+
+    <section id="cua-hang" class="container home-section home-shops" th:if="${!#lists.isEmpty(shopSpotlights)}" aria-labelledby="home-shops-heading">
+        <div class="home-section-heading">
+            <div><h2 id="home-shops-heading" class="section-title">Cửa hàng nổi bật</h2><p>Các chi nhánh đang hoạt động, ưu tiên đánh giá cao.</p></div>
+            <a class="home-section-link" th:href="@{/shops}">Xem tất cả cửa hàng</a>
+        </div>
+        <div class="home-shop-grid">
+            <th:block th:each="spotlight : ${shopSpotlights}"><div th:replace="~{fragments/shop-card :: card(${spotlight})}"></div></th:block>
+        </div>
+    </section>
 </main>
 
 <footer th:replace="~{fragments/layout :: footer}"></footer>
-
 <th:block th:replace="~{fragments/layout :: scripts}"></th:block>
-
 </body>
 </html>

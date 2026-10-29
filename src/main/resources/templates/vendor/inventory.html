@@ -1,266 +1,48 @@
 <!doctype html>
 <html lang="vi" xmlns:th="http://www.thymeleaf.org">
-<head th:replace="~{fragments/layout :: head('Quản lý tồn kho')}"></head>
+<head th:replace="~{fragments/layout :: head('Lịch sử kho')}"></head>
 <body>
 <header th:replace="~{fragments/layout :: header}"></header>
-
 <main class="container py-4">
+    <div class="admin-dashboard-shell">
     <div th:replace="~{fragments/vendor-nav :: nav}"></div>
+    <div class="admin-dashboard-content">
     <div th:replace="~{fragments/layout :: flash}"></div>
-
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-        <div>
-            <h1 class="h3 mb-1">
-                <i class="bi bi-box-seam me-2"></i>Quản lý tồn kho
-            </h1>
-            <p class="text-muted mb-0" th:text="${shop.name}">
-                Tên cửa hàng
-            </p>
-        </div>
-
-        <a class="btn btn-outline-primary"
-           th:href="@{/vendor/products}">
-            <i class="bi bi-grid me-1"></i>
-            Sản phẩm của tôi
-        </a>
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div><h1 class="h3 mb-1">Lịch sử nhập xuất kho</h1><p class="text-muted mb-0">Theo dõi từng thay đổi số lượng, đơn hàng và người thực hiện.</p></div>
+        <a class="btn btn-outline-primary" th:href="@{/vendor/products}">Sản phẩm của tôi</a>
     </div>
-
-    <section class="card shadow-sm mb-4">
-        <div class="card-body">
-            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-                <h2 class="h5 mb-0">
-                    <i class="bi bi-exclamation-triangle text-warning me-2"></i>
-                    Sản phẩm tồn kho thấp
-                </h2>
-                <span class="badge text-bg-warning"
-                      th:text="|${#lists.size(lowStockProducts)} sản phẩm|">
-                    0 sản phẩm
-                </span>
-            </div>
-
-            <p class="text-muted small"
-               th:text="|Hiển thị sản phẩm của cửa hàng còn ${lowStockThreshold} đơn vị trở xuống, bao gồm sản phẩm hết hàng hoặc đang ẩn.|">
-                Hiển thị sản phẩm có tồn kho thấp.
-            </p>
-
-            <div th:if="${#lists.isEmpty(lowStockProducts)}"
-                 class="alert alert-success mb-0">
-                Chưa có sản phẩm nào ở mức tồn kho thấp.
-            </div>
-
-            <div th:if="${!#lists.isEmpty(lowStockProducts)}"
-                 class="table-responsive">
-                <table class="table align-middle mb-0">
-                    <thead>
-                    <tr>
-                        <th>Sản phẩm</th>
-                        <th>SKU</th>
-                        <th class="text-end">Tồn kho</th>
-                        <th>Trạng thái</th>
-                        <th class="text-end">Thao tác</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    <tr th:each="product : ${lowStockProducts}">
-                        <td class="fw-semibold"
-                            th:text="${product.name}">
-                            Tên sản phẩm
-                        </td>
-                        <td th:text="${product.sku}">SKU</td>
-                        <td class="text-end">
-                            <span class="badge"
-                                  th:classappend="${product.stock == 0}
-                                      ? 'text-bg-danger'
-                                      : 'text-bg-warning'"
-                                  th:text="${product.stock}">
-                                0
-                            </span>
-                        </td>
-                        <td th:text="${product.status.label}">
-                            Trạng thái
-                        </td>
-                        <td class="text-end text-nowrap">
-                            <a class="btn btn-sm btn-outline-primary"
-                               th:href="@{/vendor/products/{id}/edit(id=${product.id})}">
-                                Cập nhật kho
-                            </a>
-                            <a class="btn btn-sm btn-outline-secondary"
-                               th:href="@{/vendor/inventory(productId=${product.id})}">
-                                Lịch sử
-                            </a>
-                        </td>
-                    </tr>
-                    </tbody>
-                </table>
-            </div>
+    <form class="card p-3 mb-3" method="get" th:action="@{/vendor/inventory}">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-9"><label class="form-label" for="productId">Lọc theo sản phẩm</label><select class="form-select" id="productId" name="productId"><option value="">Tất cả sản phẩm</option><option th:each="product : ${products}" th:value="${product.id}" th:selected="${product.id == selectedProductId}" th:text="${product.name + ' (' + product.sku + ')'}"></option></select></div>
+            <div class="col-md-3"><button class="btn btn-primary w-100">Xem lịch sử</button></div>
         </div>
-    </section>
-
-    <section>
-        <h2 class="h5 mb-3">
-            <i class="bi bi-clock-history me-2"></i>
-            Lịch sử nhập xuất kho
-        </h2>
-
-        <form class="card shadow-sm p-3 mb-3"
-              method="get"
-              th:action="@{/vendor/inventory}">
-            <div class="row g-3 align-items-end">
-                <div class="col-md-8">
-                    <label class="form-label" for="productId">
-                        Lọc lịch sử theo sản phẩm
-                    </label>
-                    <select class="form-select"
-                            id="productId"
-                            name="productId">
-                        <option value="">Tất cả sản phẩm</option>
-                        <option th:each="product : ${products}"
-                                th:value="${product.id}"
-                                th:selected="${product.id == selectedProductId}"
-                                th:text="|${product.name} (${product.sku})|">
-                            Sản phẩm
-                        </option>
-                    </select>
-                </div>
-                <div class="col-md-4">
-                    <div class="d-flex gap-2">
-                        <button class="btn btn-primary flex-grow-1"
-                                type="submit">
-                            Xem lịch sử
-                        </button>
-                        <a class="btn btn-outline-secondary"
-                           th:href="@{/vendor/inventory}">
-                            Bỏ lọc
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </form>
-
-        <p class="text-muted small"
-           th:text="|Tìm thấy ${transactions.totalElements} biến động kho.|">
-            Số biến động kho
-        </p>
-
-        <div class="card shadow-sm">
-            <div class="table-responsive">
-                <table class="table align-middle mb-0">
-                    <thead>
-                    <tr>
-                        <th>Thời gian</th>
-                        <th>Sản phẩm</th>
-                        <th>Nghiệp vụ</th>
-                        <th class="text-end">Thay đổi</th>
-                        <th class="text-end">Tồn trước → sau</th>
-                        <th>Người thực hiện</th>
-                        <th>Đơn hàng / ghi chú</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    <tr th:each="entry : ${transactions.content}">
-                        <td class="text-nowrap"
-                            th:text="${#temporals.format(entry.createdAt, 'dd/MM/yyyy HH:mm:ss')}">
-                            Thời gian
-                        </td>
-                        <td>
-                            <span class="fw-semibold"
-                                  th:text="${entry.productName}">
-                                Tên sản phẩm
-                            </span>
-                            <small class="d-block text-muted"
-                                   th:text="${entry.productSku}">
-                                SKU
-                            </small>
-                        </td>
-                        <td class="text-nowrap"
-                            th:text="${entry.type.label}">
-                            Nghiệp vụ
-                        </td>
-                        <td class="text-end fw-bold"
-                            th:classappend="${entry.quantityChange > 0}
-                                ? 'text-success'
-                                : (${entry.quantityChange < 0}
-                                    ? 'text-danger'
-                                    : 'text-muted')"
-                            th:text="${entry.quantityChange > 0
-                                ? '+' + entry.quantityChange
-                                : entry.quantityChange}">
-                            Thay đổi
-                        </td>
-                        <td class="text-end text-nowrap"
-                            th:text="|${entry.stockBefore} → ${entry.stockAfter}|">
-                            Tồn trước → sau
-                        </td>
-                        <td th:text="${entry.actor.fullName}">
-                            Người thực hiện
-                        </td>
-                        <td>
-                            <span th:if="${entry.order != null}"
-                                  class="badge text-bg-light border mb-1"
-                                  th:text="${entry.order.code}">
-                                Mã đơn hàng
-                            </span>
-                            <span class="d-block small"
-                                  th:text="${entry.note}">
-                                Ghi chú
-                            </span>
-                        </td>
-                    </tr>
-                    <tr th:if="${transactions.empty}">
-                        <td colspan="7"
-                            class="text-center text-muted py-4">
-                            Chưa có biến động kho phù hợp.
-                        </td>
-                    </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <nav class="mt-3"
-             th:if="${transactions.totalPages > 1}"
-             aria-label="Phân trang lịch sử kho">
-            <ul class="pagination justify-content-center flex-wrap">
-                <li class="page-item"
-                    th:classappend="${transactions.first} ? 'disabled'">
-                    <span th:if="${transactions.first}"
-                          class="page-link">
-                        Trước
-                    </span>
-                    <a th:if="${!transactions.first}"
-                       class="page-link"
-                       th:href="@{/vendor/inventory(page=${transactions.number - 1},productId=${selectedProductId})}">
-                        Trước
-                    </a>
-                </li>
-
-                <li class="page-item"
-                    th:each="i : ${#numbers.sequence(0, transactions.totalPages - 1)}"
-                    th:classappend="${i == transactions.number} ? 'active'">
-                    <a class="page-link"
-                       th:href="@{/vendor/inventory(page=${i},productId=${selectedProductId})}"
-                       th:text="${i + 1}">
-                        Trang
-                    </a>
-                </li>
-
-                <li class="page-item"
-                    th:classappend="${transactions.last} ? 'disabled'">
-                    <span th:if="${transactions.last}"
-                          class="page-link">
-                        Sau
-                    </span>
-                    <a th:if="${!transactions.last}"
-                       class="page-link"
-                       th:href="@{/vendor/inventory(page=${transactions.number + 1},productId=${selectedProductId})}">
-                        Sau
-                    </a>
-                </li>
-            </ul>
-        </nav>
-    </section>
+    </form>
+    <div class="table-responsive card">
+        <table class="table align-middle mb-0">
+            <thead><tr><th>Thời gian</th><th>Sản phẩm</th><th>Nghiệp vụ</th><th class="text-end">Thay đổi</th><th class="text-end">Tồn trước → sau</th><th>Người thực hiện</th><th>Ghi chú / đơn</th></tr></thead>
+            <tbody>
+            <tr th:each="entry : ${transactions.content}">
+                <td class="text-nowrap" th:text="${#temporals.format(entry.createdAt, 'dd/MM/yyyy HH:mm')}"></td>
+                <td><b th:text="${entry.productName}"></b><small class="d-block text-muted" th:text="${entry.productSku}"></small></td>
+                <td th:text="${entry.type.label}"></td>
+                <td class="text-end fw-bold" th:classappend="${entry.quantityChange > 0} ? 'text-success' : 'text-danger'" th:text="${entry.quantityChange > 0 ? '+' + entry.quantityChange : entry.quantityChange}"></td>
+                <td class="text-end text-nowrap" th:text="|${entry.stockBefore} → ${entry.stockAfter}|"></td>
+                <td th:text="${entry.actor.fullName}"></td>
+                <td><span th:if="${entry.order != null}" class="badge text-bg-light me-1" th:text="${entry.order.code}"></span><span th:text="${entry.note}"></span></td>
+            </tr>
+            <tr th:if="${transactions.empty}"><td colspan="7" class="text-center text-muted py-4">Chưa có biến động kho phù hợp.</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <nav class="mt-3" th:if="${transactions.totalPages > 1}" aria-label="Phân trang lịch sử kho"><ul class="pagination justify-content-center">
+        <li class="page-item" th:classappend="${transactions.first} ? 'disabled'"><a class="page-link" th:href="@{/vendor/inventory(page=${transactions.number - 1},productId=${selectedProductId})}">Trước</a></li>
+        <li class="page-item" th:each="i : ${#numbers.sequence(0, transactions.totalPages - 1)}" th:classappend="${i == transactions.number} ? 'active'"><a class="page-link" th:href="@{/vendor/inventory(page=${i},productId=${selectedProductId})}" th:text="${i + 1}"></a></li>
+        <li class="page-item" th:classappend="${transactions.last} ? 'disabled'"><a class="page-link" th:href="@{/vendor/inventory(page=${transactions.number + 1},productId=${selectedProductId})}">Sau</a></li>
+    </ul></nav>
+    </div>
+    </div>
 </main>
-
 <footer th:replace="~{fragments/layout :: footer}"></footer>
 <th:block th:replace="~{fragments/layout :: scripts}"></th:block>
 </body>

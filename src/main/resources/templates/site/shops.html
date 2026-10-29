@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Cửa hàng UTETra')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="container pt-3 pt-lg-4 pb-4 pb-lg-5 shop-directory">
+    <div th:replace="~{fragments/layout :: flash}"></div>
+    <div class="home-section-heading">
+        <div><h1 class="section-title">Tìm cửa hàng của bạn</h1><p>Khám phá các chi nhánh đang hoạt động, địa chỉ và món ngon của từng nơi.</p></div>
+        <a class="home-section-link" th:href="@{/}">Về trang chủ <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+    </div>
+    <a class="btn btn-outline-primary mb-4" th:if="${currentUser != null and (currentUser.role.name() == 'USER' or currentUser.role.name() == 'VENDOR')}"
+       th:href="@{/user/followed-shops}"><i class="bi bi-heart me-1"></i>Cửa hàng tôi theo dõi</a>
+    <div class="home-shop-grid" th:if="${!#lists.isEmpty(shopSpotlights)}">
+        <th:block th:each="spotlight : ${shopSpotlights}"><div th:replace="~{fragments/shop-card :: card(${spotlight})}"></div></th:block>
+    </div>
+    <div class="empty-state panel" th:if="${#lists.isEmpty(shopSpotlights)}"><i class="bi bi-shop"></i><p class="mb-0">Cửa hàng đang được cập nhật.</p></div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

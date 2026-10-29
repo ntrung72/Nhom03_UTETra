@@ -1,5 +1,6 @@
 package vn.iotstar.service;
 
+import vn.iotstar.util.VietnamTime;
 import java.text.Normalizer;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -24,8 +25,9 @@ import vn.iotstar.util.SlugUtils;
 public class SearchSuggestionService {
     private static final int MAX_QUERY_LENGTH = 80;
     private final CatalogService catalogService;
+    private final CategoryRepository categoryRepository;
+    private final ShopRepository shopRepository;
     private final SearchHistoryRepository historyRepository;
-    private final vn.iotstar.repository.UserRepository userRepository;
 
     @Transactional(readOnly = true)
     public SearchSuggestions suggest(String rawQuery, User user) {
@@ -46,14 +48,12 @@ public class SearchSuggestionService {
         }
 
         String slugQuery = SlugUtils.toSlug(matchingQuery);
-        List<ShopHint> shops = catalogService.shops().stream()
-            .filter(shop -> normalized(shop.getName()).contains(normalized(matchingQuery))
-                || shop.getSlug().contains(slugQuery))
-            .limit(3).map(shop -> new ShopHint(shop.getSlug(), shop.getName())).toList();
+        List<ShopHint> shops = shopRepository.suggestPublic(matchingQuery, slugQuery, ShopStatus.APPROVED,
+            PageRequest.of(0, 3)).stream().map(shop -> new ShopHint(shop.getSlug(), shop.getName())).toList();
         LinkedHashSet<String> related = new LinkedHashSet<>();
-        catalogService.categories().stream().map(category -> category.getName())
-            .filter(name -> normalized(name).contains(normalized(matchingQuery)))
-            .limit(5).forEach(related::add);
+        categoryRepository.suggestPublic(matchingQuery, slugQuery, PageRequest.of(0, 5)).stream()
+            .map(category -> category.getName())
+            .forEach(related::add);
         found.stream().map(Product::getName).filter(name -> !name.equalsIgnoreCase(matchingQuery))
             .forEach(related::add);
         return new SearchSuggestions(products, shops, new ArrayList<>(related).stream().limit(5).toList(),
@@ -65,7 +65,6 @@ public class SearchSuggestionService {
         if (user == null) return;
         String keyword = clean(rawQuery);
         if (keyword == null || keyword.chars().noneMatch(Character::isLetterOrDigit)) return;
-        userRepository.findByIdForUpdate(user.getId()).orElseThrow();
         String normalizedKeyword = normalized(keyword);
         SearchHistory history = historyRepository.findByUserIdAndNormalizedKeyword(user.getId(), normalizedKeyword)
             .orElseGet(() -> {
@@ -76,10 +75,8 @@ public class SearchSuggestionService {
             });
         if (history.getId() != null) history.setSearchCount(history.getSearchCount() + 1);
         history.setKeyword(keyword);
-        history.setSearchedAt(LocalDateTime.now());
+        history.setSearchedAt(VietnamTime.now());
         historyRepository.save(history);
-        historyRepository.findByUserIdOrderBySearchedAtDescIdDesc(user.getId(), PageRequest.of(0, 1000))
-            .stream().skip(20).forEach(historyRepository::delete);
     }
 
     @Transactional

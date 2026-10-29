@@ -37,7 +37,7 @@ class CustomerAreaSecurityTests {
     }
 
     @Test
-    void staffCannotUseCustomerPagesOrReadApis() throws Exception {
+    void staffCannotUseCustomerPagesOrCheckoutApi() throws Exception {
         for (String role : new String[] {"MANAGER", "ADMIN", "SHIPPER"}) {
             String home = "SHIPPER".equals(role) ? "/shipper" : "/management";
             for (String path : new String[] {"/user", "/user/profile", "/cart", "/checkout", "/orders", "/orders/123"}) {
@@ -46,7 +46,7 @@ class CustomerAreaSecurityTests {
             }
             mockMvc.perform(post("/cart/add/123").with(user("staff-" + role).roles(role)).with(csrf()))
                 .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl(home));
-            mockMvc.perform(get("/api/cart").with(user("staff-" + role).roles(role)))
+            mockMvc.perform(get("/api/checkout/preview").with(user("staff-" + role).roles(role)))
                 .andExpect(status().isForbidden());
         }
     }
@@ -61,8 +61,8 @@ class CustomerAreaSecurityTests {
             mockMvc.perform(get("/checkout").with(user(username).roles(role)))
                 .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/user/profile"));
             mockMvc.perform(get("/orders").with(user(username).roles(role))).andExpect(status().isOk());
-            mockMvc.perform(get("/api/cart").with(user(username).roles(role)))
-                .andExpect(status().isOk());
+            mockMvc.perform(get("/api/checkout/preview").with(user(username).roles(role)))
+                .andExpect(status().isBadRequest());
         }
     }
 

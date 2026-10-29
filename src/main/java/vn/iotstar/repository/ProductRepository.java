@@ -1,171 +1,89 @@
 package vn.iotstar.repository;
 
-import jakarta.persistence.LockModeType;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import jakarta.persistence.LockModeType;
 import vn.iotstar.entity.DomainEnums.ProductStatus;
 import vn.iotstar.entity.DomainEnums.ShopStatus;
 import vn.iotstar.entity.Product;
 
-public interface ProductRepository
-        extends JpaRepository<Product, Long>, PublicProductSearchRepository {
+public interface ProductRepository extends JpaRepository<Product, Long>, PublicProductSearchRepository {
+    Optional<Product> findBySkuIgnoreCase(String sku);
+    boolean existsBySkuIgnoreCase(String sku);
+    boolean existsBySkuIgnoreCaseAndIdNot(String sku, Long id);
+    List<Product> findByShopIdOrderByNameAsc(Long shopId);
+    List<Product> findByShopIdInOrderByNameAsc(List<Long> shopIds);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @EntityGraph(attributePaths = {"shop", "category"})
-    @Query("select p from Product p where p.id = :id")
-    Optional<Product> findByIdForUpdate(@Param("id") Long id);
+    @Query("select p from Product p where p.id in :productIds order by p.id")
+    List<Product> findAllByIdForCheckout(@Param("productIds") List<Long> productIds);
 
-    @EntityGraph(attributePaths = {"shop", "category"})
+    @Query("select p from Product p where p.shop.id = :shopId and p.stock <= :threshold order by p.stock, p.name")
+    List<Product> findLowStockByShop(@Param("shopId") Long shopId, @Param("threshold") int threshold,
+                                     Pageable pageable);
+
+    @Query("select p from Product p where p.shop.id in :shopIds and p.stock <= :threshold order by p.stock, p.name")
+    List<Product> findLowStockByShopIds(@Param("shopIds") List<Long> shopIds,
+                                        @Param("threshold") int threshold, Pageable pageable);
+
+    @Query("select p from Product p where p.stock <= :threshold order by p.stock, p.name")
+    List<Product> findLowStock(@Param("threshold") int threshold, Pageable pageable);
+
     @Query("""
         select p from Product p
-        where p.status = :productStatus
-          and p.shop.status = :shopStatus
-          and p.shop.enabled = true
+        where p.status = :productStatus and p.shop.status = :shopStatus and p.shop.enabled = true
           and p.category.active = true
-          and p.soldCount > :minSold
+          and p.soldCount > :minimumSold
         order by p.soldCount desc, p.id desc
         """)
-    List<Product> findBestSellers(
-        @Param("minSold") long minSold,
-        @Param("productStatus") ProductStatus productStatus,
-        @Param("shopStatus") ShopStatus shopStatus,
-        Pageable pageable
-    );
+    List<Product> findBestSellers(@Param("minimumSold") long minimumSold,
+                                  @Param("productStatus") ProductStatus productStatus,
+                                  @Param("shopStatus") ShopStatus shopStatus,
+                                  Pageable pageable);
 
-    @EntityGraph(attributePaths = {"shop", "category"})
     @Query("""
-        select p from Product p
-        where p.id = :id
-          and p.status = :productStatus
-          and p.shop.status = :shopStatus
-          and p.shop.enabled = true
-          and p.category.active = true
+        select p from Product p where p.shop.id = :shopId
+          and (:q is null or lower(p.name) like lower(concat('%', :q, '%'))
+               or lower(p.sku) like lower(concat('%', :q, '%'))
+               or lower(p.slug) like lower(concat('%', :searchSlug, '%')))
         """)
-    Optional<Product> findPublicById(
-        @Param("id") Long id,
-        @Param("productStatus") ProductStatus productStatus,
-        @Param("shopStatus") ShopStatus shopStatus
-    );
+    Page<Product> searchByShop(@Param("shopId") Long shopId, @Param("q") String q,
+                               @Param("searchSlug") String searchSlug, Pageable pageable);
 
-    boolean existsBySkuIgnoreCase(String sku);
-
-    boolean existsBySkuIgnoreCaseAndIdNot(String sku, Long id);
-
-    @EntityGraph(attributePaths = {"shop", "category"})
-    Optional<Product> findByIdAndShopId(Long id, Long shopId);
-
-    @EntityGraph(attributePaths = {"shop", "category"})
     @Query("""
-        select p from Product p
-        where p.shop.id = :shopId
-          and (
-              :q is null
-              or lower(p.name) like lower(concat('%', :q, '%'))
-              or lower(p.sku) like lower(concat('%', :q, '%'))
-          )
-        """)
-    Page<Product> searchByShop(
-        @Param("shopId") Long shopId,
-        @Param("q") String q,
-        Pageable pageable
-    );
-
-    @EntityGraph(attributePaths = {"shop", "category"})
-    List<Product> findByShopIdOrderByNameAsc(Long shopId);
-
-    @EntityGraph(attributePaths = {"shop", "category"})
-    List<Product> findByShopIdAndStockLessThanEqualOrderByStockAscIdAsc(
-        Long shopId,
-        int stock
-    );
-
-    long countByShopIdIn(List<Long> ids);
-
-    @EntityGraph(attributePaths = {"shop", "category"})
-    @Query("""
-        select p from Product p
-        where (
-            :q is null
-            or lower(p.name) like lower(concat('%', :q, '%'))
-            or lower(p.sku) like lower(concat('%', :q, '%'))
-        )
+        select p from Product p where
+          (:q is null or lower(p.name) like lower(concat('%', :q, '%'))
+           or lower(p.sku) like lower(concat('%', :q, '%'))
+           or lower(p.slug) like lower(concat('%', :searchSlug, '%')))
           and (:shopId is null or p.shop.id = :shopId)
           and (:categoryId is null or p.category.id = :categoryId)
         """)
-    Page<Product> searchManagement(
-        @Param("q") String q,
-        @Param("shopId") Long shopId,
-        @Param("categoryId") Long categoryId,
-        Pageable pageable
-    );
+    Page<Product> searchManagement(@Param("q") String q, @Param("searchSlug") String searchSlug,
+                                   @Param("shopId") Long shopId,
+                                   @Param("categoryId") Long categoryId, Pageable pageable);
 
-    @EntityGraph(attributePaths = {"shop", "category"})
     @Query("""
-        select p from Product p
-        where p.shop.id in :shopIds
-          and (
-              :q is null
-              or lower(p.name) like lower(concat('%', :q, '%'))
-              or lower(p.sku) like lower(concat('%', :q, '%'))
-          )
+        select p from Product p where p.shop.id in :shopIds
+          and (:q is null or lower(p.name) like lower(concat('%', :q, '%'))
+               or lower(p.sku) like lower(concat('%', :q, '%'))
+               or lower(p.slug) like lower(concat('%', :searchSlug, '%')))
           and (:shopId is null or p.shop.id = :shopId)
           and (:categoryId is null or p.category.id = :categoryId)
         """)
-    Page<Product> searchManagementAssigned(
-        @Param("shopIds") List<Long> shopIds,
-        @Param("q") String q,
-        @Param("shopId") Long shopId,
-        @Param("categoryId") Long categoryId,
-        Pageable pageable
-    );
+    Page<Product> searchManagementAssigned(@Param("shopIds") List<Long> shopIds, @Param("q") String q,
+                                           @Param("searchSlug") String searchSlug,
+                                           @Param("shopId") Long shopId, @Param("categoryId") Long categoryId,
+                                           Pageable pageable);
 
     long countByShopId(Long shopId);
+    long countByShopIdIn(List<Long> shopIds);
+    long countByShopIdInAndStockLessThanEqual(List<Long> shopIds, int threshold);
 
-    long countByShopIdAndStockLessThanEqual(Long shopId, int stock);
-
-    @EntityGraph(attributePaths = {"shop", "category"})
-    @Query("""
-        select p from Product p
-        where p.shop.id = :shopId
-          and p.stock <= :threshold
-        order by p.stock asc, p.name asc, p.id asc
-        """)
-    List<Product> findLowStockByShop(
-        @Param("shopId") Long shopId,
-        @Param("threshold") int threshold,
-        Pageable pageable
-    );
-
-    @Query("""
-        select p from Product p
-        where p.shop.id in :shopIds
-          and p.stock <= :threshold
-        order by p.stock, p.name
-        """)
-    List<Product> findLowStockByShopIds(
-        @Param("shopIds") List<Long> shopIds,
-        @Param("threshold") int threshold,
-        Pageable pageable
-    );
-
-    @Query("""
-        select p from Product p
-        where p.stock <= :threshold
-        order by p.stock, p.name
-        """)
-    List<Product> findLowStock(
-        @Param("threshold") int threshold,
-        Pageable pageable
-    );
-    // TV3 Step 43: unpaginated count for the management action KPI.
-    @Query("select count(p) from Product p where p.shop.id in :shopIds and p.stock <= :threshold")
-    long countLowStockForManagement(@Param("shopIds") List<Long> shopIds,
-                                   @Param("threshold") int threshold);
 }

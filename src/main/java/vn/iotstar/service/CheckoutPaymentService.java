@@ -1,32 +1,45 @@
 package vn.iotstar.service;
+
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.iotstar.dto.WebForms.CheckoutForm;
-import vn.iotstar.entity.*;
+import vn.iotstar.entity.CustomerOrder;
 import vn.iotstar.entity.DomainEnums.PaymentMethod;
-@Service @RequiredArgsConstructor
+import vn.iotstar.entity.User;
+
+@Service
+@RequiredArgsConstructor
 public class CheckoutPaymentService {
-    private final OrderService orders;
-    private final VnPayService vnPay;
-    private final MomoService momo;
-    private final vn.iotstar.repository.OrderRepository repository;
+    private final OrderService orderService;
+    private final BankTransferService bankTransferService;
+    private final PayOsClient payOsClient;
+
     @Transactional(noRollbackFor = OrderService.PriceChangedException.class)
-    public CheckoutResult checkout(User user, CheckoutForm form, String clientIp) {
-        if (form != null && form.getPaymentMethod() == PaymentMethod.VNPAY) vnPay.requireConfigured();
-        if (form != null && form.getPaymentMethod() == PaymentMethod.MOMO) momo.requireConfigured();
-        var created = orders.checkout(user, form);
-        String url = form.getPaymentMethod() == PaymentMethod.VNPAY ? vnPay.createPaymentUrl(user, created, clientIp) : form.getPaymentMethod() == PaymentMethod.MOMO ? momo.createPaymentUrl(user, created, clientIp) : null;
-        return new CheckoutResult(List.copyOf(created), url);
+    public CheckoutResult checkout(User user, CheckoutForm form) {
+        if (form.getPaymentMethod() != PaymentMethod.COD && form.getPaymentMethod() != PaymentMethod.BANK_TRANSFER) {
+            throw new IllegalArgumentException("Vui lòng chọn COD hoặc chuyển khoản QR.");
+        }
+        if (form.getPaymentMethod() == PaymentMethod.BANK_TRANSFER) {
+            payOsClient.requireConfigured();
+        }
+        List<CustomerOrder> orders = orderService.checkout(user, form);
+        String paymentUrl = switch (form.getPaymentMethod()) {
+            case BANK_TRANSFER -> "/bank-transfer/checkout/" + createBankTransfer(orders);
+            case COD -> null;
+            default -> throw new IllegalArgumentException("Phương thức thanh toán không còn áp dụng cho đơn mới.");
+        };
+        return new CheckoutResult(List.copyOf(orders), paymentUrl);
     }
-    @Transactional
-    public void cancel(User user, Long orderId) {
-        var order = repository.findOwnedPaymentSummary(orderId, user.getId()).orElseThrow(() ->
-            new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND));
-        if (order.getPaymentMethod() == PaymentMethod.VNPAY) vnPay.cancelCheckout(user, orderId);
-        else if (order.getPaymentMethod() == PaymentMethod.MOMO) momo.cancelCheckout(user, orderId);
-        else orders.cancelByUser(user, orderId);
+
+    private String createBankTransfer(List<CustomerOrder> orders) {
+        try {
+            return bankTransferService.createPayment(orders);
+        } catch (IllegalStateException ex) {
+            throw new IllegalArgumentException("Không thể tạo link thanh toán payOS lúc này. Vui lòng thử lại sau.", ex);
+        }
     }
+
     public record CheckoutResult(List<CustomerOrder> orders, String paymentUrl) {}
 }

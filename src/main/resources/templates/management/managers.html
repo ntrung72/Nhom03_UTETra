@@ -3,28 +3,29 @@
 <head th:replace="~{fragments/layout :: head('Phân công Manager')}"></head>
 <body>
 <header th:replace="~{fragments/layout :: header}"></header>
-<main class="container py-4 py-lg-5">
-    <div th:replace="~{fragments/management-nav :: nav}"></div>
+<main class="container pt-3 pt-lg-4 pb-4 pb-lg-5 management-page">
+    <div class="admin-dashboard-shell">
+        <div th:replace="~{fragments/management-nav :: nav}"></div>
+        <div class="admin-dashboard-content">
     <div th:replace="~{fragments/layout :: flash}"></div>
 
     <div class="mb-4">
-        <span class="page-kicker"><i class="bi bi-person-gear"></i> CHỈ DÀNH CHO ADMIN</span>
         <h1 class="h3 mb-1">Phân công Manager theo cửa hàng</h1>
         <p class="text-muted mb-0">Manager chỉ xem và thao tác dữ liệu của những cửa hàng được chọn bên dưới.</p>
     </div>
 
-    <div class="alert alert-info border-0 d-flex gap-2 align-items-start">
+    <div class="alert alert-info border-0 d-flex gap-2 align-items-start pb-2">
         <i class="bi bi-shield-check fs-5"></i>
         <div>Đổi vai trò tài khoản tại trang <a th:href="@{/management/users}" class="alert-link">Người dùng</a>, sau đó quay lại đây để phân công cửa hàng.</div>
     </div>
 
     <div class="row g-3" th:if="${!managers.isEmpty()}">
         <div class="col-12" th:each="m : ${managers}">
-            <form class="card shadow-sm p-3 p-lg-4"
+            <form class="card manager-assignment-card p-3 p-lg-4"
                   th:action="@{/management/managers/{id}/shops(id=${m.id})}" method="post">
                 <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
                     <div class="d-flex align-items-center gap-3">
-                        <div class="rounded-circle bg-primary-subtle p-2"><i class="bi bi-person-badge"></i></div>
+                        <div class="manager-avatar"><i class="bi bi-person-badge"></i></div>
                         <div>
                             <strong class="d-block" th:text="${m.fullName}">Manager</strong>
                             <span class="text-muted small" th:text="${m.username + ' · ' + m.email}">manager · email</span>
@@ -35,11 +36,11 @@
                           th:text="${m.locked ? 'Đã khóa' : (m.enabled ? 'Hoạt động' : 'Chưa kích hoạt')}">Hoạt động</span>
                 </div>
 
-                <div class="row row-cols-1 row-cols-lg-2 g-2">
-                    <label class="col form-check border rounded p-3 d-flex gap-2 align-items-start" th:each="s : ${shops}">
+                <div class="manager-shop-grid">
+                    <label class="manager-shop-choice" th:each="s : ${shops}">
                         <input type="checkbox" name="shopIds" th:value="${s.id}"
                                th:checked="${assignments[m.id].contains(s.id)}">
-                        <span class="d-flex gap-2 align-items-start">
+                        <span>
                             <i class="bi bi-shop"></i>
                             <span><strong th:text="${s.name}">UTETra</strong><small th:text="${s.fullAddress}">Địa chỉ</small></span>
                             <i class="bi bi-check-circle-fill check-icon"></i>
@@ -57,6 +58,8 @@
     <div class="empty-state panel" th:if="${managers.isEmpty()}">
         <i class="bi bi-person-plus d-block fs-2 mb-2"></i>
         Chưa có tài khoản Manager. Hãy đổi vai trò một tài khoản tại trang Người dùng.
+    </div>
+        </div>
     </div>
 </main>
 <footer th:replace="~{fragments/layout :: footer}"></footer>

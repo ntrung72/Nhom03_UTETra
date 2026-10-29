@@ -1,5 +1,6 @@
 package vn.iotstar.entity;
 
+import vn.iotstar.util.VietnamTime;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import lombok.Getter;
@@ -14,7 +15,8 @@ import vn.iotstar.entity.DomainEnums.VoucherUsageStatus;
 @NoArgsConstructor
 @Entity
 @Table(name = "voucher_usages", uniqueConstraints = {
-    @UniqueConstraint(name = "uk_voucher_usage_checkout", columnNames = "checkout_reference")
+    @UniqueConstraint(name = "uk_voucher_usage_checkout", columnNames = "checkout_reference"),
+    @UniqueConstraint(name = "uk_voucher_usage_order", columnNames = "order_id")
 }, indexes = {
     @Index(name = "idx_voucher_usage_user_voucher", columnList = "user_id,voucher_id"),
     @Index(name = "idx_voucher_usage_used_at", columnList = "used_at")
@@ -32,15 +34,15 @@ public class VoucherUsage {
     @JoinColumn(name = "voucher_id", nullable = false)
     private Voucher voucher;
 
-    /** First order in this checkout; one usage covers all shop orders. */
-    @Column(name = "order_id")
-    private Long orderId;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "order_id", nullable = false)
+    private CustomerOrder order;
 
     @Column(name = "checkout_reference", nullable = false, length = 50)
     private String checkoutReference;
 
     @Column(name = "used_at", nullable = false)
-    private LocalDateTime usedAt = LocalDateTime.now();
+    private LocalDateTime usedAt = VietnamTime.now();
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)

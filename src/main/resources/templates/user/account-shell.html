@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<body>
+<section class="account-hero mb-4" th:fragment="hero">
+    <div class="account-avatar account-avatar-xl">
+        <img th:if="${currentUser.avatarUrl != null}" th:src="${currentUser.avatarUrl}" th:alt="${currentUser.fullName}">
+        <i th:unless="${currentUser.avatarUrl != null}" class="bi bi-person-fill"></i>
+    </div>
+    <div class="flex-grow-1 min-w-0">
+        <span class="account-eyebrow">Tài khoản của tôi</span>
+        <h1 class="account-title" th:text="${currentUser.fullName}">Nguyễn Văn A</h1>
+        <div class="account-meta">
+            <span><i class="bi bi-at"></i><span th:text="${currentUser.username}">username</span></span>
+            <span><i class="bi bi-envelope"></i><span th:text="${currentUser.email}">email@example.com</span></span>
+            <span class="account-role" th:text="${currentUser.role.label}">Khách hàng</span>
+        </div>
+    </div>
+    <a class="btn btn-light account-hero-action" th:href="@{/user/profile(tab=avatar)}"><i class="bi bi-camera me-1"></i>Đổi avatar</a>
+</section>
+
+<aside class="col-lg-3" th:fragment="sidebar">
+    <nav class="account-nav" aria-label="Quản lý tài khoản">
+        <a th:classappend="${activeTab == 'profile'} ? ' active'" th:href="@{/user/profile(tab=profile)}"><span class="account-nav-icon"><i class="bi bi-person-vcard"></i></span><span><b>Hồ sơ</b><small>Thông tin cá nhân</small></span></a>
+        <a th:classappend="${activeTab == 'avatar'} ? ' active'" th:href="@{/user/profile(tab=avatar)}"><span class="account-nav-icon"><i class="bi bi-image"></i></span><span><b>Ảnh đại diện</b><small>Thêm hoặc thay avatar</small></span></a>
+        <a th:classappend="${activeTab == 'bank'} ? ' active'" th:href="@{/user/profile(tab=bank)}"><span class="account-nav-icon"><i class="bi bi-bank"></i></span><span><b>Ngân hàng</b><small>Thông tin hoàn tiền</small></span></a>
+        <a th:classappend="${activeTab == 'addresses'} ? ' active'" th:href="@{/user/profile(tab=addresses)}"><span class="account-nav-icon"><i class="bi bi-geo-alt"></i></span><span><b>Địa chỉ</b><small>Địa chỉ nhận hàng</small></span><span class="account-nav-count" th:text="${#lists.size(addresses)}">0</span></a>
+        <a th:classappend="${activeTab == 'followed-shops'} ? ' active'" th:href="@{/user/followed-shops}"><span class="account-nav-icon"><i class="bi bi-shop-window"></i></span><span><b>Cửa hàng theo dõi</b><small>Menu và ưu đãi đã lưu</small></span></a>
+        <a th:classappend="${activeTab == 'recipes'} ? ' active'" th:href="@{/user/recipes}"><span class="account-nav-icon"><i class="bi bi-bookmark-heart"></i></span><span><b>Công thức yêu thích</b><small>Đặt lại ly theo gu của bạn</small></span></a>
+        <a th:classappend="${activeTab == 'loyalty'} ? ' active'" th:href="@{/user/loyalty}"><span class="account-nav-icon"><i class="bi bi-stars"></i></span><span><b>Điểm thưởng UTETra</b><small>Số dư và lịch sử tích điểm</small></span></a>
+        <a th:classappend="${activeTab == 'password'} ? ' active'" th:href="@{/user/profile(tab=password)}"><span class="account-nav-icon"><i class="bi bi-shield-lock"></i></span><span><b>Đổi mật khẩu</b><small>Bảo mật tài khoản</small></span></a>
+    </nav>
+</aside>
+</body>
+</html>

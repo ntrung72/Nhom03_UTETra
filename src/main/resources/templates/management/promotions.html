@@ -3,8 +3,10 @@
 <head th:replace="~{fragments/layout :: head('Khuyến mãi hệ thống')}"></head>
 <body>
 <header th:replace="~{fragments/layout :: header}"></header>
-<main class="container py-4">
-    <div th:replace="~{fragments/management-nav :: nav}"></div>
+<main class="container py-4 management-page">
+    <div class="admin-dashboard-shell">
+        <div th:replace="~{fragments/management-nav :: nav}"></div>
+        <div class="admin-dashboard-content">
     <div th:replace="~{fragments/layout :: flash}"></div>
     <div class="d-flex justify-content-between align-items-center">
         <h1 class="h3">Quản lý chương trình khuyến mãi</h1>
@@ -12,7 +14,7 @@
     </div>
     <form class="row g-2 my-3" method="get">
         <div class="col-md"><input class="form-control" name="q" th:value="${q}" placeholder="Tên chương trình"></div>
-        <div class="col-md"><select class="form-select" name="shop"><option value="">Mọi shop / toàn hệ thống</option><option th:each="s : ${shops}" th:value="${s.id}" th:text="${s.name}" th:selected="${s.id == selectedShop}"></option></select></div>
+        <div class="col-md"><select class="form-select" name="shop"><option value="" th:text="${currentUser.role.name() == 'ADMIN' ? 'Mọi shop / toàn hệ thống' : 'Mọi shop được phân công'}">Mọi shop / toàn hệ thống</option><option th:each="s : ${shops}" th:value="${s.id}" th:text="${s.name}" th:selected="${s.id == selectedShop}"></option></select></div>
         <div class="col-md"><select class="form-select" name="type"><option value="">Mọi loại</option><option th:each="t : ${types}" th:value="${t}" th:text="${t.label}" th:selected="${t == selectedType}"></option></select></div>
         <div class="col-auto"><button class="btn btn-primary">Lọc</button></div>
     </form>
@@ -28,7 +30,7 @@
                 <td th:text="${p.active ? 'Đang bật' : 'Đã tắt'}"></td>
                 <td class="text-nowrap">
                     <a class="btn btn-sm btn-outline-primary" th:href="@{/management/promotions/{id}/edit(id=${p.id})}">Sửa</a>
-                    <form class="d-inline confirm-form" th:action="@{/management/promotions/{id}/delete(id=${p.id})}" method="post"><button class="btn btn-sm btn-outline-danger">Xóa</button></form>
+                    <form class="d-inline confirm-form" data-confirm="Xóa chương trình khuyến mãi này?" th:action="@{/management/promotions/{id}/delete(id=${p.id})}" method="post"><button class="btn btn-sm btn-outline-danger">Xóa</button></form>
                 </td>
             </tr>
             <tr th:if="${promotions.empty}"><td colspan="6" class="text-center text-muted py-4">Không tìm thấy chương trình khuyến mãi.</td></tr>
@@ -42,6 +44,8 @@
             <li class="page-item" th:classappend="${promotions.last} ? 'disabled'"><a class="page-link" th:href="@{/management/promotions(page=${promotions.number + 1},q=${q},shop=${selectedShop},type=${selectedType})}">Sau</a></li>
         </ul>
     </nav>
+        </div>
+    </div>
 </main>
 <footer th:replace="~{fragments/layout :: footer}"></footer>
 <th:block th:replace="~{fragments/layout :: scripts}"></th:block>

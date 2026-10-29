@@ -23,9 +23,18 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
 import vn.iotstar.dto.WebForms.ToppingForm;
+import vn.iotstar.entity.Category;
 import vn.iotstar.entity.DomainEnums.Role;
+import vn.iotstar.entity.DomainEnums.ShopStatus;
+import vn.iotstar.entity.Product;
+import vn.iotstar.entity.ProductTopping;
+import vn.iotstar.entity.Shop;
 import vn.iotstar.entity.Topping;
 import vn.iotstar.entity.User;
+import vn.iotstar.repository.CategoryRepository;
+import vn.iotstar.repository.ProductRepository;
+import vn.iotstar.repository.ProductToppingRepository;
+import vn.iotstar.repository.ShopRepository;
 import vn.iotstar.repository.ToppingRepository;
 import vn.iotstar.repository.UserRepository;
 import vn.iotstar.service.ManagementService;
@@ -38,6 +47,10 @@ class ToppingManagementTests {
     @Autowired private WebApplicationContext context;
     @Autowired private UserRepository userRepository;
     @Autowired private ToppingRepository toppingRepository;
+    @Autowired private CategoryRepository categoryRepository;
+    @Autowired private ProductRepository productRepository;
+    @Autowired private ProductToppingRepository productToppingRepository;
+    @Autowired private ShopRepository shopRepository;
     @Autowired private ManagementService managementService;
     @Autowired private ProductOptionService productOptionService;
     @Autowired private PasswordEncoder passwordEncoder;
@@ -108,6 +121,78 @@ class ToppingManagementTests {
         Topping preserved = toppingRepository.findByNameIgnoreCase("Kem cheese").orElseThrow();
         assertThat(preserved.getPrice()).isEqualByComparingTo("19000");
         assertThat(preserved.isActive()).isFalse();
+    }
+
+    @Test
+    void reconcilesDemoToppingsWithoutReplacingManagedPricesOrDuplicateLinks() {
+        toppingRepository.findByNameIgnoreCase("Trân châu đường đen").ifPresent(existing -> {
+            existing.setName("Topping khác " + suffix);
+            toppingRepository.save(existing);
+        });
+        Shop shop = new Shop();
+        shop.setOwner(manager);
+        shop.setName("UTETra thử " + suffix);
+        shop.setSlug("utetra-test-" + suffix);
+        shop.setStatus(ShopStatus.APPROVED);
+        shop = shopRepository.save(shop);
+
+        Category toppingCategory = new Category();
+        toppingCategory.setName("Topping thử " + suffix);
+        toppingCategory.setSlug("topping");
+        toppingCategory = categoryRepository.save(toppingCategory);
+        Category teaCategory = new Category();
+        teaCategory.setName("Trà thử " + suffix);
+        teaCategory.setSlug("tra-sua");
+        teaCategory = categoryRepository.save(teaCategory);
+
+        Product lotusProduct = product(shop, toppingCategory, "Hạt sen", "UTE-030", "14000");
+        Product lotusTea = product(shop, teaCategory, "Trà nhãn sen", "UTE-022", "35000");
+        Topping blackPearl = null;
+        for (String name : new String[]{"Trân châu đen", "Trân châu trắng", "Pudding trứng", "Kem cheese", "Thạch dừa"}) {
+            Topping topping = new Topping();
+            topping.setName(name);
+            topping.setPrice(new BigDecimal(name.equals("Trân châu đen") ? "13000" : "10000"));
+            topping = toppingRepository.save(topping);
+            if (name.equals("Trân châu đen")) blackPearl = topping;
+            ProductTopping link = new ProductTopping();
+            link.setProduct(lotusTea);
+            link.setTopping(topping);
+            productToppingRepository.save(link);
+        }
+
+        productOptionService.reconcileDemoToppingCatalog();
+        productOptionService.reconcileDemoToppingCatalog();
+
+        Topping renamed = toppingRepository.findByNameIgnoreCase("Trân châu đường đen").orElseThrow();
+        assertThat(renamed.getId()).isEqualTo(blackPearl.getId());
+        assertThat(renamed.getPrice()).isEqualByComparingTo("13000");
+        assertThat(toppingRepository.findByNameIgnoreCase("Trân châu đen")).isEmpty();
+        Topping lotus = toppingRepository.findByNameIgnoreCase("Hạt sen").orElseThrow();
+        assertThat(lotus.getPrice()).isEqualByComparingTo(lotusProduct.getPrice());
+        assertThat(productToppingRepository.countByToppingId(lotus.getId())).isEqualTo(1);
+        assertThat(productToppingRepository.existsByProductIdAndToppingId(lotusTea.getId(), lotus.getId())).isTrue();
+        assertThat(productToppingRepository.existsByProductId(lotusProduct.getId())).isFalse();
+
+        ProductTopping selectedLotus = productToppingRepository
+            .findByProductIdAndToppingActiveTrueOrderByToppingNameAsc(lotusTea.getId()).stream()
+            .filter(link -> link.getTopping().getId().equals(lotus.getId())).findFirst().orElseThrow();
+        productToppingRepository.delete(selectedLotus);
+        productToppingRepository.flush();
+        productOptionService.reconcileDemoToppingCatalog();
+        assertThat(productToppingRepository.existsByProductIdAndToppingId(lotusTea.getId(), lotus.getId())).isFalse();
+    }
+
+    private Product product(Shop shop, Category category, String name, String sku, String price) {
+        Product product = new Product();
+        product.setShop(shop);
+        product.setCategory(category);
+        product.setName(name);
+        product.setSlug(name.toLowerCase().replace(' ', '-'));
+        product.setSku(sku);
+        product.setDescription(name);
+        product.setPrice(new BigDecimal(price));
+        product.setStock(10);
+        return productRepository.save(product);
     }
 
     private ToppingForm form(String name, String price, boolean active) {

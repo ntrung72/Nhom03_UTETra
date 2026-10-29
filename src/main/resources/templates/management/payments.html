@@ -1,16 +1,17 @@
 <!doctype html>
 <html lang="vi" xmlns:th="http://www.thymeleaf.org">
-<head th:replace="~{fragments/layout :: head('Quản lý giao dịch VNPay')}"></head>
+<head th:replace="~{fragments/layout :: head('Quản lý giao dịch thanh toán')}"></head>
 <body>
 <header th:replace="~{fragments/layout :: header}"></header>
-<main class="container py-4">
-    <div th:replace="~{fragments/management-nav :: nav}"></div>
+<main class="container py-4 management-page">
+    <div class="admin-dashboard-shell">
+        <div th:replace="~{fragments/management-nav :: nav}"></div>
+        <div class="admin-dashboard-content">
     <div th:replace="~{fragments/layout :: flash}"></div>
 
     <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
         <div>
-            <span class="page-kicker"><i class="bi bi-credit-card-2-front"></i> Thanh toán trực tuyến</span>
-            <h1 class="h3 mb-1">Giao dịch VNPay</h1>
+            <h1 class="h3 mb-1">Giao dịch thanh toán</h1>
             <p class="text-muted mb-0">Tra cứu trạng thái thanh toán và đối soát giao dịch của toàn hệ thống.</p>
         </div>
         <div class="text-end">
@@ -21,7 +22,7 @@
 
     <form class="card p-3 mb-3" method="get" th:action="@{/management/payments}">
         <div class="row g-2 align-items-end">
-            <div class="col-lg-5">
+            <div class="col-lg-7">
                 <label class="form-label" for="paymentQuery">Tìm giao dịch</label>
                 <div class="input-group">
                     <span class="input-group-text"><i class="bi bi-search"></i></span>
@@ -29,7 +30,7 @@
                            placeholder="Mã giao dịch, mã đơn, username hoặc email">
                 </div>
             </div>
-            <div class="col-lg-2">
+            <div class="col-lg-3">
                 <label class="form-label" for="paymentStatus">Trạng thái</label>
                 <select class="form-select" id="paymentStatus" name="status">
                     <option value="">Tất cả trạng thái</option>
@@ -37,26 +38,28 @@
                             th:selected="${item == selectedStatus}" th:text="${item.label}"></option>
                 </select>
             </div>
-            <div class="col-lg-3">
-                <label class="form-label" for="paymentShop">Cửa hàng</label>
-                <select class="form-select" id="paymentShop" name="shop">
-                    <option value="">Tất cả cửa hàng được phép xem</option>
-                    <option th:each="item : ${shops}" th:value="${item.id}"
-                            th:selected="${item.id == selectedShop}" th:text="${item.name}"></option>
-                </select>
-            </div>
             <div class="col-lg-2 d-grid"><button class="btn btn-primary"><i class="bi bi-funnel me-1"></i>Lọc</button></div>
         </div>
     </form>
 
+    <div class="alert alert-warning" th:unless="${reconciliationOrderIds.empty}">
+        Có giao dịch trên trang này cần đối soát với cổng thanh toán trước khi xử lý tiền hoặc đơn hàng.
+    </div>
+
     <div class="card table-responsive">
-        <table class="table align-middle mb-0">
+        <table class="table align-middle mb-0 management-payments-table">
             <thead>
             <tr><th>Mã giao dịch</th><th>Đơn hàng</th><th>Khách hàng</th><th>Cửa hàng</th><th class="text-end">Số tiền</th><th>Trạng thái</th><th>Thời gian</th></tr>
             </thead>
             <tbody>
             <tr th:each="payment : ${payments.content}">
-                <td><code class="fw-semibold" th:text="${payment.transactionCode}"></code><small class="d-block text-muted" th:text="${'#' + payment.id}"></small></td>
+                <td><code class="fw-semibold" th:text="${payment.transactionCode}"></code><small class="d-block text-muted" th:text="${'#' + payment.id}"></small>
+                    <a class="d-block small mt-1" th:if="${payment.gatewayTransactionId != null and payment.gatewayTransactionId.startsWith('https://pay.payos.vn/web/')}" th:href="${payment.gatewayTransactionId}" target="_blank" rel="noopener noreferrer">Mở link payOS</a>
+                    <small class="d-block text-muted" th:if="${payment.gatewayTransactionId != null and !payment.gatewayTransactionId.startsWith('https://pay.payos.vn/web/')}" th:text="${(payment.order.paymentMethod.name() == 'BANK_TRANSFER' ? 'Ngân hàng: ' : 'Cổng: ') + payment.gatewayTransactionId}"></small>
+                    <form class="mt-2" th:if="${payment.gatewayTransactionId != null and payment.gatewayTransactionId.startsWith('https://pay.payos.vn/web/') and (payment.status.name() == 'PENDING' or payment.status.name() == 'AWAITING_REVIEW')}" method="post" th:action="@{/management/payments/{id}/reconcile-payos(id=${payment.id})}">
+                        <button class="btn btn-sm btn-outline-primary" type="submit">Kiểm tra payOS</button>
+                    </form>
+                </td>
                 <td><strong th:text="${payment.order.code}"></strong><small class="d-block text-muted" th:text="${payment.order.paymentMethod.label}"></small></td>
                 <td><strong th:text="${payment.order.user.username}"></strong><small class="d-block text-muted" th:text="${payment.order.user.email}"></small></td>
                 <td th:text="${payment.order.shop.name}"></td>
@@ -65,12 +68,28 @@
                     <span class="badge rounded-pill"
                           th:classappend="${payment.status.name() == 'SUCCESS'} ? ' text-bg-success' : (${payment.status.name() == 'PENDING'} ? ' text-bg-warning' : (${payment.status.name() == 'FAILED'} ? ' text-bg-danger' : ' text-bg-secondary'))"
                           th:text="${payment.status.label}"></span>
+                    <small class="d-block text-danger fw-semibold mt-1"
+                           th:if="${payment.status.name() == 'SUCCESS' and reconciliationOrderIds.contains(payment.order.id)}">Cần đối soát</small>
                 </td>
-                <td class="text-nowrap">
+                <td>
                     <span th:text="${#temporals.format(payment.createdAt,'HH:mm · dd/MM/yyyy')}"></span>
                     <small class="d-block text-muted" th:if="${payment.expiresAt != null and payment.status.name() == 'PENDING'}"
                            th:text="${'Hết hạn: ' + #temporals.format(payment.expiresAt,'HH:mm · dd/MM/yyyy')}"></small>
                     <small class="d-block text-success" th:if="${payment.paidAt != null}" th:text="${'Thanh toán: ' + #temporals.format(payment.paidAt,'HH:mm · dd/MM/yyyy')}"></small>
+                    <div th:if="${payment.order.paymentMethod.name() == 'BANK_TRANSFER' and (payment.gatewayTransactionId == null or !payment.gatewayTransactionId.startsWith('https://pay.payos.vn/web/')) and (payment.status.name() == 'PENDING' or payment.status.name() == 'AWAITING_REVIEW')}" class="mt-2">
+                        <div class="small fw-semibold" th:text="${'Cần nhận cho đơn: ' + #numbers.formatDecimal(bankTransferTotals[payment.transactionCode],0,'COMMA',0,'POINT') + ' ₫'}"></div>
+                        <form class="mt-2" method="post" th:action="@{/management/payments/{id}/confirm-bank-transfer(id=${payment.id})}">
+                            <label class="form-label small mb-1">Số tiền thực nhận</label>
+                            <input class="form-control form-control-sm" name="receivedAmount" type="number" min="1" step="1" required placeholder="Kiểm tra trong tài khoản BIDV">
+                            <label class="form-label small mt-2 mb-1">Mã giao dịch ngân hàng</label>
+                            <input class="form-control form-control-sm" name="bankTransactionId" minlength="4" maxlength="100" required placeholder="Lấy từ lịch sử giao dịch">
+                            <button class="btn btn-sm btn-primary mt-2" type="submit">Xác nhận đã nhận tiền</button>
+                        </form>
+                        <form class="mt-2" method="post" th:action="@{/management/payments/{id}/cancel-unreceived(id=${payment.id})}"
+                              onsubmit="return confirm('Bạn đã kiểm tra tài khoản BIDV và chắc chắn chưa nhận tiền cho đơn này?')">
+                            <button class="btn btn-sm btn-outline-danger" type="submit">Đóng đơn chưa nhận tiền</button>
+                        </form>
+                    </div>
                 </td>
             </tr>
             <tr th:if="${payments.empty}"><td colspan="7" class="text-center text-muted py-5"><i class="bi bi-receipt-cutoff fs-2 d-block mb-2"></i>Không tìm thấy giao dịch phù hợp.</td></tr>
@@ -80,11 +99,13 @@
 
     <nav class="mt-3" th:if="${payments.totalPages > 1}" aria-label="Phân trang giao dịch">
         <ul class="pagination justify-content-center">
-            <li class="page-item" th:classappend="${payments.first} ? 'disabled'"><a class="page-link" th:href="@{/management/payments(page=${payments.number - 1},q=${q},status=${selectedStatus},shop=${selectedShop})}">Trước</a></li>
-            <li class="page-item" th:each="i : ${#numbers.sequence(0, payments.totalPages - 1)}" th:classappend="${i == payments.number} ? 'active'"><a class="page-link" th:href="@{/management/payments(page=${i},q=${q},status=${selectedStatus},shop=${selectedShop})}" th:text="${i + 1}"></a></li>
-            <li class="page-item" th:classappend="${payments.last} ? 'disabled'"><a class="page-link" th:href="@{/management/payments(page=${payments.number + 1},q=${q},status=${selectedStatus},shop=${selectedShop})}">Sau</a></li>
+            <li class="page-item" th:classappend="${payments.first} ? 'disabled'"><a class="page-link" th:href="@{/management/payments(page=${payments.number - 1},q=${q},status=${selectedStatus})}">Trước</a></li>
+            <li class="page-item" th:each="i : ${#numbers.sequence(0, payments.totalPages - 1)}" th:classappend="${i == payments.number} ? 'active'"><a class="page-link" th:href="@{/management/payments(page=${i},q=${q},status=${selectedStatus})}" th:text="${i + 1}"></a></li>
+            <li class="page-item" th:classappend="${payments.last} ? 'disabled'"><a class="page-link" th:href="@{/management/payments(page=${payments.number + 1},q=${q},status=${selectedStatus})}">Sau</a></li>
         </ul>
     </nav>
+        </div>
+    </div>
 </main>
 <footer th:replace="~{fragments/layout :: footer}"></footer>
 <th:block th:replace="~{fragments/layout :: scripts}"></th:block>

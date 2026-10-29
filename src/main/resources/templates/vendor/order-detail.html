@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Chi tiết đơn hàng shop')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="container py-4">
+    <div class="admin-dashboard-shell">
+        <div th:replace="~{fragments/vendor-nav :: nav}"></div>
+        <div class="admin-dashboard-content">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+                <div>
+                    <h1 class="h3 mb-1 text-break" th:text="${'Đơn ' + order.code}"></h1>
+                    <span class="text-muted" th:text="${order.shop.name}"></span>
+                </div>
+                <a class="btn btn-outline-primary" th:href="@{/vendor/orders}">Quay lại danh sách đơn</a>
+            </div>
+
+            <div class="row g-4">
+                <div class="col-lg-8">
+                    <section class="card p-4">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                            <h2 class="h5 mb-0">Món cần chuẩn bị</h2>
+                            <span class="badge text-bg-primary" th:text="${order.displayStatusLabel}"></span>
+                        </div>
+                        <p class="text-muted" th:if="${#lists.isEmpty(order.items)}">Đơn này chưa có dữ liệu món hàng.</p>
+                        <div class="vendor-order-detail-item" th:each="item : ${order.items}">
+                            <img th:if="${item.imageUrl != null and !item.imageUrl.isBlank()}" th:src="${item.imageUrl}"
+                                 alt="" width="76" height="76" class="rounded object-fit-cover flex-shrink-0">
+                            <div class="flex-grow-1 min-w-0">
+                                <div class="d-flex flex-wrap justify-content-between gap-2">
+                                    <strong class="text-break" th:text="${item.productName}"></strong>
+                                    <strong th:text="${'×' + item.quantity}"></strong>
+                                </div>
+                                <div class="d-flex flex-wrap gap-2 mt-2" th:if="${item.size != null or item.sugarLevel != null or item.iceLevel != null}">
+                                    <span class="badge text-bg-light border" th:if="${item.size != null}" th:text="${'Size ' + item.size}"></span>
+                                    <span class="badge text-bg-light border" th:if="${item.sugarLevel != null}" th:text="${item.sugarLevel.label}"></span>
+                                    <span class="badge text-bg-light border" th:if="${item.iceLevel != null}" th:text="${item.iceLevel.label}"></span>
+                                </div>
+                                <div class="small mt-2" th:if="${item.toppings != null and !item.toppings.isBlank()}">
+                                    <span class="text-muted">Topping:</span> <span th:text="${item.toppings}"></span>
+                                </div>
+                                <div class="small text-muted mt-2" th:text="${#numbers.formatDecimal(item.unitPrice,0,'COMMA',0,'POINT') + ' ₫/ly'}"></div>
+                                <div class="small fw-bold mt-1" th:text="${'Thành tiền: ' + #numbers.formatDecimal(item.lineTotal,0,'COMMA',0,'POINT') + ' ₫'}"></div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+                <div class="col-lg-4">
+                    <section class="card p-4">
+                        <h2 class="h5 mb-3">Thông tin giao hàng</h2>
+                        <div class="mb-2"><span class="text-muted d-block small">Người nhận</span><strong th:text="${order.receiverName}"></strong></div>
+                        <div class="mb-2"><span class="text-muted d-block small">Số điện thoại</span><span th:text="${order.receiverPhone}"></span></div>
+                        <div class="mb-3"><span class="text-muted d-block small">Địa chỉ</span><span class="text-break" th:text="${order.shippingAddress}"></span></div>
+                        <div class="mb-3" th:if="${order.note != null and !order.note.isBlank()}"><span class="text-muted d-block small">Ghi chú của khách</span><span class="text-break" th:text="${order.note}"></span></div>
+                        <hr>
+                        <div class="d-flex justify-content-between gap-2 mb-2"><span>Thanh toán</span><strong th:text="${order.paymentMethod.label}"></strong></div>
+                        <div class="d-flex justify-content-between gap-2 mb-2"><span>Trạng thái tiền</span><strong th:text="${order.awaitingBankTransferConfirmation ? 'Chờ xác nhận thanh toán' : order.paymentStatus.label}"></strong></div>
+                        <div class="d-flex justify-content-between gap-2"><span>Tổng đơn</span><strong class="text-primary" th:text="${#numbers.formatDecimal(order.totalAmount,0,'COMMA',0,'POINT') + ' ₫'}"></strong></div>
+                    </section>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

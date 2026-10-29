@@ -1,5 +1,6 @@
 package vn.iotstar.entity;
 
+import vn.iotstar.util.VietnamTime;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import lombok.Getter;
@@ -34,5 +35,5 @@ public class ManagerShop {
     private User assignedBy;
 
     @Column(name = "assigned_at", nullable = false)
-    private LocalDateTime assignedAt = LocalDateTime.now();
+    private LocalDateTime assignedAt = VietnamTime.now();
 }

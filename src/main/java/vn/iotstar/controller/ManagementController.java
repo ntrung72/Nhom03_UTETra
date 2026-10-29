@@ -1,50 +1,29 @@
 package vn.iotstar.controller;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.time.LocalDate;
-import org.springframework.format.annotation.DateTimeFormat;
-import vn.iotstar.service.DashboardService;
-import vn.iotstar.service.RevenueReportService;
-import vn.iotstar.repository.OrderRepository;
+import vn.iotstar.util.VietnamTime;
 import jakarta.validation.Valid;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Controller;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import vn.iotstar.dto.WebForms.CarrierForm;
 import vn.iotstar.dto.WebForms.CategoryForm;
-import vn.iotstar.dto.WebForms.ToppingForm;
 import vn.iotstar.dto.WebForms.PromotionForm;
 import vn.iotstar.dto.WebForms.VoucherForm;
-import vn.iotstar.dto.WebForms.CarrierForm;
+import vn.iotstar.dto.WebForms.ToppingForm;
 import vn.iotstar.dto.WebForms.ProductForm;
-import vn.iotstar.entity.Category;
-import vn.iotstar.entity.Product;
-import vn.iotstar.entity.Topping;
-import vn.iotstar.entity.Promotion;
-import vn.iotstar.entity.Voucher;
-import vn.iotstar.entity.Carrier;
-import vn.iotstar.entity.DomainEnums.VoucherType;
-import vn.iotstar.entity.DomainEnums.PromotionType;
-import vn.iotstar.service.ManagementProductService;
-import vn.iotstar.service.ProductOptionService;
-import vn.iotstar.service.ProductGalleryService;
-import java.util.List;
-import lombok.RequiredArgsConstructor;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-import vn.iotstar.entity.DomainEnums.Role;
-import vn.iotstar.entity.DomainEnums.AuditAction;
-import vn.iotstar.entity.DomainEnums.PaymentTransactionStatus;
-import vn.iotstar.service.AuditLogService;
-import vn.iotstar.entity.DomainEnums.ShopStatus;
-import vn.iotstar.entity.User;
-import vn.iotstar.service.CurrentUserService;
-import vn.iotstar.service.ManagementService;
-import vn.iotstar.service.OrderService;
+import vn.iotstar.entity.*;
+import vn.iotstar.entity.DomainEnums.*;
+import vn.iotstar.service.*;
 
-/** Step 13 only: dashboard shell, users, shops and Manager assignments. */
 @Controller
 @RequestMapping("/management")
 @RequiredArgsConstructor
@@ -52,32 +31,15 @@ public class ManagementController {
     private final CurrentUserService currentUserService;
     private final ManagementService managementService;
     private final OrderService orderService;
+    private final DashboardService dashboardService;
+    private final AuditLogService auditLogService;
+    private final ReturnRequestService returnRequestService;
     private final ManagementProductService managementProductService;
     private final ProductOptionService productOptionService;
     private final ProductGalleryService productGalleryService;
-    private final AuditLogService auditLogService;
-    private final DashboardService dashboardService;
     private final RevenueReportService revenueReportService;
-    private final OrderRepository orderRepository;
-
-    @ModelAttribute("currentUser")
-    User currentUser() { return currentUserService.optional().orElse(null); }
-
-    // ==================== Step 28: Payment management & Audit trail ====================
-    @GetMapping("/payments")
-    String payments(@RequestParam(required = false) String q,
-                    @RequestParam(required = false) PaymentTransactionStatus status,
-                    @RequestParam(required = false) Long shop,
-                    @RequestParam(defaultValue = "0") int page, Model model) {
-        User actor = currentUserService.require();
-        model.addAttribute("payments", managementService.payments(actor, q, status, shop, page));
-        model.addAttribute("statuses", PaymentTransactionStatus.values());
-        model.addAttribute("shops", managementService.accessibleShops(actor));
-        model.addAttribute("selectedShop", shop);
-        model.addAttribute("selectedStatus", status);
-        model.addAttribute("q", q);
-        return "management/payments";
-    }
+    private final BankTransferService bankTransferService;
+    private final PayOsPaymentService payOsPaymentService;
 
     @GetMapping("/audit-logs")
     String auditLogs(@RequestParam(required = false) String q,
@@ -85,12 +47,67 @@ public class ManagementController {
                      @RequestParam(defaultValue = "0") int page, Model model) {
         model.addAttribute("logs", auditLogService.search(currentUserService.require(), q, action, page));
         model.addAttribute("actions", AuditAction.values());
-        model.addAttribute("selectedAction", action);
         model.addAttribute("q", q);
+        model.addAttribute("selectedAction", action);
         return "management/audit-logs";
     }
 
-    @GetMapping({"", "/"})
+    @GetMapping("/payments")
+    String payments(@RequestParam(required = false) String q,
+                    @RequestParam(required = false) PaymentTransactionStatus status,
+                    @RequestParam(defaultValue = "0") int page, Model model) {
+        var payments = managementService.payments(currentUserService.require(), q, status, page);
+        model.addAttribute("payments", payments);
+        HashMap<String, BigDecimal> bankTransferTotals = new HashMap<>();
+        payments.getContent().stream()
+            .filter(payment -> payment.getOrder().getPaymentMethod() == PaymentMethod.BANK_TRANSFER)
+            .forEach(payment -> bankTransferTotals.computeIfAbsent(payment.getTransactionCode(),
+                bankTransferService::totalForReference));
+        model.addAttribute("bankTransferTotals", bankTransferTotals);
+        model.addAttribute("reconciliationOrderIds", managementService.paymentReconciliationOrderIds(payments));
+        model.addAttribute("statuses", PaymentTransactionStatus.values());
+        model.addAttribute("q", q);
+        model.addAttribute("selectedStatus", status);
+        return "management/payments";
+    }
+
+    @PostMapping("/payments/{id}/confirm-bank-transfer")
+    String confirmBankTransfer(@PathVariable Long id,
+                               @RequestParam String bankTransactionId,
+                               @RequestParam BigDecimal receivedAmount,
+                               RedirectAttributes redirect) {
+        try {
+            bankTransferService.confirm(currentUserService.require(), id, bankTransactionId, receivedAmount);
+            redirect.addFlashAttribute("success", "Đã xác nhận tiền vào và mở xử lý đơn hàng.");
+        } catch (IllegalArgumentException ex) {
+            redirect.addFlashAttribute("error", ex.getMessage());
+        }
+        return "redirect:/management/payments";
+    }
+
+    @PostMapping("/payments/{id}/reconcile-payos")
+    String reconcilePayOs(@PathVariable Long id, RedirectAttributes redirect) {
+        try {
+            payOsPaymentService.reconcile(id);
+            redirect.addFlashAttribute("success", "Đã kiểm tra lại trạng thái thanh toán với payOS.");
+        } catch (RuntimeException ex) {
+            redirect.addFlashAttribute("error", "Chưa thể kiểm tra với payOS. Vui lòng thử lại sau.");
+        }
+        return "redirect:/management/payments";
+    }
+
+    @PostMapping("/payments/{id}/cancel-unreceived")
+    String cancelUnreceivedTransfer(@PathVariable Long id, RedirectAttributes redirect) {
+        try {
+            bankTransferService.cancelUnreceived(currentUserService.require(), id);
+            redirect.addFlashAttribute("success", "Đã đóng đơn chưa nhận tiền và hoàn lại tồn kho.");
+        } catch (IllegalArgumentException ex) {
+            redirect.addFlashAttribute("error", ex.getMessage());
+        }
+        return "redirect:/management/payments";
+    }
+
+    @GetMapping
     String dashboard(@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
                      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
                      @RequestParam(required = false) String range,
@@ -100,19 +117,16 @@ public class ManagementController {
                      @RequestParam(defaultValue = "0") int page, Model model) {
         User actor = currentUserService.require();
         var dashboardRange = dashboardService.range(range, from, to);
-        var dashboard = dashboardService.forManagement(actor, shopId, dashboardRange);
-        var summary = managementService.dashboard(actor);
         model.addAttribute("dashboardRange", dashboardRange);
-        model.addAttribute("dashboard", dashboard);
-        // Management-only total from correctly scoped daily seller snapshots.
-        model.addAttribute("managementSellerRevenue", dashboard.sellerSeries().stream()
-            .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add));
-        model.addAttribute("summary", summary);
-        model.addAttribute("userCount", summary.users());
-        model.addAttribute("shopCount", summary.shops());
-        model.addAttribute("productCount", summary.products());
-        model.addAttribute("orderCount", actor.getRole() == Role.ADMIN ? orderRepository.count() : dashboard.periodOrderCount());
-
+        var stats = managementService.dashboard(actor);
+        model.addAttribute("userCount", stats.userCount());
+        model.addAttribute("shopCount", stats.shopCount());
+        model.addAttribute("productCount", stats.productCount());
+        model.addAttribute("orderCount", stats.orderCount());
+        model.addAttribute("voucherCount", stats.voucherCount());
+        model.addAttribute("platformRevenue", stats.platformRevenue());
+        model.addAttribute("sellerRevenue", stats.sellerRevenue());
+        model.addAttribute("dashboard", dashboardService.forManagement(actor, shopId, dashboardRange));
         var filter = revenueReportService.filter(dashboardRange.from(), dashboardRange.to(), shopId, status);
         var report = revenueReportService.report(actor, filter);
         model.addAttribute("report", report);
@@ -122,107 +136,34 @@ public class ManagementController {
         model.addAttribute("reportShops", revenueReportService.availableShops(actor));
         model.addAttribute("reportDashboardUrl", "/management");
         model.addAttribute("reportExportUrl", "/management/reports/revenue.csv");
-        model.addAttribute("reportStatuses", vn.iotstar.entity.DomainEnums.OrderStatus.values());
+        model.addAttribute("reportStatuses", OrderStatus.values());
         return "management/dashboard";
     }
 
-
-    // ==================== Step 21: Order Management ====================
-    @GetMapping("/orders")
-    String orders(@RequestParam(required = false) String q,
-                  @RequestParam(required = false) Long shop,
-                  @RequestParam(required = false) vn.iotstar.entity.DomainEnums.OrderStatus status,
-                  @RequestParam(defaultValue = "false") boolean pending,
-                  @RequestParam(defaultValue = "0") int page, Model model) {
-        User actor = currentUserService.require();
-        var orders = managementService.orders(actor, q, shop, status, pending, page);
-        var allowed = new java.util.HashMap<Long, java.util.List<vn.iotstar.entity.DomainEnums.OrderStatus>>();
-        var assignable = new java.util.HashMap<Long, Boolean>();
-        orders.forEach(o -> {
-            allowed.put(o.getId(), orderService.managementTransitions(o.getStatus()));
-            assignable.put(o.getId(), orderService.canAssignShipper(o.getStatus()));
-        });
-        model.addAttribute("orders", orders);
-        model.addAttribute("allowedTransitions", allowed);
-        model.addAttribute("assignableOrders", assignable);
-        model.addAttribute("shops", managementService.accessibleShops(actor));
-        model.addAttribute("shippers", managementService.shippers(actor));
-        model.addAttribute("statuses", vn.iotstar.entity.DomainEnums.OrderStatus.values());
-        model.addAttribute("q", q);
-        model.addAttribute("selectedShop", shop);
-        model.addAttribute("selectedStatus", status);
-        model.addAttribute("pending", pending);
-        return "management/orders";
-    }
-
-    @PostMapping("/orders/{id}/assign")
-    String assignShipper(@PathVariable Long id, @RequestParam Long shipperId, RedirectAttributes flash) {
-        try {
-            orderService.assignShipper(currentUserService.require(), id, shipperId);
-            flash.addFlashAttribute("success", "Đã phân công shipper.");
-        } catch (IllegalArgumentException ex) {
-            flash.addFlashAttribute("error", ex.getMessage());
-        }
-        return "redirect:/management/orders";
-    }
-
-    @PostMapping("/orders/{id}/retry-delivery")
-    String retryDelivery(@PathVariable Long id, @RequestParam Long shipperId, RedirectAttributes flash) {
-        try {
-            orderService.retryFailedDelivery(currentUserService.require(), id, shipperId);
-            flash.addFlashAttribute("success", "Đã điều phối giao lại.");
-        } catch (IllegalArgumentException ex) {
-            flash.addFlashAttribute("error", ex.getMessage());
-        }
-        return "redirect:/management/orders";
-    }
-
-    @PostMapping("/orders/{id}/status")
-    String managementOrderStatus(@PathVariable Long id,
-              @RequestParam vn.iotstar.entity.DomainEnums.OrderStatus status, RedirectAttributes flash) {
-        try {
-            orderService.managementUpdate(currentUserService.require(), id, status);
-            flash.addFlashAttribute("success", "Đã cập nhật trạng thái đơn hàng.");
-        } catch (IllegalArgumentException ex) {
-            flash.addFlashAttribute("error", ex.getMessage());
-        }
-        return "redirect:/management/orders";
-    }
-
     @GetMapping("/users")
-    String users(@RequestParam(required = false) String q,
-                 @RequestParam(defaultValue = "0") int page, Model model) {
+    String users(@RequestParam(required = false) String q, @RequestParam(defaultValue = "0") int page, Model model) {
         model.addAttribute("users", managementService.users(currentUserService.require(), q, page));
-        model.addAttribute("roles", Role.values());
         model.addAttribute("q", q);
+        model.addAttribute("roles", Role.values());
         return "management/users";
     }
 
     @PostMapping("/users/{id}/toggle-lock")
-    String toggleUser(@PathVariable Long id, RedirectAttributes flash) {
-        try {
-            managementService.toggleUser(id, currentUserService.require());
-            flash.addFlashAttribute("success", "Đã cập nhật trạng thái khóa tài khoản.");
-        } catch (IllegalArgumentException ex) {
-            flash.addFlashAttribute("error", ex.getMessage());
-        }
+    String toggleUser(@PathVariable Long id, RedirectAttributes redirect) {
+        managementService.toggleUser(id, currentUserService.require());
+        redirect.addFlashAttribute("success", "Đã đổi trạng thái khóa tài khoản.");
         return "redirect:/management/users";
     }
 
     @PostMapping("/users/{id}/role")
-    String changeRole(@PathVariable Long id, @RequestParam Role role, RedirectAttributes flash) {
-        try {
-            managementService.changeRole(id, role, currentUserService.require());
-            flash.addFlashAttribute("success", "Đã cập nhật vai trò người dùng.");
-        } catch (IllegalArgumentException ex) {
-            flash.addFlashAttribute("error", ex.getMessage());
-        }
+    String role(@PathVariable Long id, @RequestParam Role role, RedirectAttributes redirect) {
+        managementService.changeRole(id, role, currentUserService.require());
+        redirect.addFlashAttribute("success", "Đã cập nhật vai trò.");
         return "redirect:/management/users";
     }
 
     @GetMapping("/shops")
-    String shops(@RequestParam(required = false) String q,
-                 @RequestParam(required = false) ShopStatus status,
+    String shops(@RequestParam(required = false) String q, @RequestParam(required = false) ShopStatus status,
                  @RequestParam(defaultValue = "0") int page, Model model) {
         model.addAttribute("shops", managementService.shops(currentUserService.require(), q, status, page));
         model.addAttribute("statuses", ShopStatus.values());
@@ -233,38 +174,11 @@ public class ManagementController {
 
     @PostMapping("/shops/{id}")
     String updateShop(@PathVariable Long id, @RequestParam ShopStatus status,
-                      @RequestParam BigDecimal commissionRate, RedirectAttributes flash) {
-        try {
-            managementService.updateShop(currentUserService.require(), id, status, commissionRate);
-            flash.addFlashAttribute("success", "Đã cập nhật cửa hàng.");
-        } catch (IllegalArgumentException ex) {
-            flash.addFlashAttribute("error", ex.getMessage());
-        }
+                      @RequestParam BigDecimal commissionRate, RedirectAttributes redirect) {
+        managementService.updateShop(currentUserService.require(), id, status, commissionRate);
+        redirect.addFlashAttribute("success", "Đã cập nhật cửa hàng và chiết khấu ứng dụng.");
         return "redirect:/management/shops";
     }
-
-    @GetMapping("/managers")
-    String managers(Model model) {
-        User actor = currentUserService.require();
-        model.addAttribute("managers", managementService.managers(actor));
-        model.addAttribute("shops", managementService.accessibleShops(actor));
-        model.addAttribute("assignments", managementService.managerAssignments(actor));
-        return "management/managers";
-    }
-
-    @PostMapping("/managers/{id}/shops")
-    String assignShops(@PathVariable Long id, @RequestParam(required = false) List<Long> shopIds,
-                       RedirectAttributes flash) {
-        try {
-            managementService.assignManagerShops(currentUserService.require(), id, shopIds);
-            flash.addFlashAttribute("success", "Đã cập nhật phân công cửa hàng cho Manager.");
-        } catch (IllegalArgumentException ex) {
-            flash.addFlashAttribute("error", ex.getMessage());
-        }
-        return "redirect:/management/managers";
-    }
-
-    // ==================== STEP 14: Management Catalog ====================
 
     @GetMapping("/categories")
     String categories(@RequestParam(required = false) String q, @RequestParam(defaultValue = "0") int page, Model model) {
@@ -329,7 +243,7 @@ public class ManagementController {
         ProductForm form = new ProductForm();
         productOptionService.applyNewProductDefaults(form);
         prepareManagementProductForm(model, form, null, null);
-        return "management/product-form";
+        return "vendor/product-form";
     }
 
     @GetMapping("/products/{id}")
@@ -354,7 +268,7 @@ public class ManagementController {
             ProductForm form = productForm(product);
             productOptionService.loadConfiguration(product, form);
             prepareManagementProductForm(model, form, product, product.getShop().getId());
-            return "management/product-form";
+            return "vendor/product-form";
         } catch (IllegalArgumentException ex) {
             redirect.addFlashAttribute("error", ex.getMessage());
             return "redirect:/management/products";
@@ -380,7 +294,7 @@ public class ManagementController {
         }
         if (result.hasErrors()) {
             prepareManagementProductForm(model, productForm, product, shopId);
-            return "management/product-form";
+            return "vendor/product-form";
         }
         try {
             Product saved = managementProductService.save(actor, id, shopId, productForm, image,
@@ -390,7 +304,7 @@ public class ManagementController {
         } catch (IllegalArgumentException ex) {
             model.addAttribute("error", ex.getMessage());
             prepareManagementProductForm(model, productForm, product, shopId);
-            return "management/product-form";
+            return "vendor/product-form";
         }
     }
 
@@ -401,6 +315,50 @@ public class ManagementController {
         return "redirect:/management/products";
     }
 
+    @GetMapping("/carriers")
+    String carriers(@RequestParam(required = false) String q,
+                    @RequestParam(defaultValue = "0") int page, Model model) {
+        model.addAttribute("carriers", managementService.carriers(q, page));
+        model.addAttribute("q", q);
+        return "management/carriers";
+    }
+
+    @GetMapping("/carriers/new")
+    String newCarrier(Model model) {
+        model.addAttribute("carrierForm", new CarrierForm());
+        return "management/carrier-form";
+    }
+
+    @GetMapping("/carriers/{id}/edit")
+    String editCarrier(@PathVariable Long id, Model model) {
+        Carrier carrier = managementService.getCarrier(id);
+        CarrierForm form = new CarrierForm();
+        form.setName(carrier.getName());
+        form.setShippingFee(carrier.getShippingFee());
+        form.setActive(carrier.isActive());
+        model.addAttribute("carrierForm", form);
+        model.addAttribute("carrier", carrier);
+        return "management/carrier-form";
+    }
+
+    @PostMapping("/carriers/save")
+    String saveCarrier(@RequestParam(required = false) Long id,
+                       @Valid @ModelAttribute CarrierForm carrierForm, BindingResult result, Model model, RedirectAttributes redirect) {
+        if (result.hasErrors()) {
+            if (id != null) model.addAttribute("carrier", managementService.getCarrier(id));
+            return "management/carrier-form";
+        }
+        managementService.saveCarrier(id, carrierForm);
+        redirect.addFlashAttribute("success", "Đã lưu nhà vận chuyển.");
+        return "redirect:/management/carriers";
+    }
+
+    @PostMapping("/carriers/{id}/toggle")
+    String toggleCarrier(@PathVariable Long id, RedirectAttributes redirect) {
+        managementService.toggleCarrier(id);
+        redirect.addFlashAttribute("success", "Đã đổi trạng thái nhà vận chuyển.");
+        return "redirect:/management/carriers";
+    }
 
     @GetMapping("/toppings")
     String toppings(@RequestParam(required = false) String q,
@@ -488,8 +446,8 @@ public class ManagementController {
     @GetMapping("/promotions/new")
     String newPromotion(Model model) {
         PromotionForm form = new PromotionForm();
-        form.setStartsAt(LocalDateTime.now().withSecond(0).withNano(0));
-        form.setEndsAt(LocalDateTime.now().plusDays(7).withSecond(0).withNano(0));
+        form.setStartsAt(VietnamTime.now().withSecond(0).withNano(0));
+        form.setEndsAt(VietnamTime.now().plusDays(7).withSecond(0).withNano(0));
         preparePromotion(model, form, null, null);
         return "management/promotion-form";
     }
@@ -530,20 +488,17 @@ public class ManagementController {
         return "redirect:/management/promotions";
     }
 
-
-    // ==================== STEP 15: System Vouchers ====================
-
     @GetMapping("/vouchers")
     String vouchers(@RequestParam(required = false) String q,
                     @RequestParam(required = false) VoucherType type,
                     @RequestParam(required = false) Boolean active,
                     @RequestParam(defaultValue = "0") int page, Model model) {
-        model.addAttribute("vouchers", managementService.vouchers(currentUserService.require(), q, type, active, page));
+        model.addAttribute("vouchers", managementService.vouchers(q, type, active, page));
         model.addAttribute("types", VoucherType.values());
         model.addAttribute("q", q);
         model.addAttribute("selectedType", type);
         model.addAttribute("selectedActive", active);
-        model.addAttribute("now", LocalDateTime.now());
+        model.addAttribute("now", VietnamTime.now());
         return "management/vouchers";
     }
 
@@ -551,15 +506,15 @@ public class ManagementController {
     String newVoucher(Model model) {
         VoucherForm form = new VoucherForm();
         form.setQuantity(100);
-        form.setStartsAt(LocalDateTime.now().withSecond(0).withNano(0));
-        form.setEndsAt(LocalDateTime.now().plusMonths(1).withSecond(0).withNano(0));
+        form.setStartsAt(VietnamTime.now().withSecond(0).withNano(0));
+        form.setEndsAt(VietnamTime.now().plusMonths(1).withSecond(0).withNano(0));
         prepareVoucher(model, form, null);
         return "management/voucher-form";
     }
 
     @GetMapping("/vouchers/{id}/edit")
     String editVoucher(@PathVariable Long id, Model model) {
-        Voucher voucher = managementService.getVoucher(currentUserService.require(), id);
+        Voucher voucher = managementService.getVoucher(id);
         VoucherForm form = new VoucherForm();
         form.setCode(voucher.getCode());
         form.setName(voucher.getName());
@@ -582,13 +537,13 @@ public class ManagementController {
                        BindingResult result, Model model, RedirectAttributes redirect) {
         if (!result.hasErrors()) {
             try {
-                managementService.saveVoucher(currentUserService.require(), id, voucherForm);
+                managementService.saveVoucher(id, voucherForm);
             } catch (IllegalArgumentException ex) {
                 result.reject("voucher.invalid", ex.getMessage());
             }
         }
         if (result.hasErrors()) {
-            prepareVoucher(model, voucherForm, id == null ? null : managementService.getVoucher(currentUserService.require(), id));
+            prepareVoucher(model, voucherForm, id == null ? null : managementService.getVoucher(id));
             return "management/voucher-form";
         }
         redirect.addFlashAttribute("success", "Đã lưu mã giảm giá.");
@@ -597,7 +552,7 @@ public class ManagementController {
 
     @PostMapping("/vouchers/{id}/toggle")
     String toggleVoucher(@PathVariable Long id, RedirectAttributes redirect) {
-        managementService.toggleVoucher(currentUserService.require(), id);
+        managementService.toggleVoucher(id);
         redirect.addFlashAttribute("success", "Đã đổi trạng thái mã giảm giá.");
         return "redirect:/management/vouchers";
     }
@@ -605,7 +560,7 @@ public class ManagementController {
     @PostMapping("/vouchers/{id}/delete")
     String deleteVoucher(@PathVariable Long id, RedirectAttributes redirect) {
         try {
-            managementService.deleteVoucher(currentUserService.require(), id);
+            managementService.deleteVoucher(id);
             redirect.addFlashAttribute("success", "Đã xóa mã giảm giá.");
         } catch (IllegalArgumentException ex) {
             redirect.addFlashAttribute("error", ex.getMessage());
@@ -615,83 +570,101 @@ public class ManagementController {
 
     @GetMapping("/vouchers/{id}/usages")
     String voucherUsages(@PathVariable Long id, @RequestParam(defaultValue = "0") int page, Model model) {
-        Voucher voucher = managementService.getVoucher(currentUserService.require(), id);
+        Voucher voucher = managementService.getVoucher(id);
         model.addAttribute("voucher", voucher);
-        model.addAttribute("usages", managementService.voucherUsages(currentUserService.require(), id, page));
+        model.addAttribute("usages", managementService.voucherUsages(id, page));
         return "management/voucher-usages";
     }
 
-    // ==================== STEP 16: Carriers ====================
-
-    @GetMapping("/carriers")
-    String carriers(@RequestParam(required = false) String q,
-                    @RequestParam(defaultValue = "0") int page, Model model) {
-        model.addAttribute("carriers", managementService.carriers(currentUserService.require(), q, page));
+    @GetMapping("/orders")
+    String orders(@RequestParam(required = false) String q, @RequestParam(required = false) Long shop,
+                  @RequestParam(required = false) OrderStatus status,
+                  @RequestParam(defaultValue = "false") boolean pending,
+                  @RequestParam(defaultValue = "0") int page, Model model) {
+        User actor = currentUserService.require();
+        var orders = managementService.orders(actor, q, shop, status, pending, page);
+        var allowedTransitions = new HashMap<Long, java.util.List<OrderStatus>>();
+        var assignableOrders = new HashMap<Long, Boolean>();
+        orders.forEach(order -> {
+            allowedTransitions.put(order.getId(), order.isAwaitingBankTransferConfirmation()
+                ? java.util.List.of() : orderService.managementTransitions(order.getStatus()));
+            assignableOrders.put(order.getId(), orderService.canAssignShipper(order.getStatus()));
+        });
+        model.addAttribute("orders", orders);
+        model.addAttribute("allowedTransitions", allowedTransitions);
+        model.addAttribute("assignableOrders", assignableOrders);
+        model.addAttribute("shops", managementService.accessibleShops(actor));
+        model.addAttribute("shippers", managementService.shippers());
+        model.addAttribute("statuses", OrderStatus.values());
         model.addAttribute("q", q);
-        return "management/carriers";
+        model.addAttribute("selectedShop", shop);
+        model.addAttribute("selectedStatus", status);
+        model.addAttribute("pending", pending);
+        model.addAttribute("returnRequests", returnRequestService.forOrders(
+            orders.getContent().stream().map(CustomerOrder::getId).toList()));
+        return "management/orders";
     }
 
-    @GetMapping("/carriers/new")
-    String newCarrier(Model model) {
-        model.addAttribute("carrierForm", new CarrierForm());
-        return "management/carrier-form";
-    }
-
-    @GetMapping("/carriers/{id}/edit")
-    String editCarrier(@PathVariable Long id, Model model) {
-        Carrier carrier = managementService.getCarrier(currentUserService.require(), id);
-        CarrierForm form = new CarrierForm();
-        form.setName(carrier.getName());
-        form.setShippingFee(carrier.getShippingFee());
-        form.setActive(carrier.isActive());
-        model.addAttribute("carrierForm", form);
-        model.addAttribute("carrier", carrier);
-        return "management/carrier-form";
-    }
-
-    @PostMapping("/carriers/save")
-    String saveCarrier(@RequestParam(required = false) Long id,
-                       @Valid @ModelAttribute("carrierForm") CarrierForm carrierForm,
-                       BindingResult result, Model model, RedirectAttributes flash) {
-        if (!result.hasErrors()) {
-            try {
-                managementService.saveCarrier(currentUserService.require(), id, carrierForm);
-            } catch (IllegalArgumentException ex) {
-                result.reject("carrier.invalid", ex.getMessage());
-            }
-        }
-        if (result.hasErrors()) {
-            if (id != null) model.addAttribute("carrier", managementService.getCarrier(currentUserService.require(), id));
-            return "management/carrier-form";
-        }
-        flash.addFlashAttribute("success", "Đã lưu nhà vận chuyển.");
-        return "redirect:/management/carriers";
-    }
-
-    @PostMapping("/carriers/{id}/toggle")
-    String toggleCarrier(@PathVariable Long id, RedirectAttributes flash) {
-        managementService.toggleCarrier(currentUserService.require(), id);
-        flash.addFlashAttribute("success", "Đã đổi trạng thái nhà vận chuyển.");
-        return "redirect:/management/carriers";
-    }
-
-    @PostMapping("/carriers/{id}/delete")
-    String deleteCarrier(@PathVariable Long id, RedirectAttributes flash) {
+    @PostMapping("/orders/{id}/assign")
+    String assign(@PathVariable Long id, @RequestParam Long shipperId, RedirectAttributes redirect) {
         try {
-            managementService.deleteCarrier(currentUserService.require(), id);
-            flash.addFlashAttribute("success", "Đã xóa nhà vận chuyển.");
-        } catch (org.springframework.dao.DataIntegrityViolationException ex) {
-            flash.addFlashAttribute("error", "Nhà vận chuyển đã được dùng trong đơn hàng; hãy tắt thay vì xóa.");
+            orderService.assignShipper(currentUserService.require(), id, shipperId);
+            redirect.addFlashAttribute("success", "Đã phân công shipper.");
         } catch (IllegalArgumentException ex) {
-            flash.addFlashAttribute("error", ex.getMessage());
+            redirect.addFlashAttribute("error", ex.getMessage());
         }
-        return "redirect:/management/carriers";
+        return "redirect:/management/orders";
     }
 
-    private void prepareVoucher(Model model, VoucherForm form, Voucher voucher) {
-        model.addAttribute("voucherForm", form);
-        model.addAttribute("voucher", voucher);
-        model.addAttribute("types", VoucherType.values());
+    @PostMapping("/orders/{id}/retry-delivery")
+    String retryDelivery(@PathVariable Long id, @RequestParam Long shipperId, RedirectAttributes redirect) {
+        try {
+            orderService.retryFailedDelivery(currentUserService.require(), id, shipperId);
+            redirect.addFlashAttribute("success", "Đã điều phối giao lại. Chờ shipper chấp nhận phân công.");
+        } catch (IllegalArgumentException ex) {
+            redirect.addFlashAttribute("error", ex.getMessage());
+        }
+        return "redirect:/management/orders";
+    }
+
+    @PostMapping("/orders/{id}/return-to-shop")
+    String confirmReturnToShop(@PathVariable Long id, RedirectAttributes redirect) {
+        try {
+            orderService.confirmReturnedToShop(currentUserService.require(), id);
+            redirect.addFlashAttribute("success", "Đã xác nhận kiện hàng về shop.");
+        } catch (IllegalArgumentException ex) {
+            redirect.addFlashAttribute("error", ex.getMessage());
+        }
+        return "redirect:/management/orders";
+    }
+
+    @PostMapping("/orders/{id}/status")
+    String status(@PathVariable Long id, @RequestParam OrderStatus status, RedirectAttributes redirect) {
+        try {
+            orderService.managementUpdate(currentUserService.require(), id, status);
+            redirect.addFlashAttribute("success", "Đã cập nhật trạng thái đơn hàng.");
+        } catch (IllegalArgumentException ex) {
+            redirect.addFlashAttribute("error", ex.getMessage());
+        }
+        return "redirect:/management/orders";
+    }
+
+    @GetMapping("/managers")
+    String managers(Model model) {
+        User actor = currentUserService.require();
+        model.addAttribute("managers", managementService.managers(actor));
+        model.addAttribute("shops", managementService.accessibleShops(actor));
+        model.addAttribute("assignments", managementService.managerAssignments(actor));
+        return "management/managers";
+    }
+
+    @PostMapping("/managers/{id}/shops")
+    String assignManagerShops(@PathVariable Long id,
+                              @RequestParam(required = false) java.util.List<Long> shopIds,
+                              RedirectAttributes redirect) {
+        managementService.assignManagerShops(currentUserService.require(), id, shopIds);
+        redirect.addFlashAttribute("success", "Đã cập nhật cửa hàng phụ trách cho Manager.");
+        return "redirect:/management/managers";
     }
 
     private void preparePromotion(Model model, PromotionForm form, Promotion promotion, Long selectedShopId) {
@@ -715,6 +688,7 @@ public class ManagementController {
         form.setDescription(product.getDescription());
         form.setPrice(product.getPrice());
         form.setStock(product.getStock());
+        form.setVersion(product.getVersion());
         form.setStatus(product.getStatus());
         return form;
     }
@@ -724,12 +698,6 @@ public class ManagementController {
         var shops = managementService.accessibleShops(actor);
         if (product != null) selectedShopId = product.getShop().getId();
         if (selectedShopId == null && shops.size() == 1) selectedShopId = shops.getFirst().getId();
-        model.addAttribute("editing", product != null);
-        model.addAttribute("productId", product == null ? null : product.getId());
-        model.addAttribute("shop", product == null ? null : product.getShop());
-        model.addAttribute("sugarLevels", vn.iotstar.entity.DomainEnums.SugarLevel.values());
-        model.addAttribute("iceLevels", vn.iotstar.entity.DomainEnums.IceLevel.values());
-        model.addAttribute("statuses", vn.iotstar.entity.DomainEnums.ProductStatus.values());
         model.addAttribute("managementMode", true);
         model.addAttribute("productForm", form);
         model.addAttribute("product", product);
@@ -740,5 +708,9 @@ public class ManagementController {
         model.addAttribute("gallery", product == null ? java.util.List.of() : productGalleryService.images(product));
     }
 
-
+    private void prepareVoucher(Model model, VoucherForm form, Voucher voucher) {
+        model.addAttribute("voucherForm", form);
+        model.addAttribute("voucher", voucher);
+        model.addAttribute("types", VoucherType.values());
+    }
 }

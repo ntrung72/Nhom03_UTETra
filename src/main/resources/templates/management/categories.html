@@ -3,8 +3,10 @@
 <head th:replace="~{fragments/layout :: head('Danh mục')}"></head>
 <body>
 <header th:replace="~{fragments/layout :: header}"></header>
-<main class="container py-4">
-    <div th:replace="~{fragments/management-nav :: nav}"></div>
+<main class="container py-4 management-page">
+    <div class="admin-dashboard-shell">
+        <div th:replace="~{fragments/management-nav :: nav}"></div>
+        <div class="admin-dashboard-content">
     <div th:replace="~{fragments/layout :: flash}"></div>
     <div class="d-flex justify-content-between align-items-center">
         <h1 class="h3">Quản lý danh mục</h1>
@@ -25,7 +27,7 @@
                 <td th:text="${c.active ? 'Hoạt động' : 'Đã ẩn'}"></td>
                 <td class="text-nowrap">
                     <a class="btn btn-sm btn-outline-primary" th:href="@{/management/categories/{id}/edit(id=${c.id})}">Sửa</a>
-                    <form class="d-inline" th:action="@{/management/categories/{id}/toggle(id=${c.id})}" method="post"><button class="btn btn-sm btn-outline-warning">Bật/tắt</button></form>
+                    <form class="d-inline" th:action="@{/management/categories/{id}/toggle(id=${c.id})}" method="post"><button class="btn btn-sm btn-outline-warning" th:text="${c.active ? 'Ẩn' : 'Hiện'}"></button></form>
                 </td>
             </tr>
             <tr th:if="${categories.empty}"><td colspan="3" class="text-center text-muted py-4">Không tìm thấy danh mục.</td></tr>
@@ -39,6 +41,8 @@
             <li class="page-item" th:classappend="${categories.last} ? 'disabled'"><a class="page-link" th:href="@{/management/categories(page=${categories.number + 1},q=${q})}">Sau</a></li>
         </ul>
     </nav>
+        </div>
+    </div>
 </main>
 <footer th:replace="~{fragments/layout :: footer}"></footer>
 <th:block th:replace="~{fragments/layout :: scripts}"></th:block>

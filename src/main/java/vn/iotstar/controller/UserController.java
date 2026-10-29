@@ -1,7 +1,5 @@
 package vn.iotstar.controller;
 
-import java.util.List;
-
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
@@ -10,6 +8,7 @@ import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import org.springframework.web.util.UriComponentsBuilder;
 import vn.iotstar.dto.WebForms.AddressForm;
 import vn.iotstar.dto.WebForms.BankForm;
 import vn.iotstar.dto.WebForms.ChangePasswordForm;
@@ -17,71 +16,24 @@ import vn.iotstar.dto.WebForms.ProfileForm;
 import vn.iotstar.entity.Address;
 import vn.iotstar.entity.Product;
 import vn.iotstar.entity.User;
+import vn.iotstar.entity.DomainEnums.IceLevel;
+import vn.iotstar.entity.DomainEnums.SugarLevel;
 import vn.iotstar.service.*;
+import java.util.List;
 
 @Controller
 @RequestMapping("/user")
 @RequiredArgsConstructor
 public class UserController {
     private final CurrentUserService currentUserService;
-    private final SavedRecipeService recipes;
-    private final ShopFollowService follows;
-    private final LoyaltyPointService loyalty;
     private final ProfileService profileService;
     private final EngagementService engagementService;
-    private final ProductPricingService productPricingService;
+    private final CatalogService catalogService;
     private final NotificationService notificationService;
-
-    @GetMapping("/loyalty")
-    String loyalty(@RequestParam(defaultValue="0") int page, Model model) {
-        var user=currentUserService.require();
-        model.addAttribute("pointBalance",loyalty.balance(user));
-        model.addAttribute("pointHistory",loyalty.history(user,page));
-        model.addAttribute("vndPerPoint",loyalty.getVndPerPoint());
-        return "user/loyalty";
-    }
-
-    @GetMapping("/recipes")
-    String recipes(@RequestParam(defaultValue="0") int page, Model model) {
-        model.addAttribute("recipes", recipes.list(currentUserService.require(), page)); return "user/recipes";
-    }
-    @PostMapping("/recipes/from-product/{productId}")
-    String saveRecipe(@PathVariable Long productId, @RequestParam(required=false) String name,
-        @RequestParam(required=false) Long sizeId, @RequestParam(required=false) vn.iotstar.entity.DomainEnums.SugarLevel sugarLevel,
-        @RequestParam(required=false) vn.iotstar.entity.DomainEnums.IceLevel iceLevel,
-        @RequestParam(required=false) List<Long> toppingIds, RedirectAttributes redirect) {
-        try { recipes.save(currentUserService.require(), productId, name, sizeId, sugarLevel, iceLevel, toppingIds);
-            redirect.addFlashAttribute("success", "Đã lưu công thức của bạn."); return "redirect:/user/recipes";
-        } catch (IllegalArgumentException ex) { redirect.addFlashAttribute("error", ex.getMessage()); return "redirect:/products/"+productId; }
-    }
-    @PostMapping("/recipes/{id}/cart")
-    String recipeCart(@PathVariable Long id, @RequestParam(defaultValue="1") int quantity, RedirectAttributes redirect) {
-        try { recipes.addToCart(currentUserService.require(), id, quantity); redirect.addFlashAttribute("success", "Đã thêm công thức với giá hiện tại."); return "redirect:/cart"; }
-        catch (IllegalArgumentException ex) { redirect.addFlashAttribute("error", ex.getMessage()); return "redirect:/user/recipes"; }
-    }
-    @PostMapping("/recipes/{id}/rename")
-    String renameRecipe(@PathVariable Long id, @RequestParam String name, RedirectAttributes redirect) {
-        try { recipes.rename(currentUserService.require(), id, name); redirect.addFlashAttribute("success", "Đã đổi tên công thức."); }
-        catch (IllegalArgumentException ex) { redirect.addFlashAttribute("error", ex.getMessage()); } return "redirect:/user/recipes";
-    }
-    @PostMapping("/recipes/{id}/delete")
-    String deleteRecipe(@PathVariable Long id, RedirectAttributes redirect) {
-        try { recipes.delete(currentUserService.require(), id); redirect.addFlashAttribute("success", "Đã xóa công thức."); }
-        catch (IllegalArgumentException ex) { redirect.addFlashAttribute("error", ex.getMessage()); } return "redirect:/user/recipes";
-    }
-    @GetMapping("/followed-shops")
-    String followedShops(@RequestParam(defaultValue="0") int page, Model model) {
-        model.addAttribute("followedShops", follows.followedShops(currentUserService.require(),page));return "user/followed-shops";
-    }
-    @PostMapping("/followed-shops/{id}/follow")
-    String follow(@PathVariable Long id, RedirectAttributes redirect) {
-        try { follows.follow(currentUserService.require(),id);redirect.addFlashAttribute("success","Đã theo dõi cửa hàng."); }
-        catch(IllegalArgumentException ex){redirect.addFlashAttribute("error",ex.getMessage());}return "redirect:/user/followed-shops";
-    }
-    @PostMapping("/followed-shops/{id}/unfollow")
-    String unfollow(@PathVariable Long id, RedirectAttributes redirect) {
-        follows.unfollow(currentUserService.require(),id);redirect.addFlashAttribute("success","Đã bỏ theo dõi cửa hàng.");return "redirect:/user/followed-shops";
-    }
+    private final ProductPricingService productPricingService;
+    private final ShopFollowService shopFollowService;
+    private final SavedRecipeService savedRecipeService;
+    private final LoyaltyPointService loyaltyPointService;
 
     @GetMapping
     String userHome() {
@@ -90,9 +42,11 @@ public class UserController {
 
     @GetMapping("/profile")
     String profile(@RequestParam(defaultValue = "profile") String tab,
-                   @RequestParam(required = false) Long editAddress, Model model) {
+                   @RequestParam(required = false) Long editAddress,
+                   @RequestParam(required = false) Long returnOrder, Model model) {
         User user = currentUserService.require();
         prepareAccountPage(user, model, editAddress != null ? "addresses" : normalizeTab(tab), editAddress);
+        model.addAttribute("returnOrder", returnOrder);
         return "user/profile";
     }
 
@@ -110,6 +64,7 @@ public class UserController {
 
     @PostMapping("/bank")
     String updateBank(@Valid @ModelAttribute("bankForm") BankForm bankForm, BindingResult result,
+                      @RequestParam(required = false) Long returnOrder,
                       Model model, RedirectAttributes redirect) {
         boolean hasAnyBankValue = hasText(bankForm.getBankName()) || hasText(bankForm.getAccountName())
             || hasText(bankForm.getAccountNumber());
@@ -120,10 +75,14 @@ public class UserController {
         }
         if (result.hasErrors()) {
             prepareAccountPage(currentUserService.require(), model, "bank", null);
+            model.addAttribute("returnOrder", returnOrder);
             return "user/profile";
         }
         profileService.updateBank(currentUserService.require(), bankForm);
         redirect.addFlashAttribute("success", hasAnyBankValue ? "Đã cập nhật thông tin ngân hàng." : "Đã xóa thông tin ngân hàng.");
+        if (hasAnyBankValue && returnOrder != null && returnOrder > 0) {
+            return "redirect:/orders/" + returnOrder + "/return";
+        }
         return "redirect:/user/profile?tab=bank";
     }
 
@@ -143,9 +102,6 @@ public class UserController {
             }
         }
         if (result.hasErrors()) {
-            passwordForm.setCurrentPassword(null);
-            passwordForm.setNewPassword(null);
-            passwordForm.setConfirmPassword(null);
             prepareAccountPage(currentUserService.require(), model, "password", null);
             return "user/profile";
         }
@@ -203,11 +159,23 @@ public class UserController {
     }
 
     @PostMapping("/favorites/{productId}")
-    String favorite(@PathVariable Long productId, RedirectAttributes redirect) {
-        boolean liked = engagementService.toggleFavorite(currentUserService.require(), productId);
+    String favorite(@PathVariable Long productId, @RequestParam(defaultValue = "/user/favorites") String returnUrl,
+                    RedirectAttributes redirect) {
+        Product product = catalogService.getPublicProduct(productId);
+        boolean liked = engagementService.toggleFavorite(currentUserService.require(), product);
         redirect.addFlashAttribute("success", liked ? "Đã thêm vào yêu thích." : "Đã bỏ yêu thích.");
-        return "redirect:/user/favorites";
+        return "redirect:" + (returnUrl.startsWith("/") && !returnUrl.startsWith("//") ? returnUrl : "/user/favorites");
     }
+
+    @PostMapping("/favorites/{productId}/toggle")
+    @ResponseBody
+    FavoriteToggleResult toggleFavorite(@PathVariable Long productId) {
+        Product product = catalogService.getPublicProduct(productId);
+        boolean liked = engagementService.toggleFavorite(currentUserService.require(), product);
+        return new FavoriteToggleResult(liked, product.getFavoriteCount());
+    }
+
+    public record FavoriteToggleResult(boolean liked, long count) {}
 
     @GetMapping("/favorites")
     String favorites(@RequestParam(defaultValue = "0") int page, Model model) {
@@ -216,6 +184,44 @@ public class UserController {
         model.addAttribute("promotionPrices", productPricingService.prices(
             favorites.getContent().stream().map(favorite -> favorite.getProduct()).toList()));
         return "user/favorites";
+    }
+
+    @GetMapping("/followed-shops")
+    String followedShops(@RequestParam(defaultValue = "0") int page, Model model) {
+        User user = currentUserService.require();
+        prepareAccountNavigation(user, model, "followed-shops");
+        model.addAttribute("followedShops", shopFollowService.followedShops(user, page));
+        return "user/followed-shops";
+    }
+
+    @PostMapping("/followed-shops/{shopId}/follow")
+    String followShop(@PathVariable Long shopId, RedirectAttributes redirect) {
+        try {
+            boolean created = shopFollowService.follow(currentUserService.require(), shopId);
+            redirect.addFlashAttribute("success", created ? "Đã theo dõi cửa hàng." : "Bạn đã theo dõi cửa hàng này.");
+        } catch (IllegalArgumentException ex) {
+            redirect.addFlashAttribute("error", ex.getMessage());
+        }
+        return shopFollowRedirect(shopId);
+    }
+
+    @PostMapping("/followed-shops/{shopId}/unfollow")
+    String unfollowShop(@PathVariable Long shopId, @RequestParam(defaultValue = "shop") String from,
+                        RedirectAttributes redirect) {
+        try {
+            boolean removed = shopFollowService.unfollow(currentUserService.require(), shopId);
+            redirect.addFlashAttribute("success", removed ? "Đã bỏ theo dõi cửa hàng." : "Cửa hàng không còn trong danh sách theo dõi.");
+        } catch (IllegalArgumentException ex) {
+            redirect.addFlashAttribute("error", ex.getMessage());
+        }
+        return "list".equals(from) ? "redirect:/user/followed-shops" : shopFollowRedirect(shopId);
+    }
+
+    private String shopFollowRedirect(Long shopId) {
+        return shopFollowService.publicShopSlug(shopId)
+            .map(slug -> "redirect:" + UriComponentsBuilder.fromPath("/shops/{slug}")
+                .buildAndExpand(slug).encode().toUriString())
+            .orElse("redirect:/user/followed-shops");
     }
 
     @GetMapping("/viewed")
@@ -227,47 +233,97 @@ public class UserController {
         return "user/viewed";
     }
 
+    @GetMapping("/recipes")
+    String recipes(@RequestParam(defaultValue = "0") int page, Model model) {
+        User user = currentUserService.require();
+        prepareAccountNavigation(user, model, "recipes");
+        model.addAttribute("recipes", savedRecipeService.list(user, page));
+        return "user/recipes";
+    }
+
+    @PostMapping("/recipes/from-product/{productId}")
+    String saveRecipe(@PathVariable Long productId,
+                      @RequestParam(required = false) String recipeName,
+                      @RequestParam(required = false) Long sizeId,
+                      @RequestParam(required = false) SugarLevel sugarLevel,
+                      @RequestParam(required = false) IceLevel iceLevel,
+                      @RequestParam(required = false) List<Long> toppingIds,
+                      RedirectAttributes redirect) {
+        try {
+            savedRecipeService.save(currentUserService.require(), productId, recipeName, sizeId,
+                sugarLevel, iceLevel, toppingIds);
+            redirect.addFlashAttribute("success", "Đã lưu công thức của bạn.");
+            return "redirect:/user/recipes";
+        } catch (IllegalArgumentException ex) {
+            redirect.addFlashAttribute("error", ex.getMessage());
+            return "redirect:/products/" + productId;
+        }
+    }
+
+    @PostMapping("/recipes/{id}/cart")
+    String addRecipeToCart(@PathVariable Long id, @RequestParam(defaultValue = "1") int quantity,
+                           RedirectAttributes redirect) {
+        try {
+            savedRecipeService.addToCart(currentUserService.require(), id, quantity);
+            redirect.addFlashAttribute("success", "Đã thêm công thức vào giỏ với giá hiện tại. Món cùng cấu hình đã có trong giỏ sẽ được cộng số lượng.");
+        } catch (IllegalArgumentException ex) {
+            redirect.addFlashAttribute("error", ex.getMessage());
+        }
+        return "redirect:/user/recipes";
+    }
+
+    @PostMapping("/recipes/{id}/rename")
+    String renameRecipe(@PathVariable Long id, @RequestParam String name,
+                        RedirectAttributes redirect) {
+        try {
+            savedRecipeService.rename(currentUserService.require(), id, name);
+            redirect.addFlashAttribute("success", "Đã đổi tên công thức.");
+        } catch (IllegalArgumentException ex) {
+            redirect.addFlashAttribute("error", ex.getMessage());
+        }
+        return "redirect:/user/recipes";
+    }
+
+    @PostMapping("/recipes/{id}/delete")
+    String deleteRecipe(@PathVariable Long id, RedirectAttributes redirect) {
+        try {
+            savedRecipeService.delete(currentUserService.require(), id);
+            redirect.addFlashAttribute("success", "Đã xóa công thức.");
+        } catch (IllegalArgumentException ex) {
+            redirect.addFlashAttribute("error", ex.getMessage());
+        }
+        return "redirect:/user/recipes";
+    }
+
     @GetMapping("/notifications")
     String notifications(@RequestParam(defaultValue = "0") int page, Model model) {
-        User user = currentUserService.require();
-        var notifications = notificationService.list(user, page);
-        var links = new java.util.LinkedHashMap<Long, String>();
-        for (var notification : notifications.getContent()) {
-            String link = notificationLink(user, notification.getLink());
-            if (link != null) links.put(notification.getId(), link);
-        }
-        model.addAttribute("notifications", notifications);
-        model.addAttribute("notificationLinks", links);
+        model.addAttribute("notifications", notificationService.list(currentUserService.require(), page));
         return "user/notifications";
     }
 
-    @PostMapping("/notifications/{id}/read")
-    String readNotification(@PathVariable Long id, @RequestParam(defaultValue = "0") int page,
-                            RedirectAttributes redirect) {
-        try {
-            notificationService.markRead(currentUserService.require(), id);
-        } catch (IllegalArgumentException ex) {
-            // Return the same response for missing IDs and another recipient's notifications.
-            throw new org.springframework.web.server.ResponseStatusException(
-                org.springframework.http.HttpStatus.NOT_FOUND, "Không tìm thấy thông báo.");
-        }
-        redirect.addFlashAttribute("success", "Đã đánh dấu thông báo là đã đọc.");
-        return "redirect:/user/notifications?page=" + Math.max(0, page);
+    @GetMapping("/loyalty")
+    String loyalty(@RequestParam(defaultValue = "0") int page, Model model) {
+        User user = currentUserService.require();
+        prepareAccountNavigation(user, model, "loyalty");
+        model.addAttribute("pointBalance", loyaltyPointService.balance(user));
+        model.addAttribute("pointHistory", loyaltyPointService.history(user, page));
+        model.addAttribute("vndPerPoint", loyaltyPointService.getVndPerPoint());
+        return "user/loyalty";
     }
 
-    private String notificationLink(User user, String value) {
-        if (value == null) return null;
-        String link = value.trim();
-        if (link.matches("/(orders|products)(/[1-9][0-9]*)?")
-            || link.matches("/shops/[A-Za-z0-9_-]+")) return link;
-        if (user.getRole() == vn.iotstar.entity.DomainEnums.Role.VENDOR
-            && link.matches("/vendor/orders(/[1-9][0-9]*)?")) return link;
-        return null;
+    @PostMapping("/notifications/{id}/read")
+    String read(@PathVariable Long id) {
+        notificationService.markRead(currentUserService.require(), id);
+        return "redirect:/user/notifications";
+    }
+
+    private void prepareAccountNavigation(User user, Model model, String activeTab) {
+        model.addAttribute("activeTab", activeTab);
+        model.addAttribute("addresses", profileService.addresses(user));
     }
 
     private void prepareAccountPage(User user, Model model, String activeTab, Long editAddress) {
-        model.addAttribute("activeTab", activeTab);
-        model.addAttribute("addresses", profileService.addresses(user));
+        prepareAccountNavigation(user, model, activeTab);
         model.addAttribute("editAddressId", editAddress);
 
         if (!model.containsAttribute("profileForm")) {

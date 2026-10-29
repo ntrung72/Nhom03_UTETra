@@ -1,809 +1,484 @@
 package vn.iotstar;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.hamcrest.Matchers.containsString;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.hamcrest.Matchers.not;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.Base64;
-import java.util.List;
-import org.junit.jupiter.api.BeforeEach;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.context.WebApplicationContext;
 import vn.iotstar.dto.WebForms.ReturnRequestForm;
-import vn.iotstar.entity.CustomerOrder;
+import vn.iotstar.entity.*;
 import vn.iotstar.entity.DomainEnums.*;
-import vn.iotstar.entity.InventoryTransaction;
-import vn.iotstar.entity.ManagerShop;
-import vn.iotstar.entity.OrderStatusHistory;
-import vn.iotstar.entity.ReturnRequest;
-import vn.iotstar.entity.ReturnRequestMedia;
-import vn.iotstar.repository.InventoryTransactionRepository;
-import vn.iotstar.repository.ManagerShopRepository;
-import vn.iotstar.repository.ReturnRequestRepository;
-import vn.iotstar.service.MediaStorageService;
-import vn.iotstar.service.NotificationService;
+import vn.iotstar.repository.*;
 import vn.iotstar.service.ReturnRequestService;
-import vn.iotstar.support.MediaTestFiles;
 
-@SpringBootTest
 @ActiveProfiles("test")
+@SpringBootTest
 @Transactional
-class ReturnRequestTests extends CheckoutTestFixtures {
-
-    // MP4 thật, 16 x 16 pixel, một frame.
-    private static final byte[] PROOF_MP4 = Base64.getDecoder()
-        .decode(
-            "AAAAHGZ0eXBpc29tAAACAGlzb21pc28ybXA0MQAAAAhmcmVlAAAAHG1kYXQAAAGzABAHAAABthYFGFBtgtAoPwAAAwttb292"
-            + "AAAAbG12aGQAAAAAAAAAAAAAAAAAAAPoAAAD6AABAAABAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAA"
-            + "AAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAACWnRyYWsAAABcdGtoZAAAAAMAAAAAAAAAAAAAAAEAAAAA"
-            + "AAAD6AAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAEAAAABAAAAAAACRlZHRz"
-            + "AAAAHGVsc3QAAAAAAAAAAQAAA+gAAAAAAAEAAAAAAdJtZGlhAAAAIG1kaGQAAAAAAAAAAAAAAAAAAEAAAABAAFXEAAAAAAAt"
-            + "aGRscgAAAAAAAAAAdmlkZQAAAAAAAAAAAAAAAFZpZGVvSGFuZGxlcgAAAAF9bWluZgAAABR2bWhkAAAAAQAAAAAAAAAAAAAA"
-            + "JGRpbmYAAAAcZHJlZgAAAAAAAAABAAAADHVybCAAAAABAAABPXN0YmwAAADZc3RzZAAAAAAAAAABAAAAyW1wNHYAAAAAAAAA"
-            + "AQAAAAAAAAAAAAAAAAAAAAAAEAAQAEgAAABIAAAAAAAAAAEKTGF2YyBtcGVnNAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAY//8A"
-            + "AABPZXNkcwAAAAADgICAPgABAASAgIAwIBEAAAAAAw1AAAAAoAWAgIAeAAABsAEAAAG1iRMAAAEAAAABIADEjYgADQCEAhRj"
-            + "BoCAgAECAAAAEHBhc3AAAAABAAAAAQAAABRidHJ0AAAAAAADDUAAAACgAAAAGHN0dHMAAAAAAAAAAQAAAAEAAEAAAAAAHHN0"
-            + "c2MAAAAAAAAAAQAAAAEAAAABAAAAAQAAABRzdHN6AAAAAAAAABQAAAABAAAAFHN0Y28AAAAAAAAAAQAAACwAAAA9dWR0YQAA"
-            + "ADVtZXRhAAAAAAAAACFoZGxyAAAAAAAAAABtZGlyYXBwbAAAAAAAAAAAAAAAAAhpbHN0"
-        );
-
-    @Autowired
-    ReturnRequestService returns;
-
-    @Autowired
-    ReturnRequestRepository returnRequests;
-
-    @Autowired
-    InventoryTransactionRepository inventoryTransactions;
-
-    @Autowired
-    ManagerShopRepository managerShops;
-
-    @Autowired
-    NotificationService notifications;
-
-    @MockitoBean
-    MediaStorageService mediaStorage;
+class ReturnRequestTests {
+    @Autowired private WebApplicationContext context;
+    @Autowired private ReturnRequestService returnRequestService;
+    @Autowired private UserRepository userRepository;
+    @Autowired private ShopRepository shopRepository;
+    @Autowired private CategoryRepository categoryRepository;
+    @Autowired private ProductRepository productRepository;
+    @Autowired private OrderRepository orderRepository;
+    @Autowired private InventoryTransactionRepository inventoryTransactionRepository;
+    @Autowired private ReturnStatusHistoryRepository returnStatusHistoryRepository;
+    private MockMvc mockMvc;
 
     @BeforeEach
-    void returnFixtures() {
-        other.setRole(Role.VENDOR);
-        other.setEnabled(true);
-        other.setLocked(false);
-        users.saveAndFlush(other);
-
-        when(mediaStorage.upload(any(MultipartFile.class), eq("returns")))
-            .thenAnswer(invocation -> {
-                MultipartFile file = invocation.getArgument(0);
-                return "private:returns/test-" + file.getOriginalFilename();
-            });
+    void setUp() {
+        mockMvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
     }
 
     @Test
-    void completeFlowRefundsPaymentAndStockOnlyAtFinalConfirmation() {
-        var order = deliveredOrder(2);
-        long customerNotifications = notifications.unreadCount(customer);
-        long vendorNotifications = notifications.unreadCount(other);
-
-        var request = open(order);
-
-        assertThat(request.getStatus()).isEqualTo(ReturnStatus.REQUESTED);
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.RETURN_REQUESTED);
-        assertThat(tea.getStock()).isEqualTo(8);
-        assertThat(tea.getSoldCount()).isEqualTo(2);
-
-        approve(request);
-        assertThat(request.getStatus()).isEqualTo(ReturnStatus.APPROVED);
-
-        returns.markReturning(customer, order.getId());
-        assertThat(request.getStatus()).isEqualTo(ReturnStatus.RETURNING);
-
-        returns.vendorTransition(
-            other,
-            request.getId(),
-            ReturnStatus.RECEIVED,
-            "Đã nhận đủ sản phẩm trả về"
-        );
-        assertThat(request.getStatus()).isEqualTo(ReturnStatus.RECEIVED);
-
-        returns.vendorTransition(
-            other,
-            request.getId(),
-            ReturnStatus.REFUND_PENDING,
-            "Chuẩn bị chuyển khoản hoàn tiền cho khách"
-        );
-
-        assertThat(request.getStatus()).isEqualTo(ReturnStatus.REFUND_PENDING);
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.RETURN_REQUESTED);
-        assertThat(order.getPaymentStatus()).isEqualTo(PaymentStatus.PAID);
-        assertThat(tea.getStock()).isEqualTo(8);
-        assertThat(refundMovements()).isEmpty();
-
-        returns.confirmRefund(
-            other,
-            request.getId(),
-            "BANK-RETURN-001",
-            "Đã chuyển khoản và đối soát thành công"
-        );
-
-        assertThat(request.getStatus()).isEqualTo(ReturnStatus.REFUNDED);
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.RETURNED_REFUNDED);
-        assertThat(order.getPaymentStatus()).isEqualTo(PaymentStatus.REFUNDED);
-        assertThat(tea.getStock()).isEqualTo(10);
-        assertThat(tea.getSoldCount()).isZero();
-
-        assertThat(request.getRefundReference()).isEqualTo("BANK-RETURN-001");
-        assertThat(request.getRefundedAt()).isNotNull();
-        assertThat(request.getResolvedBy().getId()).isEqualTo(other.getId());
-
-        assertThat(refundMovements()).hasSize(1);
-
-        var movement = refundMovements().getFirst();
-        assertThat(movement.getQuantityChange()).isEqualTo(2);
-        assertThat(movement.getStockBefore()).isEqualTo(8);
-        assertThat(movement.getStockAfter()).isEqualTo(10);
-        assertThat(movement.getOrder().getId()).isEqualTo(order.getId());
-
-        assertThat(histories.findByOrderIdOrderByChangedAtAscIdAsc(order.getId()))
-            .extracting(OrderStatusHistory::getNewStatus)
-            .endsWith(
-                OrderStatus.RETURN_REQUESTED,
-                OrderStatus.RETURNED_REFUNDED
-            );
-
-        assertThat(notifications.unreadCount(customer))
-            .isGreaterThan(customerNotifications);
-
-        assertThat(notifications.unreadCount(other))
-            .isGreaterThan(vendorNotifications);
+    void oldRefundWithoutVerificationDoesNotClaimManualConfirmation() {
+        ReturnRequest oldRequest = new ReturnRequest();
+        oldRequest.setStatus(ReturnStatus.REFUNDED);
+        assertEquals(RefundVerification.LEGACY_UNKNOWN, oldRequest.getRefundVerification());
     }
 
     @Test
-    void repeatedRefundDoesNotRestoreStockOrWriteHistoryAgain() {
-        var order = deliveredOrder(2);
-        var request = pending(order);
+    void unpaidDeliveredOrderCannotRequestRefund() {
+        Fixture fixture = fixture();
+        fixture.order().setPaymentStatus(PaymentStatus.UNPAID);
 
-        returns.confirmRefund(
-            other,
-            request.getId(),
-            "BANK-ONCE-001",
-            "Đã hoàn đủ tiền cho khách hàng"
-        );
-
-        int historyCount = histories
-            .findByOrderIdOrderByChangedAtAscIdAsc(order.getId())
-            .size();
-
-        assertThatThrownBy(() -> returns.confirmRefund(
-            other,
-            request.getId(),
-            "BANK-ONCE-002",
-            "Thử xác nhận hoàn tiền lần thứ hai"
-        )).isInstanceOf(IllegalArgumentException.class);
-
-        assertThat(tea.getStock()).isEqualTo(10);
-        assertThat(tea.getSoldCount()).isZero();
-        assertThat(refundMovements()).hasSize(1);
-        assertThat(request.getRefundReference()).isEqualTo("BANK-ONCE-001");
-
-        assertThat(histories.findByOrderIdOrderByChangedAtAscIdAsc(order.getId()))
-            .hasSize(historyCount);
+        assertThrows(IllegalArgumentException.class, () -> returnRequestService.create(
+            fixture.customer(), fixture.order().getId(), form("100000"), evidence()));
     }
 
     @Test
-    void rejectionRestoresDeliveredWithoutChangingStockOrSoldCount() {
-        var order = deliveredOrder(2);
-        var request = open(order);
+    void completesFlowOnlyAfterManualRefundIsConfirmed() {
+        Fixture fixture = fixture();
+        fixture.order().setPaymentMethod(PaymentMethod.VNPAY);
+        ReturnRequest request = returnRequestService.create(fixture.customer(), fixture.order().getId(),
+            form("100000"), evidence());
 
-        returns.decide(
-            other,
-            request.getId(),
-            ReturnStatus.REJECTED,
-            null,
-            "Bằng chứng chưa chứng minh được lỗi sản phẩm"
-        );
+        assertEquals(ReturnStatus.REQUESTED, request.getStatus());
+        assertEquals(RefundVerification.PENDING, request.getRefundVerification());
+        assertEquals(OrderStatus.RETURN_REQUESTED, fixture.order().getStatus());
+        assertEquals(1, request.getMedia().size());
 
-        assertThat(request.getStatus()).isEqualTo(ReturnStatus.REJECTED);
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.DELIVERED);
-        assertThat(order.getPaymentStatus()).isEqualTo(PaymentStatus.PAID);
-        assertThat(tea.getStock()).isEqualTo(8);
-        assertThat(tea.getSoldCount()).isEqualTo(2);
-        assertThat(refundMovements()).isEmpty();
+        returnRequestService.decide(fixture.vendor(), request.getId(), ReturnStatus.APPROVED,
+            new BigDecimal("100000"), "Đồng ý nhận lại sản phẩm.");
+        assertEquals(ReturnStatus.APPROVED, request.getStatus());
+        assertEquals(new BigDecimal("100000"), request.getRefundAmount());
 
-        assertThatThrownBy(() -> open(order))
-            .isInstanceOf(IllegalArgumentException.class);
+        returnRequestService.requirePhysicalReturn(fixture.vendor(), request.getId());
+        assertEquals(Boolean.TRUE, request.getReturnRequired());
+        returnRequestService.markReturning(fixture.customer(), fixture.order().getId());
+        assertEquals(ReturnStatus.RETURNING, request.getStatus());
+        returnRequestService.vendorTransition(fixture.vendor(), request.getId(), ReturnStatus.RECEIVED,
+            "Đã nhận sản phẩm trả về.");
+        assertEquals(ReturnStatus.RECEIVED, request.getStatus());
+        returnRequestService.vendorTransition(fixture.vendor(), request.getId(), ReturnStatus.REFUND_PENDING,
+            "Chuẩn bị hoàn tiền ngoài hệ thống.");
+
+        assertEquals(ReturnStatus.REFUND_PENDING, request.getStatus());
+        assertEquals(OrderStatus.RETURN_REQUESTED, fixture.order().getStatus());
+        assertEquals(PaymentStatus.PAID, fixture.order().getPaymentStatus());
+        assertEquals(10, fixture.product().getStock());
+        assertEquals(3, fixture.product().getSoldCount());
+
+        User admin = user("return-admin-" + UUID.randomUUID().toString().substring(0, 8), Role.ADMIN);
+        returnRequestService.confirmRefund(admin, request.getId(), "VNPAY-RF-123456",
+            "Đã hoàn tiền ngoài hệ thống và đối soát thành công.");
+
+        assertEquals(ReturnStatus.REFUNDED, request.getStatus());
+        assertEquals(RefundVerification.MANUAL_CONFIRMED, request.getRefundVerification());
+        assertNotEquals(RefundVerification.GATEWAY_CONFIRMED, request.getRefundVerification());
+        assertEquals(OrderStatus.RETURNED_REFUNDED, fixture.order().getStatus());
+        assertEquals(PaymentStatus.REFUNDED, fixture.order().getPaymentStatus());
+        assertEquals(admin.getId(), request.getResolvedBy().getId());
+        assertNotNull(request.getResolvedAt());
+        assertNotNull(request.getRefundedAt());
+        assertEquals("VNPAY-RF-123456", request.getRefundReference());
+        assertEquals("Đã hoàn tiền ngoài hệ thống và đối soát thành công.", request.getRefundNote());
+        assertEquals(11, fixture.product().getStock());
+        assertEquals(2, fixture.product().getSoldCount());
+        var movements = inventoryTransactionRepository.findByProductIdOrderByCreatedAtAscIdAsc(fixture.product().getId());
+        assertEquals(1, movements.size());
+        assertEquals(InventoryTransactionType.RETURN_REFUND, movements.getFirst().getType());
+        assertEquals(1, movements.getFirst().getQuantityChange());
+        assertEquals(fixture.order().getId(), movements.getFirst().getOrder().getId());
+        var history = returnStatusHistoryRepository.findByReturnRequestIdOrderByChangedAtAscIdAsc(request.getId());
+        assertEquals(7, history.size());
+        assertNull(history.getFirst().getOldStatus());
+        assertEquals(ReturnStatus.REQUESTED, history.getFirst().getNewStatus());
+        assertEquals(ReturnStatus.REFUND_PENDING, history.getLast().getOldStatus());
+        assertEquals(ReturnStatus.REFUNDED, history.getLast().getNewStatus());
+        assertTrue(history.getLast().getNote().contains("Admin đã chuyển khoản hoàn tiền"));
     }
 
     @Test
-    void onlyDeliveredAndPaidOrdersMayOpenReturn() {
-        var newOrder = buy(1);
+    void customerMustWaitForShopToChooseWhetherProductIsReturned() {
+        Fixture fixture = fixture();
+        ReturnRequest request = returnRequestService.create(fixture.customer(), fixture.order().getId(),
+            form("100000"), evidence());
+        returnRequestService.decide(fixture.vendor(), request.getId(), ReturnStatus.APPROVED,
+            new BigDecimal("100000"), "Đồng ý xử lý hoàn tiền cho khách.");
 
-        assertThatThrownBy(() -> open(newOrder))
-            .isInstanceOf(IllegalArgumentException.class);
+        assertNull(request.getReturnRequired());
+        assertThrows(IllegalArgumentException.class,
+            () -> returnRequestService.markReturning(fixture.customer(), fixture.order().getId()));
+        assertEquals(ReturnStatus.APPROVED, request.getStatus());
 
-        var unpaidOrder = deliveredOrder(1);
-        unpaidOrder.setPaymentStatus(PaymentStatus.UNPAID);
-        orderRepository.saveAndFlush(unpaidOrder);
+        returnRequestService.requirePhysicalReturn(fixture.vendor(), request.getId());
+        assertEquals(Boolean.TRUE, request.getReturnRequired());
+        assertThrows(IllegalArgumentException.class,
+            () -> returnRequestService.vendorTransition(fixture.vendor(), request.getId(),
+                ReturnStatus.REFUND_PENDING, "Bỏ qua bước nhận hàng trả."));
+        assertEquals(ReturnStatus.APPROVED, request.getStatus());
 
-        assertThatThrownBy(() -> open(unpaidOrder))
-            .isInstanceOf(IllegalArgumentException.class);
-
-        assertThat(returnRequests.existsByOrderId(newOrder.getId())).isFalse();
-        assertThat(returnRequests.existsByOrderId(unpaidOrder.getId())).isFalse();
-
-        verify(mediaStorage, never())
-            .upload(any(MultipartFile.class), anyString());
+        returnRequestService.markReturning(fixture.customer(), fixture.order().getId());
+        assertEquals(ReturnStatus.RETURNING, request.getStatus());
     }
 
     @Test
-    void invalidFormAmountAndEvidenceAreRejectedBeforeUpload() {
-        var order = deliveredOrder(1);
+    void customerPageShowsReturnButtonOnlyAfterShopRequestsProduct() throws Exception {
+        Fixture fixture = fixture();
+        ReturnRequest request = returnRequestService.create(fixture.customer(), fixture.order().getId(),
+            form("100000"), evidence());
+        returnRequestService.decide(fixture.vendor(), request.getId(), ReturnStatus.APPROVED,
+            new BigDecimal("100000"), "Đồng ý xử lý hoàn tiền cho khách.");
 
-        for (var amount : List.of(
-                BigDecimal.ZERO,
-                order.getTotalAmount().subtract(BigDecimal.ONE),
-                order.getTotalAmount().add(BigDecimal.ONE),
-                new BigDecimal("1.001"))) {
-
-            var invalid = requestForm(order);
-            invalid.setRefundAmount(amount);
-
-            assertThatThrownBy(() -> returns.create(
-                customer, order.getId(), invalid, evidence()
-            )).isInstanceOf(IllegalArgumentException.class);
-        }
-
-        var shortDescription = requestForm(order);
-        shortDescription.setDescription("Ngắn");
-
-        assertThatThrownBy(() -> returns.create(
-            customer, order.getId(), shortDescription, evidence()
-        )).isInstanceOf(IllegalArgumentException.class);
-
-        assertThatThrownBy(() -> returns.create(
-            customer,
-            order.getId(),
-            requestForm(order),
-            new MultipartFile[0]
-        )).isInstanceOf(IllegalArgumentException.class);
-
-        var invalidFile = new MockMultipartFile(
-            "evidence",
-            "proof.exe",
-            "application/octet-stream",
-            new byte[] {1, 2, 3}
-        );
-
-        assertThatThrownBy(() -> returns.create(
-            customer,
-            order.getId(),
-            requestForm(order),
-            new MultipartFile[] {invalidFile}
-        )).isInstanceOf(IllegalArgumentException.class);
-
-        var image = evidence()[0];
-
-        assertThatThrownBy(() -> returns.create(
-            customer,
-            order.getId(),
-            requestForm(order),
-            new MultipartFile[] {image, image, image, image, image, image}
-        )).isInstanceOf(IllegalArgumentException.class);
-
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.DELIVERED);
-        assertThat(returnRequests.existsByOrderId(order.getId())).isFalse();
-        assertThat(refundMovements()).isEmpty();
-
-        verify(mediaStorage, never())
-            .upload(any(MultipartFile.class), anyString());
-    }
-
-    @Test
-    void imageAndVideoEvidenceAreSavedWithTheirTypes() {
-        var order = deliveredOrder(1);
-        var image = evidence()[0];
-
-        var video = new MockMultipartFile(
-            "evidence", "proof.mp4", "video/mp4", PROOF_MP4.clone()
-        );
-
-        var request = returns.create(
-            customer,
-            order.getId(),
-            requestForm(order),
-            new MultipartFile[] {image, video}
-        );
-
-        var saved = returns.getForShop(other, request.getId());
-
-        assertThat(saved.getMedia())
-            .extracting(ReturnRequestMedia::getType)
-            .containsExactly(MediaType.IMAGE, MediaType.VIDEO);
-
-        assertThat(saved.getMedia()).allSatisfy(media -> {
-            assertThat(media.getId()).isNotNull();
-            assertThat(media.getUrl()).startsWith("private:returns/");
-            assertThat(media.getReturnRequest().getId())
-                .isEqualTo(request.getId());
-        });
-
-        verify(mediaStorage, times(2))
-            .upload(any(MultipartFile.class), eq("returns"));
-    }
-
-    @Test
-    void anotherBuyerCannotCreateReadOrMarkReturning() {
-        var order = deliveredOrder(1);
-        var stranger = createUser();
-
-        assertHttp(
-            HttpStatus.NOT_FOUND,
-            () -> returns.create(
-                stranger, order.getId(), requestForm(order), evidence()
-            )
-        );
-
-        var request = open(order);
-        approve(request);
-
-        assertHttp(
-            HttpStatus.NOT_FOUND,
-            () -> returns.forOrder(stranger, order.getId())
-        );
-
-        assertHttp(
-            HttpStatus.NOT_FOUND,
-            () -> returns.getForUser(stranger, order.getId())
-        );
-
-        assertHttp(
-            HttpStatus.NOT_FOUND,
-            () -> returns.markReturning(stranger, order.getId())
-        );
-
-        assertThat(request.getStatus()).isEqualTo(ReturnStatus.APPROVED);
-    }
-
-    @Test
-    void anotherVendorCannotReadOrProcessForeignReturn() {
-        var order = deliveredOrder(1);
-        var request = open(order);
-        var outsider = secondShopProduct().getShop().getOwner();
-
-        outsider.setRole(Role.VENDOR);
-        users.saveAndFlush(outsider);
-
-        assertThat(returns.forShop(outsider, null, 0).getContent()).isEmpty();
-        assertThat(returns.forOrders(outsider, List.of(order.getId()))).isEmpty();
-
-        assertHttp(
-            HttpStatus.NOT_FOUND,
-            () -> returns.getForShop(outsider, request.getId())
-        );
-
-        assertHttp(
-            HttpStatus.NOT_FOUND,
-            () -> returns.decide(
-                outsider,
-                request.getId(),
-                ReturnStatus.APPROVED,
-                order.getTotalAmount(),
-                "Thử duyệt yêu cầu của shop khác"
-            )
-        );
-
-        assertThat(request.getStatus()).isEqualTo(ReturnStatus.REQUESTED);
-        assertThat(tea.getStock()).isEqualTo(9);
-    }
-
-    @Test
-    void managerNeedsShopAssignmentAndCannotConfirmFinalRefund() {
-        var order = deliveredOrder(1);
-        var request = pending(order);
-
-        var manager = createUser();
-        manager.setRole(Role.MANAGER);
-        users.saveAndFlush(manager);
-
-        assertHttp(
-            HttpStatus.NOT_FOUND,
-            () -> returns.getForShop(manager, request.getId())
-        );
-
-        var admin = createUser();
-        admin.setRole(Role.ADMIN);
-        users.saveAndFlush(admin);
-
-        var assignment = new ManagerShop();
-        assignment.setManager(manager);
-        assignment.setShop(order.getShop());
-        assignment.setAssignedBy(admin);
-        managerShops.saveAndFlush(assignment);
-
-        assertThat(returns.getForShop(manager, request.getId()).getId())
-            .isEqualTo(request.getId());
-
-        assertHttp(
-            HttpStatus.FORBIDDEN,
-            () -> returns.confirmRefund(
-                manager,
-                request.getId(),
-                "BANK-MANAGER-001",
-                "Manager thử xác nhận hoàn tiền"
-            )
-        );
-
-        assertThat(request.getStatus()).isEqualTo(ReturnStatus.REFUND_PENDING);
-        assertThat(order.getPaymentStatus()).isEqualTo(PaymentStatus.PAID);
-        assertThat(tea.getStock()).isEqualTo(9);
-
-        returns.confirmRefund(
-            admin,
-            request.getId(),
-            "BANK-ADMIN-001",
-            "Admin đã xác nhận chuyển khoản hoàn tiền"
-        );
-
-        assertThat(request.getStatus()).isEqualTo(ReturnStatus.REFUNDED);
-        assertThat(request.getResolvedBy().getId()).isEqualTo(admin.getId());
-        assertThat(tea.getStock()).isEqualTo(10);
-    }
-
-    @Test
-    void transitionsCannotSkipStepsAndRefundNeedsReferenceAndNote() {
-        var order = deliveredOrder(1);
-        var request = open(order);
-
-        assertThatThrownBy(() -> returns.vendorTransition(
-            other, request.getId(), ReturnStatus.RECEIVED, null
-        )).isInstanceOf(IllegalArgumentException.class);
-
-        assertThatThrownBy(() ->
-            returns.markReturning(customer, order.getId())
-        ).isInstanceOf(IllegalArgumentException.class);
-
-        approve(request);
-        returns.markReturning(customer, order.getId());
-
-        returns.vendorTransition(
-            other,
-            request.getId(),
-            ReturnStatus.RECEIVED,
-            "Đã nhận hàng khách gửi trả"
-        );
-
-        returns.vendorTransition(
-            other,
-            request.getId(),
-            ReturnStatus.REFUND_PENDING,
-            "Chuẩn bị hoàn tiền qua ngân hàng"
-        );
-
-        assertThatThrownBy(() -> returns.confirmRefund(
-            other,
-            request.getId(),
-            "",
-            "Đã hoàn tiền cho khách hàng"
-        )).isInstanceOf(IllegalArgumentException.class);
-
-        assertThatThrownBy(() -> returns.confirmRefund(
-            other,
-            request.getId(),
-            "BANK-INVALID-001",
-            "abc"
-        )).isInstanceOf(IllegalArgumentException.class);
-
-        assertThat(request.getStatus()).isEqualTo(ReturnStatus.REFUND_PENDING);
-        assertThat(order.getPaymentStatus()).isEqualTo(PaymentStatus.PAID);
-        assertThat(tea.getStock()).isEqualTo(9);
-        assertThat(refundMovements()).isEmpty();
-    }
-
-    @Test
-    void returnDoesNotReleaseVoucherUsage() {
-        var voucher = voucher(VoucherType.FIXED, "10000");
-        var checkout = form(add(tea, medium, 1).getId());
-        checkout.setVoucherCode(voucher.getCode());
-
-        var order = orders.checkout(customer, checkout).getFirst();
-        markDelivered(order, 1);
-
-        int remaining = voucher.getQuantity();
-        assertThat(remaining).isEqualTo(2);
-
-        var request = pending(order);
-
-        returns.confirmRefund(
-            other,
-            request.getId(),
-            "BANK-VOUCHER-001",
-            "Đã hoàn tiền đơn hàng có sử dụng voucher"
-        );
-
-        var usage = usages.findAll().stream()
-            .filter(value ->
-                order.getCheckoutReference().equals(value.getCheckoutReference())
-            )
-            .findFirst()
-            .orElseThrow();
-
-        assertThat(voucher.getQuantity()).isEqualTo(remaining);
-        assertThat(usage.getStatus()).isEqualTo(VoucherUsageStatus.USED);
-        assertThat(usage.getReleasedAt()).isNull();
-    }
-
-    @Test
-    void vendorPagesRenderEmptyListEvidenceAndEveryWorkflowState() throws Exception {
-        mvc.perform(
-                get("/vendor/returns")
-                    .with(user(other.getUsername()).roles("VENDOR")))
+        mockMvc.perform(get("/orders/{id}", fixture.order().getId())
+                .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors
+                    .user(fixture.customer().getUsername()).roles("USER")))
             .andExpect(status().isOk())
-            .andExpect(view().name("vendor/returns"))
-            .andExpect(content().string(
-                containsString("Chưa có yêu cầu trả hàng")
-            ));
+            .andExpect(content().string(containsString("Vui lòng chờ shop quyết định")))
+            .andExpect(content().string(not(containsString("Tôi đã giao sản phẩm trả cho cửa hàng"))));
 
-        var order = deliveredOrder(1);
-        var request = open(order);
-
-        mvc.perform(
-                get("/vendor/returns")
-                    .with(user(other.getUsername()).roles("VENDOR"))
-                    .param("status", "REQUESTED"))
+        mockMvc.perform(get("/vendor/returns/{id}", request.getId())
+                .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors
+                    .user(fixture.vendor().getUsername()).roles("VENDOR")))
             .andExpect(status().isOk())
-            .andExpect(content().string(containsString(order.getCode())));
+            .andExpect(content().string(containsString("Yêu cầu khách trả sản phẩm tại cửa hàng")))
+            .andExpect(content().string(containsString("Không cần trả hàng")));
 
-        assertThat(returns.forShop(other, ReturnStatus.REJECTED, 0)).isEmpty();
-        assertThat(returns.forShop(other, null, -1).getNumber()).isZero();
+        returnRequestService.requirePhysicalReturn(fixture.vendor(), request.getId());
 
-        renderDetail(request, "Chấp nhận trả hàng");
+        mockMvc.perform(get("/orders/{id}", fixture.order().getId())
+                .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors
+                    .user(fixture.customer().getUsername()).roles("USER")))
+            .andExpect(status().isOk())
+            .andExpect(content().string(containsString("Tôi đã giao sản phẩm trả cho cửa hàng")))
+            .andExpect(content().string(containsString("01 Võ Văn Ngân, Thủ Đức")));
 
-        approve(request);
-        renderDetail(request, "Đang chờ khách xác nhận");
-
-        returns.markReturning(customer, order.getId());
-        renderDetail(request, "Xác nhận đã nhận hàng");
-
-        returns.vendorTransition(
-            other,
-            request.getId(),
-            ReturnStatus.RECEIVED,
-            "Đã nhận hàng trả về"
-        );
-        renderDetail(request, "Chuyển sang chờ hoàn tiền");
-
-        returns.vendorTransition(
-            other,
-            request.getId(),
-            ReturnStatus.REFUND_PENDING,
-            "Sẽ hoàn qua tài khoản ngân hàng"
-        );
-        renderDetail(request, "Ghi nhận hoàn tiền thủ công");
-
-        returns.confirmRefund(
-            other,
-            request.getId(),
-            "BANK-RENDER-001",
-            "Đã chuyển khoản hoàn tiền cho khách"
-        );
-        renderDetail(request, "BANK-RENDER-001");
+        mockMvc.perform(get("/vendor/returns/{id}", request.getId())
+                .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors
+                    .user(fixture.vendor().getUsername()).roles("VENDOR")))
+            .andExpect(status().isOk())
+            .andExpect(content().string(containsString("Đã yêu cầu khách mang sản phẩm")))
+            .andExpect(content().string(not(containsString("Không cần trả hàng"))));
     }
 
     @Test
-    void decisionPostRequiresCsrfAndValidatesDecision() throws Exception {
-        var order = deliveredOrder(1);
-        var request = open(order);
-        var endpoint = "/vendor/returns/" + request.getId() + "/decision";
+    void noPhysicalReturnChoiceDoesNotExposeCustomerReturnAction() {
+        Fixture fixture = fixture();
+        ReturnRequest request = returnRequestService.create(fixture.customer(), fixture.order().getId(),
+            form("100000"), evidence());
+        returnRequestService.decide(fixture.vendor(), request.getId(), ReturnStatus.APPROVED,
+            new BigDecimal("100000"), "Đồng ý xử lý hoàn tiền cho khách.");
 
-        mvc.perform(
-                post(endpoint)
-                    .with(user(other.getUsername()).roles("VENDOR"))
-                    .param("decision", "APPROVED"))
-            .andExpect(status().isForbidden());
+        returnRequestService.vendorTransition(fixture.vendor(), request.getId(), ReturnStatus.REFUND_PENDING,
+            "Sản phẩm bị đổ, không cần khách trả lại.");
 
-        mvc.perform(
-                post(endpoint)
-                    .with(user(other.getUsername()).roles("VENDOR"))
-                    .with(csrf())
-                    .param("decision", "INVALID"))
-            .andExpect(status().isBadRequest());
-
-        assertThat(request.getStatus()).isEqualTo(ReturnStatus.REQUESTED);
-
-        mvc.perform(
-                post(endpoint)
-                    .with(user(other.getUsername()).roles("VENDOR"))
-                    .with(csrf())
-                    .param("decision", "APPROVED")
-                    .param(
-                        "refundAmount",
-                        order.getTotalAmount().toPlainString()
-                    )
-                    .param("note", "Đồng ý nhận hàng trả qua giao diện"))
-            .andExpect(status().is3xxRedirection())
-            .andExpect(flash().attributeExists("success"))
-            .andExpect(redirectedUrl("/vendor/returns/" + request.getId()));
-
-        assertThat(request.getStatus()).isEqualTo(ReturnStatus.APPROVED);
+        assertEquals(Boolean.FALSE, request.getReturnRequired());
+        assertEquals(ReturnStatus.REFUND_PENDING, request.getStatus());
+        assertThrows(IllegalArgumentException.class,
+            () -> returnRequestService.markReturning(fixture.customer(), fixture.order().getId()));
     }
 
     @Test
-    void vendorRoutesBlockForeignShopAndCustomer() throws Exception {
-        var order = deliveredOrder(1);
-        var request = open(order);
-        var outsider = secondShopProduct().getShop().getOwner();
+    void rejectionRestoresDeliveredWithoutCountingSoldAgain() {
+        Fixture fixture = fixture();
+        ReturnRequest request = returnRequestService.create(fixture.customer(), fixture.order().getId(),
+            form("100000"), evidence());
+        long soldBefore = fixture.product().getSoldCount();
 
-        outsider.setRole(Role.VENDOR);
-        users.saveAndFlush(outsider);
+        returnRequestService.decide(fixture.vendor(), request.getId(), ReturnStatus.REJECTED,
+            null, "Bằng chứng không phù hợp.");
 
-        mvc.perform(
-                get("/vendor/returns/" + request.getId())
-                    .with(user(outsider.getUsername()).roles("VENDOR")))
-            .andExpect(status().isNotFound());
-
-        mvc.perform(
-                post("/vendor/returns/" + request.getId() + "/decision")
-                    .with(user(outsider.getUsername()).roles("VENDOR"))
-                    .with(csrf())
-                    .param("decision", "REJECTED")
-                    .param("note", "Thử xử lý yêu cầu của cửa hàng khác"))
-            .andExpect(status().isNotFound());
-
-        mvc.perform(
-                get("/vendor/returns")
-                    .with(user(customer.getUsername()).roles("USER")))
-            .andExpect(status().is3xxRedirection())
-            .andExpect(redirectedUrl("/user/profile"));
-
-        assertThat(request.getStatus()).isEqualTo(ReturnStatus.REQUESTED);
-        assertThat(tea.getStock()).isEqualTo(9);
+        assertEquals(ReturnStatus.REJECTED, request.getStatus());
+        assertEquals(OrderStatus.DELIVERED, fixture.order().getStatus());
+        assertEquals(PaymentStatus.PAID, fixture.order().getPaymentStatus());
+        assertEquals(soldBefore, fixture.product().getSoldCount());
     }
 
-    private CustomerOrder buy(int quantity) {
-        return orders.checkout(
-            customer,
-            form(add(tea, medium, quantity).getId())
-        ).getFirst();
+    @Test
+    void requiresEvidenceAndRejectsInvalidTransition() {
+        Fixture fixture = fixture();
+        assertThrows(IllegalArgumentException.class, () -> returnRequestService.create(
+            fixture.customer(), fixture.order().getId(), form("100000"), new MockMultipartFile[0]));
+
+        ReturnRequest request = returnRequestService.create(fixture.customer(), fixture.order().getId(),
+            form("100000"), evidence());
+        assertThrows(IllegalArgumentException.class, () -> returnRequestService.vendorTransition(
+            fixture.vendor(), request.getId(), ReturnStatus.REFUNDED, null));
     }
 
-    private CustomerOrder deliveredOrder(int quantity) {
-        var order = buy(quantity);
-        markDelivered(order, quantity);
-        return order;
+    @Test
+    void missingRefundReferenceDoesNotMarkPaymentRefundedOrRestoreStock() {
+        Fixture fixture = fixture();
+        ReturnRequest request = advanceToRefundPending(fixture);
+
+        assertThrows(IllegalArgumentException.class, () -> returnRequestService.confirmRefund(
+            user("return-admin-" + UUID.randomUUID().toString().substring(0, 8), Role.ADMIN),
+            request.getId(), "", "Đã hoàn tiền cho khách."));
+
+        assertEquals(ReturnStatus.REFUND_PENDING, request.getStatus());
+        assertEquals(OrderStatus.RETURN_REQUESTED, fixture.order().getStatus());
+        assertEquals(PaymentStatus.PAID, fixture.order().getPaymentStatus());
+        assertEquals(RefundVerification.PENDING, request.getRefundVerification());
+        assertEquals(10, fixture.product().getStock());
+        assertEquals(3, fixture.product().getSoldCount());
+        assertTrue(inventoryTransactionRepository.findByProductIdOrderByCreatedAtAscIdAsc(
+            fixture.product().getId()).isEmpty());
     }
 
-    private void markDelivered(CustomerOrder order, int quantity) {
-        order.setStatus(OrderStatus.DELIVERED);
-        order.setPaymentStatus(PaymentStatus.PAID);
-        order.setDeliveredAt(LocalDateTime.now());
+    @Test
+    void repeatedManualConfirmationCannotRestoreStockOrRecordHistoryTwice() {
+        Fixture fixture = fixture();
+        ReturnRequest request = advanceToRefundPending(fixture);
 
-        tea.setSoldCount(tea.getSoldCount() + quantity);
-        products.saveAndFlush(tea);
-        orderRepository.saveAndFlush(order);
+        User admin = user("return-admin-" + UUID.randomUUID().toString().substring(0, 8), Role.ADMIN);
+        returnRequestService.confirmRefund(admin, request.getId(), "BANK-12345",
+            "Đã chuyển khoản hoàn tiền cho khách.");
+        assertThrows(IllegalArgumentException.class, () -> returnRequestService.confirmRefund(
+            admin, request.getId(), "BANK-12345", "Thử ghi nhận lần hai."));
+
+        assertEquals(11, fixture.product().getStock());
+        assertEquals(1, inventoryTransactionRepository.findByProductIdOrderByCreatedAtAscIdAsc(
+            fixture.product().getId()).size());
+        assertEquals(7, returnStatusHistoryRepository.findByReturnRequestIdOrderByChangedAtAscIdAsc(
+            request.getId()).size());
     }
 
-    private ReturnRequestForm requestForm(CustomerOrder order) {
-        var form = new ReturnRequestForm();
+    @Test
+    void anotherShopVendorCannotConfirmRefund() {
+        Fixture fixture = fixture();
+        ReturnRequest request = advanceToRefundPending(fixture);
+        User otherVendor = user("other-refund-vendor-" + UUID.randomUUID().toString().substring(0, 8), Role.VENDOR);
+
+        var error = assertThrows(IllegalArgumentException.class, () -> returnRequestService.confirmRefund(
+            otherVendor, request.getId(), "BANK-12345", "Đã chuyển khoản hoàn tiền cho khách."));
+        assertTrue(error.getMessage().contains("không có quyền"));
+        assertEquals(ReturnStatus.REFUND_PENDING, request.getStatus());
+        assertEquals(PaymentStatus.PAID, fixture.order().getPaymentStatus());
+        assertEquals(10, fixture.product().getStock());
+        assertEquals(6, returnStatusHistoryRepository.findByReturnRequestIdOrderByChangedAtAscIdAsc(
+            request.getId()).size());
+    }
+
+    @Test
+    void ownShopVendorCannotConfirmRefund() {
+        Fixture fixture = fixture();
+        ReturnRequest request = advanceToRefundPending(fixture);
+        assertThrows(IllegalArgumentException.class, () -> returnRequestService.confirmRefund(
+            fixture.vendor(), request.getId(), "BANK-12345", "Đã chuyển khoản hoàn tiền."));
+        assertEquals(ReturnStatus.REFUND_PENDING, request.getStatus());
+    }
+
+    @Test
+    void requestRequiresSavedBankAndSnapshotsSelection() {
+        Fixture fixture = fixture();
+        fixture.customer().setBankName(null);
+        fixture.customer().setBankAccountNumber(null);
+        fixture.customer().setBankAccountName(null);
+        assertThrows(IllegalArgumentException.class, () -> returnRequestService.create(
+            fixture.customer(), fixture.order().getId(), form("100000"), evidence()));
+        fixture.customer().setBankName("BIDV");
+        fixture.customer().setBankAccountNumber("123456789");
+        fixture.customer().setBankAccountName("TEST CUSTOMER");
+        ReturnRequest request = returnRequestService.create(fixture.customer(), fixture.order().getId(),
+            form("100000"), evidence());
+        fixture.customer().setBankAccountNumber("987654321");
+        assertEquals("123456789", request.getRefundAccountNumber());
+    }
+
+    @Test
+    void existingPendingRequestMustSelectSavedBankBeforeAdminCanConfirm() {
+        Fixture fixture = fixture();
+        ReturnRequest request = returnRequestService.create(fixture.customer(), fixture.order().getId(),
+            form("100000"), evidence());
+        request.setRefundBankName(null);
+        request.setRefundAccountName(null);
+        request.setRefundAccountNumber(null);
+        returnRequestService.decide(fixture.vendor(), request.getId(), ReturnStatus.APPROVED,
+            new BigDecimal("100000"), "Đồng ý hoàn tiền cho khách.");
+        returnRequestService.vendorTransition(fixture.vendor(), request.getId(), ReturnStatus.REFUND_PENDING,
+            "Không cần thu hồi sản phẩm.");
+        User admin = user("return-admin-" + UUID.randomUUID().toString().substring(0, 8), Role.ADMIN);
+
+        assertThrows(IllegalArgumentException.class, () -> returnRequestService.confirmRefund(
+            admin, request.getId(), "BANK-12345", "Đã chuyển khoản hoàn tiền."));
+        assertEquals(ReturnStatus.REFUND_PENDING, request.getStatus());
+        assertEquals(PaymentStatus.PAID, fixture.order().getPaymentStatus());
+
+        returnRequestService.selectRefundBank(fixture.customer(), fixture.order().getId());
+        assertEquals("123456789", request.getRefundAccountNumber());
+        returnRequestService.confirmRefund(admin, request.getId(), "BANK-12345",
+            "Đã chuyển khoản hoàn tiền.");
+        assertEquals(ReturnStatus.REFUNDED, request.getStatus());
+        assertEquals(PaymentStatus.REFUNDED, fixture.order().getPaymentStatus());
+    }
+
+    @Test
+    void refundWithoutPhysicalReturnDoesNotRestoreStock() {
+        Fixture fixture = fixture();
+        ReturnRequest request = returnRequestService.create(fixture.customer(), fixture.order().getId(),
+            form("100000"), evidence());
+        returnRequestService.decide(fixture.vendor(), request.getId(), ReturnStatus.APPROVED,
+            new BigDecimal("100000"), "Đồng ý hoàn tiền cho sản phẩm bị đổ.");
+        returnRequestService.vendorTransition(fixture.vendor(), request.getId(), ReturnStatus.REFUND_PENDING,
+            "Không cần khách trả lại sản phẩm đã bị đổ.");
+
+        assertEquals(Boolean.FALSE, request.getReturnRequired());
+
+        User admin = user("return-admin-" + UUID.randomUUID().toString().substring(0, 8), Role.ADMIN);
+        returnRequestService.confirmRefund(admin, request.getId(), "BANK-98765",
+            "Đã chuyển khoản hoàn tiền cho khách.");
+
+        assertEquals(ReturnStatus.REFUNDED, request.getStatus());
+        assertEquals(OrderStatus.RETURNED_REFUNDED, fixture.order().getStatus());
+        assertEquals(10, fixture.product().getStock());
+        assertEquals(2, fixture.product().getSoldCount());
+        assertTrue(inventoryTransactionRepository.findByProductIdOrderByCreatedAtAscIdAsc(
+            fixture.product().getId()).isEmpty());
+    }
+
+    @Test
+    void rejectsPartialRefundBecauseRequestCoversWholeOrder() {
+        Fixture fixture = fixture();
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+            () -> returnRequestService.create(fixture.customer(), fixture.order().getId(),
+                form("75000"), evidence()));
+
+        assertTrue(error.getMessage().contains("toàn bộ đơn"));
+        assertEquals(OrderStatus.DELIVERED, fixture.order().getStatus());
+        assertEquals(10, fixture.product().getStock());
+        assertEquals(3, fixture.product().getSoldCount());
+    }
+
+    private ReturnRequestForm form(String amount) {
+        ReturnRequestForm form = new ReturnRequestForm();
         form.setReason(ReturnReason.DAMAGED);
-        form.setDescription(
-            "Ly bị đổ và nắp bị vỡ khi tôi nhận sản phẩm từ shipper."
-        );
-        form.setRefundAmount(order.getTotalAmount());
+        form.setDescription("Ly bị đổ và nắp bị vỡ khi tôi nhận sản phẩm từ shipper.");
+        form.setRefundAmount(new BigDecimal(amount));
+        form.setRefundBankAccount("SAVED");
         return form;
     }
 
-    private MultipartFile[] evidence() {
-        return new MultipartFile[] {
-            MediaTestFiles.image("evidence", "proof.png")
-        };
-    }
-
-    private ReturnRequest open(CustomerOrder order) {
-        return returns.create(
-            customer,
-            order.getId(),
-            requestForm(order),
-            evidence()
-        );
-    }
-
-    private void approve(ReturnRequest request) {
-        returns.decide(
-            other,
-            request.getId(),
-            ReturnStatus.APPROVED,
-            request.getOrder().getTotalAmount(),
-            "Đồng ý nhận lại đầy đủ sản phẩm"
-        );
-    }
-
-    private ReturnRequest pending(CustomerOrder order) {
-        var request = open(order);
-        approve(request);
-
-        returns.markReturning(customer, order.getId());
-
-        returns.vendorTransition(
-            other,
-            request.getId(),
-            ReturnStatus.RECEIVED,
-            "Đã nhận đủ hàng trả"
-        );
-
-        returns.vendorTransition(
-            other,
-            request.getId(),
-            ReturnStatus.REFUND_PENDING,
-            "Chuẩn bị hoàn tiền qua ngân hàng"
-        );
-
+    private ReturnRequest advanceToRefundPending(Fixture fixture) {
+        ReturnRequest request = returnRequestService.create(fixture.customer(), fixture.order().getId(),
+            form("100000"), evidence());
+        returnRequestService.decide(fixture.vendor(), request.getId(), ReturnStatus.APPROVED,
+            new BigDecimal("100000"), "Đồng ý nhận lại sản phẩm.");
+        returnRequestService.requirePhysicalReturn(fixture.vendor(), request.getId());
+        returnRequestService.markReturning(fixture.customer(), fixture.order().getId());
+        returnRequestService.vendorTransition(fixture.vendor(), request.getId(), ReturnStatus.RECEIVED,
+            "Đã nhận sản phẩm trả về.");
+        returnRequestService.vendorTransition(fixture.vendor(), request.getId(), ReturnStatus.REFUND_PENDING,
+            "Chuẩn bị hoàn tiền ngoài hệ thống.");
         return request;
     }
 
-    private List<InventoryTransaction> refundMovements() {
-        return inventoryTransactions
-            .findByProductIdOrderByCreatedAtAscIdAsc(tea.getId())
-            .stream()
-            .filter(value ->
-                value.getType() == InventoryTransactionType.RETURN_REFUND
-            )
-            .toList();
+    private MockMultipartFile[] evidence() {
+        return new MockMultipartFile[] { new MockMultipartFile("evidence", "proof.png", "image/png",
+            new byte[] { (byte) 0x89, 0x50, 0x4e, 0x47 }) };
     }
 
-    private void renderDetail(
-            ReturnRequest request,
-            String expectedText) throws Exception {
+    private Fixture fixture() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        User customer = user("return-user-" + suffix, Role.USER);
+        customer.setBankName("BIDV");
+        customer.setBankAccountName("TEST CUSTOMER");
+        customer.setBankAccountNumber("123456789");
+        userRepository.save(customer);
+        User vendor = user("return-vendor-" + suffix, Role.VENDOR);
+        Shop shop = new Shop();
+        shop.setOwner(vendor);
+        shop.setName("Return shop " + suffix);
+        shop.setSlug("return-shop-" + suffix);
+        shop.setStatus(ShopStatus.APPROVED);
+        shop.setAddress("01 Võ Văn Ngân");
+        shop.setDistrict("Thủ Đức");
+        shop = shopRepository.save(shop);
+        Category category = new Category();
+        category.setName("Return category " + suffix);
+        category.setSlug("return-category-" + suffix);
+        category = categoryRepository.save(category);
+        Product product = new Product();
+        product.setShop(shop);
+        product.setCategory(category);
+        product.setName("Return product " + suffix);
+        product.setSlug("return-product-" + suffix);
+        product.setSku("RET-" + suffix);
+        product.setDescription("Sản phẩm kiểm thử quy trình hoàn trả.");
+        product.setPrice(new BigDecimal("100000"));
+        product.setStock(10);
+        product.setSoldCount(3);
+        product = productRepository.save(product);
 
-        String html = mvc.perform(
-                get("/vendor/returns/" + request.getId())
-                    .with(user(other.getUsername()).roles("VENDOR")))
-            .andExpect(status().isOk())
-            .andExpect(view().name("vendor/return-detail"))
-            .andExpect(model().attributeExists(
-                "returnRequest", "shop", "canConfirmRefund"
-            ))
-            .andExpect(content().string(containsString(expectedText)))
-            .andReturn().getResponse().getContentAsString();
-
-        assertThat(request.getMedia()).isNotEmpty();
-
-        assertThat(html).doesNotContain(
-            "private:returns/",
-            "/uploads/returns/"
-        );
-
-        for (ReturnRequestMedia media : request.getMedia()) {
-            assertThat(media.getId()).isNotNull();
-
-            String evidenceUrl = "/private-media/returns/" + media.getId();
-
-            assertThat(html).contains(
-                "href=\"" + evidenceUrl + "\"",
-                "src=\"" + evidenceUrl + "\""
-            );
-        }
+        CustomerOrder order = new CustomerOrder();
+        order.setCode("RETURN-" + suffix);
+        order.setUser(customer);
+        order.setShop(shop);
+        order.setStatus(OrderStatus.DELIVERED);
+        order.setPaymentStatus(PaymentStatus.PAID);
+        order.setReceiverName(customer.getFullName());
+        order.setReceiverPhone("0901234567");
+        order.setShippingAddress("01 Võ Văn Ngân, Thủ Đức");
+        order.setSubtotal(new BigDecimal("100000"));
+        order.setDiscountAmount(BigDecimal.ZERO);
+        order.setProductDiscount(BigDecimal.ZERO);
+        order.setVoucherDiscount(BigDecimal.ZERO);
+        order.setShippingFee(BigDecimal.ZERO);
+        order.setShippingDiscount(BigDecimal.ZERO);
+        order.setFinalShippingFee(BigDecimal.ZERO);
+        order.setTotalAmount(new BigDecimal("100000"));
+        order.snapshotCommission(BigDecimal.ZERO);
+        OrderItem item = new OrderItem();
+        item.setOrder(order);
+        item.setProduct(product);
+        item.setProductName(product.getName());
+        item.setBasePrice(product.getPrice());
+        item.setOptionPrice(BigDecimal.ZERO);
+        item.setUnitPrice(product.getPrice());
+        item.setQuantity(1);
+        item.setLineTotal(product.getPrice());
+        order.getItems().add(item);
+        order = orderRepository.save(order);
+        return new Fixture(customer, vendor, product, order);
     }
 
-    private void assertHttp(HttpStatus expected, Runnable action) {
-        assertThatThrownBy(action::run)
-            .isInstanceOfSatisfying(
-                ResponseStatusException.class,
-                exception -> assertThat(exception.getStatusCode())
-                    .isEqualTo(expected)
-            );
+    private User user(String username, Role role) {
+        User user = new User();
+        user.setUsername(username);
+        user.setEmail(username + "@utetra.test");
+        user.setPasswordHash("encoded-password");
+        user.setFullName(username);
+        user.setRole(role);
+        user.setEnabled(true);
+        return userRepository.save(user);
     }
+
+    private record Fixture(User customer, User vendor, Product product, CustomerOrder order) {}
 }

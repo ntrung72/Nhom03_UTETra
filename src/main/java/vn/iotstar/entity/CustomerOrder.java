@@ -1,5 +1,6 @@
 package vn.iotstar.entity;
 
+import vn.iotstar.util.VietnamTime;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -12,197 +13,193 @@ import lombok.Setter;
 import vn.iotstar.entity.DomainEnums.OrderStatus;
 import vn.iotstar.entity.DomainEnums.PaymentMethod;
 import vn.iotstar.entity.DomainEnums.PaymentStatus;
+import vn.iotstar.entity.DomainEnums.ShipperAssignmentStatus;
 
 @Getter
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(name = "customer_orders", indexes = { @Index(name = "idx_order_user_status", columnList = "user_id,status"),
-		@Index(name = "idx_order_shop_status", columnList = "shop_id,status"),
-		@Index(name = "idx_order_shipper_status", columnList = "shipper_id,status"),
-		@Index(name = "idx_order_checkout_reference", columnList = "checkout_reference") })
+@Table(name = "customer_orders", indexes = {
+    @Index(name = "idx_order_user_status", columnList = "user_id,status"),
+    @Index(name = "idx_order_shop_status", columnList = "shop_id,status"),
+    @Index(name = "idx_order_shipper_status", columnList = "shipper_id,status"),
+    @Index(name = "idx_order_checkout_reference", columnList = "checkout_reference")
+})
 public class CustomerOrder {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-	@Id
-	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	private Long id;
+    @Column(name = "order_code", nullable = false, unique = true, length = 32)
+    private String code;
 
-	@Column(name = "order_code", nullable = false, unique = true, length = 32)
-	private String code;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
-	@ManyToOne(fetch = FetchType.LAZY, optional = false)
-	@JoinColumn(name = "user_id", nullable = false)
-	private User user;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "shop_id", nullable = false)
+    private Shop shop;
 
-	@ManyToOne(fetch = FetchType.LAZY, optional = false)
-	@JoinColumn(name = "shop_id", nullable = false)
-	private Shop shop;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "carrier_id")
+    private Carrier carrier;
 
-	@ManyToOne(fetch = FetchType.LAZY)
-	@JoinColumn(name = "carrier_id")
-	private Carrier carrier;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "shipper_id")
+    private User shipper;
 
-	@ManyToOne(fetch = FetchType.LAZY)
-	@JoinColumn(name = "shipper_id")
-	private User shipper;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "shipper_assignment_status", length = 20)
+    private ShipperAssignmentStatus shipperAssignmentStatus;
 
-	@ManyToOne(fetch = FetchType.LAZY)
-	@JoinColumn(name = "voucher_id")
-	private Voucher voucher;
+    @Column(name = "shipper_rejection_reason", length = 500)
+    private String shipperRejectionReason;
 
-	@Column(name = "checkout_reference", length = 50)
-	private String checkoutReference;
+    @Column(name = "shipper_assigned_at")
+    private LocalDateTime shipperAssignedAt;
 
-	@Enumerated(EnumType.STRING)
-	@Column(nullable = false, length = 30)
-	private OrderStatus status = OrderStatus.NEW;
+    @Column(name = "shipper_reminder_sent_at")
+    private LocalDateTime shipperReminderSentAt;
 
-	@Enumerated(EnumType.STRING)
-	@Column(name = "payment_method", nullable = false, length = 20)
-	private PaymentMethod paymentMethod = PaymentMethod.COD;
+    @Column(name = "returned_to_shop_at")
+    private LocalDateTime returnedToShopAt;
 
-	@Enumerated(EnumType.STRING)
-	@Column(name = "payment_status", nullable = false, length = 20)
-	private PaymentStatus paymentStatus = PaymentStatus.UNPAID;
+    @Column(name = "cod_collected_at")
+    private LocalDateTime codCollectedAt;
 
-	@Column(name = "receiver_name", nullable = false, length = 120)
-	private String receiverName;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "voucher_id")
+    private Voucher voucher;
 
-	@Column(name = "receiver_phone", nullable = false, length = 20)
-	private String receiverPhone;
+    @Column(name = "checkout_reference", length = 50)
+    private String checkoutReference;
 
-	@Column(name = "shipping_address", nullable = false, length = 700)
-	private String shippingAddress;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    private OrderStatus status = OrderStatus.NEW;
 
-	@Column(length = 500)
-	private String note;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_method", nullable = false, length = 20)
+    private PaymentMethod paymentMethod = PaymentMethod.COD;
 
-	@Column(nullable = false, precision = 14, scale = 2)
-	private BigDecimal subtotal;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_status", nullable = false, length = 20)
+    private PaymentStatus paymentStatus = PaymentStatus.UNPAID;
 
-	@Column(name = "discount_amount", nullable = false, precision = 14, scale = 2)
-	private BigDecimal discountAmount = BigDecimal.ZERO;
+    @Column(name = "receiver_name", nullable = false, length = 120)
+    private String receiverName;
 
-	@Column(name = "product_discount", nullable = false, precision = 14, scale = 2)
-	private BigDecimal productDiscount;
+    @Column(name = "receiver_phone", nullable = false, length = 20)
+    private String receiverPhone;
 
-	@Column(name = "voucher_discount", nullable = false, precision = 14, scale = 2)
-	private BigDecimal voucherDiscount;
+    @Column(name = "shipping_address", nullable = false, length = 500)
+    private String shippingAddress;
 
-	@Column(name = "shipping_fee", nullable = false, precision = 14, scale = 2)
-	private BigDecimal shippingFee = BigDecimal.ZERO;
+    @Column(length = 500)
+    private String note;
 
-	@Column(name = "shipping_discount", nullable = false, precision = 14, scale = 2)
-	private BigDecimal shippingDiscount;
+    @Column(nullable = false, precision = 14, scale = 2)
+    private BigDecimal subtotal;
 
-	@Column(name = "final_shipping_fee", nullable = false, precision = 14, scale = 2)
-	private BigDecimal finalShippingFee;
+    @Column(name = "discount_amount", nullable = false, precision = 14, scale = 2)
+    private BigDecimal discountAmount = BigDecimal.ZERO;
 
-	@Column(name = "total_amount", nullable = false, precision = 14, scale = 2)
-	private BigDecimal totalAmount;
+    @Column(name = "product_discount", precision = 14, scale = 2)
+    private BigDecimal productDiscount;
 
-	@Column(name = "commission_rate", precision = 5, scale = 2)
-	private BigDecimal commissionRate;
+    @Column(name = "voucher_discount", precision = 14, scale = 2)
+    private BigDecimal voucherDiscount;
 
-	@Column(name = "commission_base", precision = 14, scale = 2)
-	private BigDecimal commissionBase;
+    @Column(name = "shipping_fee", nullable = false, precision = 14, scale = 2)
+    private BigDecimal shippingFee = BigDecimal.ZERO;
 
-	@Column(name = "commission_amount", precision = 14, scale = 2)
-	private BigDecimal commissionAmount;
+    @Column(name = "shipping_discount", precision = 14, scale = 2)
+    private BigDecimal shippingDiscount;
 
-	@Column(name = "seller_revenue", precision = 14, scale = 2)
-	private BigDecimal sellerRevenue;
+    @Column(name = "final_shipping_fee", precision = 14, scale = 2)
+    private BigDecimal finalShippingFee;
 
-	@Column(name = "platform_revenue", precision = 14, scale = 2)
-	private BigDecimal platformRevenue;
+    @Column(name = "total_amount", nullable = false, precision = 14, scale = 2)
+    private BigDecimal totalAmount;
 
-	@Column(name = "failure_reason", length = 500)
-	private String failureReason;
+    @Column(name = "commission_rate", precision = 5, scale = 2)
+    private BigDecimal commissionRate;
 
-	@Column(name = "delivery_proof_url", length = 500)
-	private String deliveryProofUrl;
+    @Column(name = "commission_base", precision = 14, scale = 2)
+    private BigDecimal commissionBase;
 
-	@Column(name = "picked_up_at")
-	private LocalDateTime pickedUpAt;
+    @Column(name = "commission_amount", precision = 14, scale = 2)
+    private BigDecimal commissionAmount;
 
-	@Column(name = "delivered_at")
-	private LocalDateTime deliveredAt;
+    @Column(name = "seller_revenue", precision = 14, scale = 2)
+    private BigDecimal sellerRevenue;
 
-	@Column(name = "payment_expires_at")
-	private LocalDateTime paymentExpiresAt;
+    @Column(name = "platform_revenue", precision = 14, scale = 2)
+    private BigDecimal platformRevenue;
 
-	@Column(name = "created_at", nullable = false)
-	private LocalDateTime createdAt = LocalDateTime.now();
+    @Column(name = "failure_reason", length = 500)
+    private String failureReason;
 
-	@Column(name = "updated_at", nullable = false)
-	private LocalDateTime updatedAt = LocalDateTime.now();
+    @Column(name = "delivery_proof_url", length = 500)
+    private String deliveryProofUrl;
 
-	@OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
-	@OrderBy("id ASC")
-	private List<OrderItem> items = new ArrayList<>();
+    @Column(name = "picked_up_at")
+    private LocalDateTime pickedUpAt;
 
-	@PreUpdate
-	void touch() {
-		updatedAt = LocalDateTime.now();
-	}
+    @Column(name = "delivered_at")
+    private LocalDateTime deliveredAt;
 
-	/**
-	 * Công thức snapshot theo ZIP: - Nền tính = tiền sản phẩm sau giảm giá. - Phí
-	 * vận chuyển được tính riêng. - Hoa hồng nền tảng = nền tính × tỷ lệ / 100. -
-	 * Doanh thu người bán = nền tính - hoa hồng.
-	 */
-	public void snapshotCommission(BigDecimal rate) {
-		BigDecimal merchandise = zero(subtotal);
-		BigDecimal merchandiseDiscount;
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt = VietnamTime.now();
 
-		if (productDiscount == null && voucherDiscount == null) {
-			merchandiseDiscount = zero(discountAmount);
-		} else {
-			merchandiseDiscount = zero(productDiscount).add(zero(voucherDiscount));
-		}
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt = VietnamTime.now();
 
-		BigDecimal base = merchandise.subtract(merchandiseDiscount).max(BigDecimal.ZERO);
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("id ASC")
+    private List<OrderItem> items = new ArrayList<>();
 
-		BigDecimal safeRate = rate == null ? BigDecimal.ZERO : rate.max(BigDecimal.ZERO).min(new BigDecimal("100"));
+    @PreUpdate
+    void touch() { updatedAt = VietnamTime.now(); }
 
-		BigDecimal fee = base.multiply(safeRate).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+    @Transient
+    public boolean isAwaitingBankTransferConfirmation() {
+        return paymentMethod == PaymentMethod.BANK_TRANSFER
+            && paymentStatus == PaymentStatus.UNPAID && status == OrderStatus.NEW;
+    }
 
-		commissionRate = safeRate.setScale(2, RoundingMode.HALF_UP);
+    @Transient
+    public String getDisplayStatusLabel() {
+        return isAwaitingBankTransferConfirmation() ? "Chờ xác nhận thanh toán" : status.getLabel();
+    }
 
-		commissionBase = base.setScale(2, RoundingMode.HALF_UP);
+    public void snapshotCommission(BigDecimal rate) {
+        BigDecimal merchandise = subtotal == null ? BigDecimal.ZERO : subtotal.max(BigDecimal.ZERO);
+        BigDecimal merchandiseDiscount;
+        if (productDiscount == null && voucherDiscount == null) {
+            merchandiseDiscount = discountAmount == null ? BigDecimal.ZERO : discountAmount.max(BigDecimal.ZERO);
+        } else {
+            merchandiseDiscount = zero(productDiscount).add(zero(voucherDiscount));
+        }
+        BigDecimal base = merchandise.subtract(merchandiseDiscount).max(BigDecimal.ZERO);
+        BigDecimal safeRate = rate == null ? BigDecimal.ZERO : rate.max(BigDecimal.ZERO).min(new BigDecimal("100"));
+        BigDecimal fee = base.multiply(safeRate).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+        commissionRate = safeRate.setScale(2, RoundingMode.HALF_UP);
+        commissionBase = base.setScale(2, RoundingMode.HALF_UP);
+        commissionAmount = fee;
+        platformRevenue = fee;
+        sellerRevenue = base.subtract(fee).max(BigDecimal.ZERO);
+    }
 
-		commissionAmount = fee;
-		platformRevenue = fee;
-		sellerRevenue = base.subtract(fee).max(BigDecimal.ZERO);
-	}
+    private BigDecimal zero(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value.max(BigDecimal.ZERO);
+    }
 
-	/**
-	 * Bổ sung các khoản giảm giá cho dữ liệu cũ theo ZIP.
-	 */
-	public void backfillDiscountBreakdown() {
-		if (productDiscount == null) {
-			productDiscount = zero(discountAmount);
-		}
-
-		if (voucherDiscount == null) {
-			voucherDiscount = BigDecimal.ZERO;
-		}
-
-		if (shippingDiscount == null) {
-			shippingDiscount = BigDecimal.ZERO;
-		}
-
-		if (finalShippingFee == null) {
-			finalShippingFee = zero(shippingFee);
-		}
-	}
-
-	public boolean hasCommissionSnapshot() {
-		return commissionRate != null && commissionBase != null && commissionAmount != null && sellerRevenue != null
-				&& platformRevenue != null;
-	}
-
-	private BigDecimal zero(BigDecimal value) {
-		return value == null ? BigDecimal.ZERO : value.max(BigDecimal.ZERO);
-	}
+    public void backfillDiscountBreakdown() {
+        if (productDiscount == null) productDiscount = discountAmount == null ? BigDecimal.ZERO : discountAmount;
+        if (voucherDiscount == null) voucherDiscount = BigDecimal.ZERO;
+        if (shippingDiscount == null) shippingDiscount = BigDecimal.ZERO;
+        if (finalShippingFee == null) finalShippingFee = shippingFee == null ? BigDecimal.ZERO : shippingFee;
+    }
 }

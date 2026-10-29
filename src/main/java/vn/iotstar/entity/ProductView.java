@@ -1,5 +1,6 @@
 package vn.iotstar.entity;
 
+import vn.iotstar.util.VietnamTime;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import lombok.Getter;
@@ -25,5 +26,5 @@ public class ProductView {
     private Product product;
 
     @Column(name = "viewed_at", nullable = false)
-    private LocalDateTime viewedAt = LocalDateTime.now();
+    private LocalDateTime viewedAt = VietnamTime.now();
 }

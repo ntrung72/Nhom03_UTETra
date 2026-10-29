@@ -6,7 +6,7 @@
 <main class="container py-4">
     <div th:replace="~{fragments/layout :: flash}"></div>
     <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
-        <div><h1 class="h3 mb-1">Đơn hàng được phân công</h1><p class="text-muted mb-0">Theo dõi và hoàn tất từng chuyến giao hàng.</p></div>
+        <div><h1 class="h3 mb-1">Đơn hàng được phân công</h1><p class="text-muted mb-0">Chấp nhận hoặc từ chối đơn được phân công. Khi cửa hàng báo sẵn sàng, đến lấy hàng và bấm “Xác nhận đã lấy hàng”.</p></div>
         <span class="badge rounded-pill text-bg-light border" th:text="${totalCount + ' đơn được phân công'}"></span>
     </div>
 
@@ -33,7 +33,8 @@
 
     <div class="d-flex justify-content-between align-items-center mb-3"><h2 class="h5 mb-0">Danh sách đơn giao</h2><span class="text-muted small" th:text="${orders.totalElements + ' kết quả'}"></span></div>
 
-    <div class="card order-card shipper-order-card p-3 mb-3" th:each="o : ${orders.content}">
+    <div class="card order-card shipper-order-card p-3 mb-3" th:each="o : ${orders.content}"
+         th:with="assignmentPending=${(o.shipperAssignmentStatus == null and (o.status.name() == 'CONFIRMED' or o.status.name() == 'PREPARING' or o.status.name() == 'READY_FOR_PICKUP')) or (o.shipperAssignmentStatus != null and o.shipperAssignmentStatus.name() == 'PENDING' and (o.status.name() == 'CONFIRMED' or o.status.name() == 'PREPARING' or o.status.name() == 'READY_FOR_PICKUP' or o.status.name() == 'PICKED_UP'))}">
         <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
             <div class="shipper-order-info">
                 <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
@@ -55,25 +56,47 @@
                     <div class="delivery-meta" th:if="${o.pickedUpAt != null}"><i class="bi bi-box-arrow-up"></i><span th:text="${'Lấy hàng lúc ' + #temporals.format(o.pickedUpAt,'HH:mm · dd/MM/yyyy')}"></span></div>
                     <div class="delivery-meta" th:if="${o.deliveredAt != null}"><i class="bi bi-check2-circle"></i><strong th:text="${'Giao thành công lúc ' + #temporals.format(o.deliveredAt,'HH:mm · dd/MM/yyyy')}"></strong></div>
                     <div class="delivery-meta" th:if="${o.status.name() == 'DELIVERY_FAILED'}"><i class="bi bi-exclamation-circle"></i><strong th:text="${'Báo giao thất bại lúc ' + #temporals.format(o.updatedAt,'HH:mm · dd/MM/yyyy')}"></strong></div>
+                    <div class="delivery-meta" th:if="${o.returnedToShopAt != null}"><i class="bi bi-shop"></i><strong th:text="${'Hàng về shop lúc ' + #temporals.format(o.returnedToShopAt,'HH:mm · dd/MM/yyyy')}"></strong></div>
+                    <div class="delivery-meta" th:if="${o.codCollectedAt != null}"><i class="bi bi-cash"></i><strong th:text="${'Đã thu tiền COD lúc ' + #temporals.format(o.codCollectedAt,'HH:mm · dd/MM/yyyy')}"></strong></div>
                 </div>
-                <div class="shipper-failure-reason mt-2" th:if="${o.failureReason != null and !o.failureReason.isBlank()}"><i class="bi bi-exclamation-triangle-fill"></i><div><strong>Lý do giao thất bại</strong><span th:text="${o.failureReason}"></span></div></div>
-                <a class="delivery-proof-link shipper-proof mt-2" th:if="${o.deliveryProofUrl != null}" th:href="@{/private-media/orders/{id}/delivery-proof(id=${o.id})}" target="_blank" rel="noopener">
+                <div class="shipper-failure-reason mt-2" th:if="${o.status.name() == 'DELIVERY_FAILED' and o.failureReason != null and !o.failureReason.isBlank()}"><i class="bi bi-exclamation-triangle-fill"></i><div><strong>Lý do giao thất bại</strong><span th:text="${o.failureReason}"></span></div></div>
+                <a class="delivery-proof-link shipper-proof mt-2" th:if="${o.deliveryProofUrl != null and (o.status.name() == 'DELIVERY_FAILED' or o.status.name() == 'DELIVERED')}" th:href="@{/private-media/orders/{id}/delivery-proof(id=${o.id})}" target="_blank" rel="noopener">
                     <img th:src="@{/private-media/orders/{id}/delivery-proof(id=${o.id})}" alt="Bằng chứng giao hàng">
                     <span><i class="bi bi-image"></i> <span th:text="${o.status.name() == 'DELIVERED' ? 'Ảnh giao thành công' : 'Ảnh bằng chứng'}"></span></span>
                 </a>
                 <strong class="d-block mt-2 text-primary" th:text="${#numbers.formatDecimal(o.totalAmount,0,'COMMA',0,'POINT')} + ' ₫'"></strong>
             </div>
-            <div class="shipper-actions">
-                <div class="shipper-action-heading" th:if="${!#lists.isEmpty(allowedTransitions[o.id])}">Cập nhật trạng thái</div>
-                <form th:if="${o.status.name() == 'READY_FOR_PICKUP'}" th:action="@{/shipper/orders/{id}/status(id=${o.id})}" method="post"><input type="hidden" name="status" value="PICKED_UP"><button class="btn btn-primary w-100"><i class="bi bi-box-arrow-up"></i> Xác nhận đã lấy hàng</button></form>
-                <form th:if="${o.status.name() == 'PICKED_UP'}" th:action="@{/shipper/orders/{id}/status(id=${o.id})}" method="post"><input type="hidden" name="status" value="SHIPPING"><button class="btn btn-primary w-100"><i class="bi bi-truck"></i> Bắt đầu giao hàng</button></form>
-                <div class="delivery-decision" th:if="${o.status.name() == 'SHIPPING'}">
+            <div class="shipper-actions" th:classappend="${assignmentPending} ? ' shipper-assignment-response'">
+                <div class="shipper-action-heading" th:if="${assignmentPending}">Phản hồi phân công</div>
+                <div class="small text-muted mb-2" th:if="${assignmentPending}">Hệ thống sẽ nhắc sau 10 phút và đưa đơn về danh sách phân công nếu quá 30 phút chưa phản hồi.</div>
+                <div class="small text-warning mb-2" th:if="${assignmentPending and o.status.name() == 'PICKED_UP'}">Bạn đang giữ hàng giao lại. Nếu không nhận chuyến, hãy trả hàng về shop trước khi từ chối.</div>
+                <form th:if="${assignmentPending}" th:action="@{/shipper/orders/{id}/assignment(id=${o.id})}" method="post">
+                    <input type="hidden" name="decision" value="accept">
+                    <button class="btn btn-primary"><i class="bi bi-check2-circle"></i> Chấp nhận đơn</button>
+                </form>
+                <details class="delivery-failure-details mt-2" th:if="${assignmentPending}">
+                    <summary class="btn btn-outline-danger btn-sm">Từ chối đơn</summary>
+                    <form class="delivery-action-form mt-2" th:action="@{/shipper/orders/{id}/assignment(id=${o.id})}" method="post">
+                        <input type="hidden" name="decision" value="reject">
+                        <label class="form-label" th:for="${'rejection-reason-' + o.id}">Lý do từ chối <span class="required-mark">*</span></label>
+                        <textarea class="form-control form-control-sm" th:id="${'rejection-reason-' + o.id}" name="rejectionReason" minlength="5" maxlength="500" rows="2" required></textarea>
+                        <button class="btn btn-outline-danger btn-sm w-100 mt-2">Xác nhận từ chối</button>
+                    </form>
+                </details>
+                <div class="shipper-action-heading" th:if="${!assignmentPending and !#lists.isEmpty(allowedTransitions[o.id])}">Cập nhật trạng thái</div>
+                <form th:if="${!assignmentPending and o.status.name() == 'READY_FOR_PICKUP'}" th:action="@{/shipper/orders/{id}/status(id=${o.id})}" method="post"><input type="hidden" name="status" value="PICKED_UP"><button class="btn btn-primary w-100"><i class="bi bi-box-arrow-up"></i> Xác nhận đã lấy hàng</button></form>
+                <form th:if="${!assignmentPending and o.status.name() == 'PICKED_UP' and (o.shipperAssignmentStatus == null or o.shipperAssignmentStatus.name() != 'EXPIRED')}" th:action="@{/shipper/orders/{id}/status(id=${o.id})}" method="post"><input type="hidden" name="status" value="SHIPPING"><button class="btn btn-primary w-100"><i class="bi bi-truck"></i> Bắt đầu giao hàng</button></form>
+                <div class="delivery-decision" th:if="${!assignmentPending and o.status.name() == 'SHIPPING'}">
                     <form class="delivery-action-form" th:action="@{/shipper/orders/{id}/status(id=${o.id})}"
                           method="post" enctype="multipart/form-data">
                         <input type="hidden" name="status" value="DELIVERED">
                         <label class="form-label"><i class="bi bi-camera"></i> Ảnh giao thành công <span class="required-mark">*</span></label>
                         <input class="form-control form-control-sm" type="file" name="deliveryProof" accept="image/*" required>
                         <small class="text-muted">Ảnh kiện hàng tại nơi nhận, tối đa 10 MB.</small>
+                        <label class="d-flex align-items-center gap-2 mt-2" th:if="${o.paymentMethod.name() == 'COD'}">
+                            <input class="form-check-input mt-0" type="checkbox" name="codCollected" value="true" required>
+                            <span>Đã thu đủ tiền COD từ khách</span>
+                        </label>
                         <button class="btn btn-success btn-sm w-100 mt-2"><i class="bi bi-check2-circle"></i> Xác nhận đã giao</button>
                     </form>
                     <details class="delivery-failure-details"><summary class="btn btn-outline-danger btn-sm w-100"><i class="bi bi-exclamation-triangle"></i> Không giao được?</summary><form class="delivery-action-form delivery-failed-form mt-2" th:action="@{/shipper/orders/{id}/status(id=${o.id})}" method="post" enctype="multipart/form-data">
@@ -85,7 +108,17 @@
                             <button class="btn btn-outline-danger btn-sm w-100 mt-2"><i class="bi bi-x-circle"></i> Xác nhận giao thất bại</button>
                         </form></details>
                 </div>
-                <span class="text-muted small" th:if="${#lists.isEmpty(allowedTransitions[o.id])}">Không có thao tác giao hàng tiếp theo.</span>
+                <form th:if="${o.status.name() == 'DELIVERY_FAILED' and o.returnedToShopAt == null}"
+                      th:action="@{/shipper/orders/{id}/return-to-shop(id=${o.id})}" method="post">
+                    <button class="btn btn-outline-primary w-100"><i class="bi bi-shop"></i> Xác nhận đã trả hàng về shop</button>
+                </form>
+                <form th:if="${o.status.name() == 'PICKED_UP' and o.returnedToShopAt == null and o.shipperAssignmentStatus != null and (o.shipperAssignmentStatus.name() == 'PENDING' or o.shipperAssignmentStatus.name() == 'EXPIRED')}"
+                      th:action="@{/shipper/orders/{id}/return-to-shop(id=${o.id})}" method="post">
+                    <button class="btn btn-outline-primary w-100"><i class="bi bi-shop"></i> Trả hàng về shop trước khi từ chối</button>
+                </form>
+                <span class="text-muted small" th:if="${o.status.name() == 'DELIVERY_FAILED' and o.returnedToShopAt != null}">Hàng đã về shop. Chờ quản lý điều phối giao lại.</span>
+                <span class="text-muted small" th:if="${!assignmentPending and (o.status.name() == 'CONFIRMED' or o.status.name() == 'PREPARING')}">Đã chấp nhận. Chờ cửa hàng chuẩn bị xong để đến lấy hàng.</span>
+                <span class="text-muted small" th:if="${!assignmentPending and #lists.isEmpty(allowedTransitions[o.id]) and o.status.name() != 'CONFIRMED' and o.status.name() != 'PREPARING' and o.status.name() != 'DELIVERY_FAILED'}">Không có thao tác giao hàng tiếp theo.</span>
             </div>
         </div>
     </div>
@@ -107,7 +140,5 @@
 </main>
 <footer th:replace="~{fragments/layout :: footer}"></footer>
 <th:block th:replace="~{fragments/layout :: scripts}"></th:block>
-<link rel="stylesheet" th:href="@{/css/step43-management-shipper.css}">
-<script th:src="@{/js/step43-shipper.js}"></script>
 </body>
 </html>

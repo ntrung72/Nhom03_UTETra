@@ -3,10 +3,12 @@
 <head th:replace="~{fragments/layout :: head('Nhật ký thao tác')}"></head>
 <body>
 <header th:replace="~{fragments/layout :: header}"></header>
-<main class="container py-4">
-    <div th:replace="~{fragments/management-nav :: nav}"></div>
+<main class="container py-4 management-page">
+    <div class="admin-dashboard-shell">
+        <div th:replace="~{fragments/management-nav :: nav}"></div>
+        <div class="admin-dashboard-content">
     <div th:replace="~{fragments/layout :: flash}"></div>
-    <div class="mb-4"><span class="page-kicker"><i class="bi bi-shield-check"></i> Bảo mật & quản trị</span><h1 class="h3 mb-1">Nhật ký thao tác</h1><p class="text-muted mb-0">Theo dõi ai đã thay đổi tài khoản, cửa hàng và đơn hàng, vào thời điểm nào.</p></div>
+    <div class="mb-4"><h1 class="h3 mb-1">Nhật ký thao tác</h1><p class="text-muted mb-0">Theo dõi ai đã thay đổi tài khoản, cửa hàng và đơn hàng, vào thời điểm nào.</p></div>
     <form class="card p-3 mb-3" method="get" th:action="@{/management/audit-logs}">
         <div class="row g-2 align-items-end">
             <div class="col-md-5"><label class="form-label" for="auditQuery">Tài khoản hoặc đối tượng</label><input class="form-control" id="auditQuery" name="q" th:value="${q}" placeholder="Tên tài khoản, shop hoặc mã đơn"></div>
@@ -35,6 +37,8 @@
         <li class="page-item" th:each="i : ${#numbers.sequence(0, logs.totalPages - 1)}" th:classappend="${i == logs.number} ? 'active'"><a class="page-link" th:href="@{/management/audit-logs(page=${i},q=${q},action=${selectedAction})}" th:text="${i + 1}"></a></li>
         <li class="page-item" th:classappend="${logs.last} ? 'disabled'"><a class="page-link" th:href="@{/management/audit-logs(page=${logs.number + 1},q=${q},action=${selectedAction})}">Sau</a></li>
     </ul></nav>
+        </div>
+    </div>
 </main>
 <footer th:replace="~{fragments/layout :: footer}"></footer>
 <th:block th:replace="~{fragments/layout :: scripts}"></th:block>

@@ -3,12 +3,14 @@
 <head th:replace="~{fragments/layout :: head('Lịch sử sử dụng voucher')}"></head>
 <body>
 <header th:replace="~{fragments/layout :: header}"></header>
-<main class="container py-4 py-lg-5">
-    <div th:replace="~{fragments/management-nav :: nav}"></div>
+<main class="container pt-3 pt-lg-4 pb-4 pb-lg-5 management-page">
+    <div class="admin-dashboard-shell">
+        <div th:replace="~{fragments/management-nav :: nav}"></div>
+        <div class="admin-dashboard-content">
+    <div th:replace="~{fragments/layout :: flash}"></div>
     <div class="d-flex align-items-center gap-3 mb-4">
         <a class="btn btn-light rounded-circle" th:href="@{/management/vouchers}" aria-label="Quay lại"><i class="bi bi-arrow-left"></i></a>
         <div>
-            <span class="page-kicker"><i class="bi bi-clock-history"></i> LỊCH SỬ SỬ DỤNG</span>
             <h1 class="h3 mb-0"><span class="voucher-code" th:text="${voucher.code}">CODE</span></h1>
             <p class="text-muted mb-0" th:text="${voucher.name + ' · Tối đa ' + voucher.effectiveMaxUsesPerUser + ' lượt/User'}"></p>
         </div>
@@ -20,7 +22,7 @@
             <tbody>
             <tr th:each="usage : ${usages.content}">
                 <td><strong th:text="${usage.user.fullName}"></strong><div class="text-muted small" th:text="${usage.user.username + ' · ' + usage.user.email}"></div></td>
-                <td><span th:if="${usage.orderId != null}" th:text="${'#' + usage.orderId}"></span><span th:if="${usage.orderId == null}" class="text-muted">Chưa liên kết</span></td>
+                <td><a th:href="@{/management/orders(q=${usage.order.code})}" th:text="${usage.order.code}"></a></td>
                 <td><code th:text="${usage.checkoutReference}"></code></td>
                 <td><span class="badge" th:classappend="${usage.status.name() == 'USED'} ? ' text-bg-success' : ' text-bg-secondary'" th:text="${usage.status.label}"></span></td>
                 <td>
@@ -41,6 +43,8 @@
             <li class="page-item" th:classappend="${usages.last} ? 'disabled'"><a class="page-link" th:href="@{/management/vouchers/{id}/usages(id=${voucher.id},page=${usages.number + 1})}">Sau</a></li>
         </ul>
     </nav>
+        </div>
+    </div>
 </main>
 <footer th:replace="~{fragments/layout :: footer}"></footer>
 <th:block th:replace="~{fragments/layout :: scripts}"></th:block>

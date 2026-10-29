@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 550" role="img" aria-labelledby="title desc">
+  <title id="title">Linh vật trà sữa UTETra</title>
+  <desc id="desc">Một ly trà sữa hoạt hình hai chiều đội mũ tốt nghiệp, má hồng, vẫy tay và mang những hạt trân châu.</desc>
+  <defs>
+    <clipPath id="cup-shape">
+      <path d="M122 171 Q119 155 136 151 Q239 137 344 151 Q361 155 358 171 L333 439 Q330 474 297 483 Q240 495 183 483 Q150 474 147 439 Z"/>
+    </clipPath>
+  </defs>
+
+  <!-- Arms and legs sit behind the cup so the outline stays clean. -->
+  <g fill="none" stroke="#202b39" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M150 273 Q113 268 91 230" stroke-width="23" transform="translate(-10 0)"/>
+    <path d="M338 283 Q380 278 396 315" stroke-width="23" transform="translate(-8 10)"/>
+    <path d="M197 466 Q192 491 184 506 M282 466 Q289 491 297 506" stroke-width="20"/>
+  </g>
+  <g fill="#fff1d0" stroke="#202b39" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M90 235 Q77 234 69 223 L48 198 Q41 189 46 182 Q53 174 62 182 L72 191 L59 169 Q54 160 62 154 Q71 148 79 159 L91 177 L84 151 Q81 141 90 138 Q101 137 104 147 L111 173 L113 155 Q115 145 124 146 Q133 148 132 159 L130 196 Q125 223 108 232 Q98 237 90 235 Z" transform="translate(-26 0)"/>
+    <path d="M389 316 Q398 299 411 302 Q421 306 418 316 L418 336 Q422 347 414 353 Q405 359 399 352 Q386 357 380 346 Q375 338 383 329 Z" transform="translate(-13 15)"/>
+  </g>
+
+  <!-- Soft tea colours, clipped to one hand-drawn cup silhouette. -->
+  <g clip-path="url(#cup-shape)">
+    <path fill="#fff1cf" d="M110 135 H370 V500 H110 Z"/>
+    <path fill="#e6ad70" d="M113 359 Q161 345 205 358 T292 357 T369 353 L372 503 H110 Z"/>
+    <path fill="#f6c68d" d="M143 373 Q178 364 209 371 T278 369 T353 370 L344 411 Q245 392 141 412 Z" opacity=".78"/>
+    <path fill="#fff9e9" d="M146 176 Q153 176 153 194 L170 401 Q172 418 160 418 Q150 417 149 402 L132 191 Q131 177 146 176 Z" opacity=".72"/>
+    <g fill="#67402f" stroke="#4f3028" stroke-width="2.5">
+      <circle cx="177" cy="420" r="14"/><circle cx="222" cy="404" r="14"/>
+      <circle cx="269" cy="423" r="15"/><circle cx="314" cy="403" r="14"/>
+      <circle cx="198" cy="455" r="14"/><circle cx="246" cy="452" r="15"/>
+      <circle cx="296" cy="453" r="14"/><circle cx="333" cy="432" r="12"/>
+    </g>
+    <g fill="#a27657" opacity=".55">
+      <circle cx="173" cy="415" r="4"/><circle cx="217" cy="399" r="4"/>
+      <circle cx="265" cy="418" r="4"/><circle cx="309" cy="399" r="4"/>
+      <circle cx="194" cy="450" r="4"/><circle cx="242" cy="447" r="4"/>
+    </g>
+  </g>
+  <path d="M122 171 Q119 155 136 151 Q239 137 344 151 Q361 155 358 171 L333 439 Q330 474 297 483 Q240 495 183 483 Q150 474 147 439 Z" fill="none" stroke="#202b39" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M131 174 Q239 189 349 174" fill="none" stroke="#202b39" stroke-width="7" stroke-linecap="round"/>
+
+  <!-- A university cap and leaf-topped straw nod to UTE and tea. -->
+  <path d="M286 148 L302 55 Q304 45 314 46 L330 49 Q339 51 337 61 L320 153" fill="#e7fbff" stroke="#202b39" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M302 66 Q287 44 267 43 Q275 65 299 73 M325 73 Q342 51 362 53 Q351 73 329 81" fill="#65bc71" stroke="#202b39" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M136 128 Q239 106 345 128 L339 156 Q236 169 141 156 Z" fill="#2f72d6" stroke="#202b39" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M102 110 L237 57 L377 110 L240 161 Z" fill="#2461bc" stroke="#202b39" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M237 57 L377 110 L240 161 L238 110 Z" fill="#184f9d" opacity=".42"/>
+  <path d="M377 110 Q386 152 385 178" fill="none" stroke="#202b39" stroke-width="6" stroke-linecap="round"/>
+  <path d="M385 174 L376 191 Q385 198 394 191 Z" fill="#ffd47a" stroke="#202b39" stroke-width="5" stroke-linejoin="round"/>
+  <circle cx="238" cy="108" r="7" fill="#ffd47a" stroke="#202b39" stroke-width="4"/>
+
+  <!-- Wide eyes, pink cheeks and a relaxed smile keep the 2D character friendly. -->
+  <g fill="none" stroke="#202b39" stroke-linecap="round">
+    <path d="M170 249 Q190 225 212 243 M265 243 Q287 226 309 249" stroke-width="6"/>
+  </g>
+  <ellipse cx="194" cy="272" rx="17" ry="23" fill="#202b39"/>
+  <ellipse cx="286" cy="272" rx="17" ry="23" fill="#202b39"/>
+  <ellipse cx="200" cy="263" rx="6" ry="8" fill="#fff"/>
+  <ellipse cx="292" cy="263" rx="6" ry="8" fill="#fff"/>
+  <ellipse cx="157" cy="313" rx="24" ry="15" fill="#f7949b"/>
+  <ellipse cx="323" cy="313" rx="24" ry="15" fill="#f7949b"/>
+  <path d="M229 309 Q239 303 249 309" fill="none" stroke="#202b39" stroke-width="5" stroke-linecap="round"/>
+  <path d="M197 321 Q239 354 283 321 Q280 369 241 370 Q203 369 197 321 Z" fill="#f77987" stroke="#202b39" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M211 350 Q241 330 268 351" fill="none" stroke="#d84f67" stroke-width="5" stroke-linecap="round"/>
+
+  <!-- Little canvas shoes, not mechanical boots. -->
+  <g fill="#2d72d2" stroke="#202b39" stroke-width="7" stroke-linejoin="round">
+    <path d="M181 493 Q162 502 153 514 Q149 522 160 527 L208 527 Q217 523 215 515 L207 496 Z"/>
+    <path d="M272 496 Q265 518 273 527 L319 527 Q332 524 326 514 Q317 502 299 493 Z"/>
+  </g>
+  <path d="M159 519 H209 M277 519 H322" fill="none" stroke="#fff4dc" stroke-width="5" stroke-linecap="round"/>
+</svg>

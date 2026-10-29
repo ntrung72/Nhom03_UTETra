@@ -1,23 +1,7 @@
 package vn.iotstar.entity;
 
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Index;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.Lob;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.OrderBy;
-import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
-import jakarta.persistence.Version;
+import vn.iotstar.util.VietnamTime;
+import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -31,36 +15,18 @@ import vn.iotstar.entity.DomainEnums.ProductStatus;
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(
-    name = "products",
-    indexes = {
-        @Index(
-            name = "idx_product_shop",
-            columnList = "shop_id"
-        ),
-        @Index(
-            name = "idx_product_category",
-            columnList = "category_id"
-        ),
-        @Index(
-            name = "idx_product_status_sold",
-            columnList = "status,sold_count"
-        )
-    }
-)
+@Table(name = "products", indexes = {
+    @Index(name = "idx_product_shop", columnList = "shop_id"),
+    @Index(name = "idx_product_category", columnList = "category_id"),
+    @Index(name = "idx_product_status_sold", columnList = "status,sold_count")
+})
 public class Product {
-
-    public static final int LOW_STOCK_THRESHOLD = 5;
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Version
-    @Column(
-        nullable = false,
-        columnDefinition = "bigint default 0"
-    )
+    @Column(nullable = false, columnDefinition = "bigint default 0")
     private long version;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -96,66 +62,43 @@ public class Product {
     @Column(name = "sold_count", nullable = false)
     private long soldCount;
 
-    @Column(
-        name = "average_rating",
-        nullable = false,
-        precision = 3,
-        scale = 2
-    )
+    @Column(name = "view_count", nullable = false)
+    private long viewCount;
+
+    @Column(name = "favorite_count", nullable = false)
+    private long favoriteCount;
+
+    @Column(name = "average_rating", nullable = false, precision = 3, scale = 2)
     private BigDecimal averageRating = BigDecimal.ZERO;
 
     @Column(name = "review_count", nullable = false)
     private long reviewCount;
-
-    @Column(
-        name = "favorite_count",
-        nullable = false,
-        columnDefinition = "bigint default 0"
-    )
-    private long favoriteCount;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private ProductStatus status = ProductStatus.ACTIVE;
 
     @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
+    private LocalDateTime createdAt = VietnamTime.now();
 
     @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt = LocalDateTime.now();
+    private LocalDateTime updatedAt = VietnamTime.now();
 
-    @OneToMany(
-        mappedBy = "product",
-        cascade = CascadeType.ALL,
-        orphanRemoval = true
-    )
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("displayOrder ASC, id ASC")
     private List<ProductSize> sizes = new ArrayList<>();
 
-    @OneToMany(
-        mappedBy = "product",
-        cascade = CascadeType.ALL,
-        orphanRemoval = true
-    )
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("id ASC")
-    private List<ProductTopping> availableToppings =
-        new ArrayList<>();
+    private List<ProductTopping> availableToppings = new ArrayList<>();
 
     @PreUpdate
     void touch() {
-        updatedAt = LocalDateTime.now();
+        updatedAt = VietnamTime.now();
     }
 
     public boolean isAvailable() {
-        return stock > 0
-            && status == ProductStatus.ACTIVE
-            && shop != null
-            && shop.isApproved()
-            && category != null
-            && category.isActive();
-    }
-
-    public boolean isLowStock() {
-        return stock <= LOW_STOCK_THRESHOLD;
+        return stock > 0 && status == ProductStatus.ACTIVE && shop != null && shop.isApproved()
+            && category != null && category.isActive();
     }
 }

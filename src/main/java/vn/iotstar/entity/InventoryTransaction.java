@@ -1,17 +1,7 @@
 package vn.iotstar.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Index;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+import vn.iotstar.util.VietnamTime;
+import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -22,21 +12,11 @@ import vn.iotstar.entity.DomainEnums.InventoryTransactionType;
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(
-    name = "inventory_transactions",
-    indexes = {
-        @Index(
-            name = "idx_inventory_shop_time",
-            columnList = "shop_id,created_at"
-        ),
-        @Index(
-            name = "idx_inventory_product_time",
-            columnList = "product_id,created_at"
-        )
-    }
-)
+@Table(name = "inventory_transactions", indexes = {
+    @Index(name = "idx_inventory_shop_time", columnList = "shop_id,created_at"),
+    @Index(name = "idx_inventory_product_time", columnList = "product_id,created_at")
+})
 public class InventoryTransaction {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -80,5 +60,5 @@ public class InventoryTransaction {
     private String note;
 
     @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
+    private LocalDateTime createdAt = VietnamTime.now();
 }

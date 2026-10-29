@@ -48,6 +48,17 @@ class NotificationCommitTests {
     @MockitoBean private SimpMessagingTemplate messagingTemplate;
 
     @Test
+    void shipperCanOpenNotificationsAndSeeNavbarBadge() throws Exception {
+        User shipper = recipient(Role.SHIPPER);
+        var mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
+        mvc.perform(get("/notifications").with(user(shipper.getUsername()).roles("SHIPPER")))
+            .andExpect(status().isOk())
+            .andExpect(content().string(containsString("data-notification-count")))
+            .andExpect(content().string(containsString("id=\"notificationPreviewMenu\"")))
+            .andExpect(content().string(containsString("Xem tất cả thông báo")));
+    }
+
+    @Test
     void recentPreviewIsLimitedToFiveAndOnlyReturnsOwnNotifications() throws Exception {
         User recipient = recipient();
         User other = recipient();
@@ -75,7 +86,7 @@ class NotificationCommitTests {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.length()").value(5))
             .andExpect(jsonPath("$[0].title").value("preview-6"))
-            .andExpect(jsonPath("$[0].link").value("/user/notifications"))
+            .andExpect(jsonPath("$[0].link").value("/notifications"))
             .andExpect(jsonPath("$[4].title").value("preview-2"));
     }
 

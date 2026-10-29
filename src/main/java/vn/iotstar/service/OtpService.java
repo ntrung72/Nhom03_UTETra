@@ -1,5 +1,6 @@
 package vn.iotstar.service;
 
+import vn.iotstar.util.VietnamTime;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -32,7 +33,7 @@ public class OtpService {
     @Transactional
     public void issue(String email, OtpPurpose purpose) {
         String normalized = email.trim().toLowerCase();
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = VietnamTime.now();
         enforceSendLimit(normalized, now);
         otpRepository.findFirstByEmailIgnoreCaseAndPurposeAndUsedFalseOrderByCreatedAtDesc(normalized, purpose)
             .ifPresent(old -> { old.setUsed(true); otpRepository.save(old); });
@@ -66,7 +67,7 @@ public class OtpService {
     @Transactional(readOnly = true)
     public long remainingCooldownSeconds(String email) {
         if (email == null || email.isBlank()) return 0;
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = VietnamTime.now();
         return otpRepository.findFirstByEmailIgnoreCaseOrderByCreatedAtDesc(email.trim().toLowerCase())
             .map(latest -> {
                 long elapsedSeconds = Math.max(0, Duration.between(latest.getCreatedAt(), now).getSeconds());
@@ -84,17 +85,22 @@ public class OtpService {
             token.setUsed(true);
             throw new OtpVerificationException("Bạn đã nhập sai quá 5 lần. Hãy yêu cầu OTP mới.");
         }
-        if (token.getExpiresAt().isBefore(LocalDateTime.now())) {
+        if (token.getExpiresAt().isBefore(VietnamTime.now())) {
             token.setUsed(true);
             throw new OtpVerificationException("OTP đã hết hạn. Hãy yêu cầu mã mới.");
         }
-        token.setAttempts(token.getAttempts() + 1);
         if (!passwordEncoder.matches(code == null ? "" : code.trim(), token.getCodeHash())) {
-            if (token.getAttempts() >= 5) token.setUsed(true);
+            int failedAttempts = token.getAttempts() + 1;
+            token.setAttempts(failedAttempts);
+            if (failedAttempts >= 5) {
+                token.setUsed(true);
+                throw new OtpVerificationException("Bạn đã nhập sai quá 5 lần. Hãy yêu cầu OTP mới.");
+            }
             throw new OtpVerificationException("Mã OTP không đúng.");
         }
         token.setUsed(true);
     }
+
     public static final class OtpVerificationException extends IllegalArgumentException {
         public OtpVerificationException(String message) {
             super(message);

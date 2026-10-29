@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<body>
+<a class="home-shop-card" th:fragment="card(spotlight)" th:href="@{/shops/{slug}(slug=${spotlight.shop.slug})}">
+    <div class="home-shop-image">
+        <img th:if="${spotlight.shop.imageUrl != null and !spotlight.shop.imageUrl.isBlank()}" th:src="${spotlight.shop.imageUrl}" th:alt="${spotlight.shop.name}" loading="lazy">
+        <i th:unless="${spotlight.shop.imageUrl != null and !spotlight.shop.imageUrl.isBlank()}" class="bi bi-shop" aria-hidden="true"></i>
+        <span class="home-shop-status" th:if="${spotlight.shop.openingTime != null and spotlight.shop.closingTime != null}"
+              th:classappend="${spotlight.shop.openNow} ? ' is-open' : ' is-closed'"
+              th:text="${spotlight.shop.openNow} ? 'Đang mở cửa' : 'Đang đóng cửa'">Đang mở cửa</span>
+    </div>
+    <div class="home-shop-content">
+        <div class="home-shop-title"><h3 th:text="${spotlight.shop.name}">UTETra Thủ Đức</h3></div>
+        <p class="home-shop-address" th:text="${spotlight.shop.fullAddress != null and !spotlight.shop.fullAddress.isBlank() ? spotlight.shop.fullAddress : 'Xem thông tin chi nhánh'}">Địa chỉ cửa hàng</p>
+        <p class="home-shop-description" th:if="${spotlight.shop.description != null and !spotlight.shop.description.isBlank()}" th:text="${spotlight.shop.description}">Giới thiệu cửa hàng</p>
+        <div class="home-shop-details" th:if="${(spotlight.shop.openingTime != null and spotlight.shop.closingTime != null) or (spotlight.shop.phone != null and !spotlight.shop.phone.isBlank())}">
+            <span th:if="${spotlight.shop.openingTime != null and spotlight.shop.closingTime != null}"><i class="bi bi-clock" aria-hidden="true"></i><span th:text="|${#temporals.format(spotlight.shop.openingTime, 'HH:mm')} - ${#temporals.format(spotlight.shop.closingTime, 'HH:mm')}|">08:00 - 22:00</span></span>
+            <span th:if="${spotlight.shop.phone != null and !spotlight.shop.phone.isBlank()}"><i class="bi bi-telephone" aria-hidden="true"></i><span th:text="${spotlight.shop.phone}">0123456789</span></span>
+        </div>
+        <span class="home-shop-rating" th:if="${spotlight.rating > 0}"><i class="bi bi-star-fill" aria-hidden="true"></i> <span th:text="${#numbers.formatDecimal(spotlight.rating,1,1)}">4,8</span> đánh giá</span>
+        <span class="home-shop-rating home-shop-rating-new" th:unless="${spotlight.rating > 0}"><i class="bi bi-heart" aria-hidden="true"></i> Khám phá cửa hàng</span>
+    </div>
+</a>
+</body>
+</html>

@@ -8,7 +8,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
@@ -17,21 +16,18 @@ import org.springframework.security.authentication.dao.DaoAuthenticationProvider
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import vn.iotstar.security.CustomUserDetailsService;
 import vn.iotstar.security.JwtAuthenticationFilter;
-import vn.iotstar.security.JwtService;
 
 @Configuration
 @EnableMethodSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
-    private final JwtService jwtService;
+    private final JwtAuthenticationFilter jwtFilter;
     private final CustomUserDetailsService userDetailsService;
 
     @Bean
@@ -51,77 +47,38 @@ public class SecurityConfig {
         return configuration.getAuthenticationManager();
     }
 
-    /** Browser session is used for realtime preview; JWT API remains stateless. */
     @Bean
-    @Order(1)
-    SecurityFilterChain browserNotificationApiFilterChain(HttpSecurity http,
-                                                           AuthenticationProvider authenticationProvider) throws Exception {
-        http.securityMatcher("/api/notifications/**", "/api/search/**")
-            .authenticationProvider(authenticationProvider)
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/search/suggestions").permitAll()
-                .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/api/search/history").authenticated()
-                .anyRequest().authenticated())
-            .exceptionHandling(exceptions -> exceptions
-                .authenticationEntryPoint((req, resp, ex) -> resp.sendError(HttpServletResponse.SC_UNAUTHORIZED))
-                .accessDeniedHandler((req, resp, ex) -> resp.sendError(HttpServletResponse.SC_FORBIDDEN)));
-        return http.build();
-    }
-
-    @Bean
-    @Order(2)
-    SecurityFilterChain apiSecurityFilterChain(HttpSecurity http,
-                                               AuthenticationProvider authenticationProvider) throws Exception {
-        http.securityMatcher("/api/**")
-            .authenticationProvider(authenticationProvider)
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/products").permitAll()
-                .requestMatchers("/api/checkout", "/api/checkout/**", "/api/orders", "/api/orders/**",
-                    "/api/favorites", "/api/favorites/**", "/api/cart", "/api/cart/**")
-                    .hasAnyRole("USER", "VENDOR")
-                .requestMatchers("/api/me").authenticated()
-                .anyRequest().authenticated())
-            .exceptionHandling(exceptions -> exceptions
-                .authenticationEntryPoint((request, response, exception) -> response.sendError(HttpServletResponse.SC_UNAUTHORIZED))
-                .accessDeniedHandler((request, response, exception) -> response.sendError(HttpServletResponse.SC_FORBIDDEN)))
-            .csrf(csrf -> csrf.disable())
-            .addFilterBefore(new JwtAuthenticationFilter(jwtService, userDetailsService), UsernamePasswordAuthenticationFilter.class);
-        return http.build();
-    }
-
-    @Bean
-    @Order(3)
     SecurityFilterChain securityFilterChain(HttpSecurity http,
                                             AuthenticationProvider authenticationProvider,
-                                            @Value("${app.remember-me.key}") String rememberMeKey,
-                                            @Value("${app.openapi.public:false}") boolean publicOpenApi) throws Exception {
+                                            @Value("${app.remember-me.key}") String rememberMeKey) throws Exception {
         http
-            .csrf(csrf -> csrf.ignoringRequestMatchers("/payments/momo/ipn"))
             .authenticationProvider(authenticationProvider)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/uploads/returns/**", "/uploads/delivery-proofs/**").denyAll()
-                // API documentation is available to ADMIN by default; explicitly opt in for local dev.
-                .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs", "/v3/api-docs/**")
-                    .access((authentication, context) -> new AuthorizationDecision(
-                        publicOpenApi || hasAnyRole(authentication.get(), "ADMIN")))
-                .requestMatchers("/", "/products/**", "/shops/**", "/login", "/register", "/verify-account",
+                .requestMatchers(HttpMethod.GET, "/api/search/suggestions").permitAll()
+                .requestMatchers("/", "/policies", "/products/**", "/shops", "/shops/**", "/login", "/register", "/verify-account",
                     "/resend-otp", "/forgot-password", "/reset-password", "/css/**", "/js/**", "/images/**",
                     "/uploads/avatars/**", "/uploads/products/**", "/uploads/shops/**",
-                    "/uploads/categories/**", "/uploads/reviews/**", "/error").permitAll()
-                .requestMatchers(HttpMethod.GET, "/payments/vnpay/return", "/payments/vnpay/ipn", "/payments/momo/return").permitAll()
-                .requestMatchers(HttpMethod.POST, "/payments/momo/ipn").permitAll()
+                    "/uploads/categories/**", "/uploads/reviews/**", "/error", "/api/auth/login", "/api/products",
+                    "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs", "/v3/api-docs/**",
+                    "/payments/payos/webhook").permitAll()
                 .requestMatchers(HttpMethod.GET, "/private-media/**")
                     .hasAnyRole("USER", "VENDOR", "SHIPPER", "MANAGER", "ADMIN")
+                .requestMatchers("/notifications", "/notifications/**", "/api/notifications/**").authenticated()
                 .requestMatchers("/vendor/register").hasAnyRole("USER", "VENDOR")
+                .requestMatchers("/vendor/returns/**").hasAnyRole("VENDOR", "ADMIN")
                 .requestMatchers("/vendor/**").hasRole("VENDOR")
-                .requestMatchers("/management/managers", "/management/managers/**", "/management/vouchers", "/management/vouchers/**").hasRole("ADMIN")
+                .requestMatchers("/management/managers/**", "/management/vouchers/**", "/management/payments/**",
+                    "/management/audit-logs", "/management/audit-logs/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/management/users/*/role").hasRole("ADMIN")
                 .requestMatchers("/management/**").hasAnyRole("MANAGER", "ADMIN")
                 .requestMatchers("/shipper/**").hasRole("SHIPPER")
-                .requestMatchers("/user", "/user/**", "/cart", "/cart/**", "/checkout", "/orders", "/orders/**")
+                .requestMatchers("/bank-transfer/**").hasAnyRole("USER", "VENDOR")
+                .requestMatchers("/user", "/user/**", "/cart", "/cart/**", "/checkout", "/checkout/**",
+                    "/orders", "/orders/**", "/api/checkout", "/api/checkout/**",
+                    "/api/orders", "/api/favorites", "/api/cart")
                     .hasAnyRole("USER", "VENDOR")
+                .requestMatchers("/api/me").authenticated()
                 .anyRequest().authenticated())
             .formLogin(form -> form
                 .loginPage("/login")
@@ -134,12 +91,14 @@ public class SecurityConfig {
                 .userDetailsService(userDetailsService))
             .exceptionHandling(exceptions -> exceptions
                 .authenticationEntryPoint(this::redirectUnauthenticated)
-                .accessDeniedHandler(this::redirectAccessDenied));
+                .accessDeniedHandler(this::redirectAccessDenied))
+            .csrf(csrf -> csrf.ignoringRequestMatchers("/api/**", "/ws/**", "/payments/payos/webhook"))
+            .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 
-    private void redirectAfterLogin(HttpServletResponse response,
-                                    Authentication authentication) throws IOException {
+    private void redirectAfterLogin(jakarta.servlet.http.HttpServletResponse response,
+                                    org.springframework.security.core.Authentication authentication) throws IOException {
         boolean admin = authentication.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_MANAGER"));
         boolean shipper = authentication.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_SHIPPER"));
         boolean vendor = authentication.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_VENDOR"));
@@ -148,11 +107,7 @@ public class SecurityConfig {
 
     private void redirectAccessDenied(HttpServletRequest request, HttpServletResponse response,
                                       org.springframework.security.access.AccessDeniedException exception) throws IOException {
-    	if (exception instanceof org.springframework.security.web.csrf.CsrfException) {
-    	    response.sendError(HttpServletResponse.SC_FORBIDDEN);
-    	    return;
-    	}
-    	if (isApiRequest(request) || isProtectedMediaRequest(request) || isApiDocumentationRequest(request)) {
+        if (isApiRequest(request) || isProtectedMediaRequest(request)) {
             response.sendError(HttpServletResponse.SC_FORBIDDEN);
             return;
         }
@@ -166,7 +121,7 @@ public class SecurityConfig {
 
     private void redirectUnauthenticated(HttpServletRequest request, HttpServletResponse response,
                                          org.springframework.security.core.AuthenticationException exception) throws IOException {
-        if (isApiRequest(request) || isProtectedMediaRequest(request) || isApiDocumentationRequest(request)) {
+        if (isApiRequest(request) || isProtectedMediaRequest(request)) {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
             return;
         }
@@ -237,21 +192,15 @@ public class SecurityConfig {
         return false;
     }
 
+    private boolean isApiRequest(HttpServletRequest request) {
+        return withoutContextPath(request, request.getRequestURI()).startsWith("/api/");
+    }
+
     private boolean isProtectedMediaRequest(HttpServletRequest request) {
         String path = withoutContextPath(request, request.getRequestURI());
         return matchesArea(path, "/private-media")
             || matchesArea(path, "/uploads/returns")
             || matchesArea(path, "/uploads/delivery-proofs");
-    }
-
-    private boolean isApiDocumentationRequest(HttpServletRequest request) {
-        String path = withoutContextPath(request, request.getRequestURI());
-        return matchesArea(path, "/swagger-ui") || matchesArea(path, "/swagger-ui.html")
-            || matchesArea(path, "/v3/api-docs");
-    }
-
-    private boolean isApiRequest(HttpServletRequest request) {
-        return withoutContextPath(request, request.getRequestURI()).startsWith("/api/");
     }
 
     private int effectivePort(URI uri) {

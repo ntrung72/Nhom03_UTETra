@@ -1,9 +1,11 @@
 package vn.iotstar.entity;
 
+import vn.iotstar.util.VietnamTime;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -72,15 +74,14 @@ public class Shop {
     @Column(nullable = false, length = 20)
     private ShopStatus status = ShopStatus.PENDING;
 
-    @Column(name = "commission_rate", nullable = false,
-            precision = 5, scale = 2)
+    @Column(name = "commission_rate", nullable = false, precision = 5, scale = 2)
     private BigDecimal commissionRate = new BigDecimal("5.00");
 
     @Column(nullable = false)
     private boolean enabled = true;
 
     @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
+    private LocalDateTime createdAt = VietnamTime.now();
 
     public boolean isApproved() {
         return enabled && status == ShopStatus.APPROVED;
@@ -90,5 +91,15 @@ public class Shop {
         return java.util.stream.Stream.of(address, ward, district, province)
             .filter(value -> value != null && !value.isBlank())
             .collect(java.util.stream.Collectors.joining(", "));
+    }
+
+    public boolean isOpenNow() {
+        if (!isApproved() || openingTime == null || closingTime == null) return false;
+        if (openingTime.equals(closingTime)) return true;
+        LocalTime now = LocalTime.now(ZoneId.of("Asia/Ho_Chi_Minh"));
+        if (openingTime.isBefore(closingTime)) {
+            return !now.isBefore(openingTime) && now.isBefore(closingTime);
+        }
+        return !now.isBefore(openingTime) || now.isBefore(closingTime);
     }
 }
